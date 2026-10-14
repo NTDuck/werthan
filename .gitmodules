@@ -1,3 +1,6 @@
 [submodule "asd-ste100-skill"]
 	path = werðan/.checks/ste100/references/asd-ste100-skill
 	url = https://github.com/danyuchn/asd-ste100-skill
+[submodule "conventionalcommits.org"]
+	path = .omp/rules/references/conventionalcommits.org
+	url = https://github.com/conventional-commits/conventionalcommits.org
