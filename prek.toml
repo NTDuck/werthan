@@ -1,0 +1,16 @@
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "check"
+name = "check"
+entry = "mise run check"
+language = "system"
+pass_filenames = false
+
+[[repos.hooks]]
+id = "lint"
+name = "lint"
+entry = "mise run lint"
+language = "system"
+pass_filenames = false
