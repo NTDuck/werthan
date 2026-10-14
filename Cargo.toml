@@ -1,6 +1,7 @@
 [workspace]
 members = [
-    "werðan/.examples/*"
+    "werðan/.checks/*",
+    "werðan/.examples/*",
 ]
 resolver = "2"
 
@@ -12,11 +13,17 @@ publish = false
 
 [workspace.dependencies]
 # Cross-cutting concerns, centralized
+flatmods = { path = "werðan/.checks/flatmods" }
+pathqual = { path = "werðan/.checks/pathqual" }
+plumbing = { path = "werðan/.checks/plumbing" }
+ste100 = { path = "werðan/.checks/ste100" }
+stepdown = { path = "werðan/.checks/stepdown" }
+turbofish = { path = "werðan/.checks/turbofish" }
 
 # Crates that we choose to marry
 # See: https://blessed.rs/crates
+proc-macro2 = { version = "1.0", features = ["span-locations"] }
 serde = { version = "1.0", features = ["derive"] }
-
 [workspace.lints.rust]
 # See: https://doc.rust-lang.org/rustc/lints/listing/index.html
 

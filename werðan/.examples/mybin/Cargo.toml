@@ -6,7 +6,13 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
-[dependencies]
+[build-dependencies]
+flatmods.workspace = true
+pathqual.workspace = true
+plumbing.workspace = true
+ste100.workspace = true
+stepdown.workspace = true
+turbofish.workspace = true
 
 [lints]
 workspace = true

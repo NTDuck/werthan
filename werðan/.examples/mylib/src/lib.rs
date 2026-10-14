@@ -1,4 +1,4 @@
-pub fn add(left: u64, right: u64) -> u64 {
+pub fn add(left: ::core::primitive::u64, right: ::core::primitive::u64) -> ::core::primitive::u64 {
     left + right
 }
 
@@ -9,6 +9,6 @@ mod tests {
     #[test]
     fn it_works() {
         let result = add(2, 2);
-        assert_eq!(result, 4);
+        ::std::assert_eq!(result, 4);
     }
 }
