@@ -95,18 +95,37 @@ impl<'a> Checker<'a> {
                     i += 1;
                 },
                 ::proc_macro2::TokenTree::Ident(id) if id == "let" => {
+                    let is_if_or_while = if i > 0 {
+                        match &trees[i - 1] {
+                            ::proc_macro2::TokenTree::Ident(prev) => prev == "if" || prev == "while",
+                            _ => false,
+                        }
+                    } else {
+                        false
+                    };
+                    if is_if_or_while {
+                        i += 1;
+                        continue;
+                    }
+
                     let start_idx = i;
                     let line = id.span().start().line;
                     i += 1;
 
                     let mut semi_idx = i;
+                    let mut found_semi = false;
                     while semi_idx < trees.len() {
                         if let ::proc_macro2::TokenTree::Punct(p) = &trees[semi_idx] {
                             if p.as_char() == ';' {
+                                found_semi = true;
                                 break;
                             }
                         }
                         semi_idx += 1;
+                    }
+
+                    if !found_semi {
+                        continue;
                     }
 
                     let stmt_tokens = &trees[start_idx..semi_idx];
@@ -186,12 +205,8 @@ fn has_call(tokens: &[::proc_macro2::TokenTree]) -> ::core::primitive::bool {
             },
             ::proc_macro2::TokenTree::Ident(id) => {
                 let name = id.to_string();
-                if is_call_ident(&name) && i + 1 < tokens.len() {
-                    if let ::core::option::Option::Some(::proc_macro2::TokenTree::Group(g)) = tokens.get(i + 1) {
-                        if g.delimiter() == ::proc_macro2::Delimiter::Parenthesis {
-                            return true;
-                        }
-                    }
+                if is_call_ident(&name) && has_call_args(tokens, i) {
+                    return true;
                 }
             },
             _ => {},
@@ -202,4 +217,46 @@ fn has_call(tokens: &[::proc_macro2::TokenTree]) -> ::core::primitive::bool {
 
 fn is_call_ident(name: &::core::primitive::str) -> ::core::primitive::bool {
     !::core::matches!(name, "if" | "while" | "for" | "match" | "return" | "loop" | "unsafe")
+}
+
+fn has_call_args(trees: &[::proc_macro2::TokenTree], idx: ::core::primitive::usize) -> ::core::primitive::bool {
+    if let ::core::option::Option::Some(::proc_macro2::TokenTree::Group(g)) = trees.get(idx + 1) {
+        if g.delimiter() == ::proc_macro2::Delimiter::Parenthesis {
+            return true;
+        }
+    }
+    let p1 = trees.get(idx + 1);
+    let p2 = trees.get(idx + 2);
+    let p3 = trees.get(idx + 3);
+    let is_turbofish = match (p1, p2, p3) {
+        (
+            ::core::option::Option::Some(::proc_macro2::TokenTree::Punct(a)),
+            ::core::option::Option::Some(::proc_macro2::TokenTree::Punct(b)),
+            ::core::option::Option::Some(::proc_macro2::TokenTree::Punct(c)),
+        ) => a.as_char() == ':' && b.as_char() == ':' && c.as_char() == '<',
+        _ => false,
+    };
+    if !is_turbofish {
+        return false;
+    }
+    let mut depth: ::core::primitive::usize = 0;
+    for (offset, tree) in trees[idx + 3..].iter().enumerate() {
+        if let ::proc_macro2::TokenTree::Punct(p) = tree {
+            match p.as_char() {
+                '<' => depth += 1,
+                '>' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return match trees.get(idx + 4 + offset) {
+                            ::core::option::Option::Some(::proc_macro2::TokenTree::Group(g)) =>
+                                g.delimiter() == ::proc_macro2::Delimiter::Parenthesis,
+                            _ => false,
+                        };
+                    }
+                },
+                _ => {},
+            }
+        }
+    }
+    false
 }

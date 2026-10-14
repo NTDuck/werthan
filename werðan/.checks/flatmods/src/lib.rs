@@ -62,20 +62,34 @@ pub fn check_source(
             ::core::result::Result::Err(_) => return warnings,
         };
         let trees = stream.into_iter().collect::<::std::vec::Vec<::proc_macro2::TokenTree>>();
-        for w in trees.windows(3) {
-            if let [::proc_macro2::TokenTree::Ident(m), ::proc_macro2::TokenTree::Ident(name), ::proc_macro2::TokenTree::Punct(p)] =
-                w
-            {
-                if m == "mod" && p.as_char() == ';' {
-                    warnings.push(::std::format!(
-                        "cargo:warning={}:{}: flatmods rule violation: declare sub-module `{name}` directly in root \
-                         crate file or flat module file.",
-                        path.display(),
-                        m.span().start().line
-                    ));
-                }
+        scan_submodules(&trees, path, &mut warnings);
+    }
+    warnings
+}
+
+fn scan_submodules(
+    trees: &[::proc_macro2::TokenTree],
+    path: &::std::path::Path,
+    warnings: &mut ::std::vec::Vec<::std::string::String>,
+) {
+    for w in trees.windows(3) {
+        if let [::proc_macro2::TokenTree::Ident(m), ::proc_macro2::TokenTree::Ident(name), ::proc_macro2::TokenTree::Punct(p)] =
+            w
+        {
+            if m == "mod" && p.as_char() == ';' {
+                warnings.push(::std::format!(
+                    "cargo:warning={}:{}: flatmods rule violation: declare sub-module `{name}` directly in root crate \
+                     file or flat module file.",
+                    path.display(),
+                    m.span().start().line
+                ));
             }
         }
     }
-    warnings
+    for tree in trees {
+        if let ::proc_macro2::TokenTree::Group(g) = tree {
+            let inner = g.stream().into_iter().collect::<::std::vec::Vec<::proc_macro2::TokenTree>>();
+            scan_submodules(&inner, path, warnings);
+        }
+    }
 }

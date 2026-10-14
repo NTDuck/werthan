@@ -96,3 +96,45 @@ Feature: Enforce ASD-STE100 compliance (ste100)
       """
     When I run ste100
     Then I get 0 warning(s)
+
+  Scenario: Raw string literal containing semicolon triggers warning
+    Given the source code:
+      """
+      fn log_raw() {
+          let _ = r#"First message; second message"#;
+      }
+      """
+    When I run ste100
+    Then I get 1 warning(s)
+    And the warning mentions `STE bans the semicolon`
+
+  Scenario: Block comment containing marketing adjective triggers warning
+    Given the source code:
+      """
+      /* This is a robust implementation. */
+      pub fn process() {}
+      """
+    When I run ste100
+    Then I get 1 warning(s)
+    And the warning mentions `Marketing adjective`
+
+  Scenario: Inner doc comment containing nominalization triggers warning
+    Given the source code:
+      """
+      //! Please perform an analysis of data before running.
+      pub fn init() {}
+      """
+    When I run ste100
+    Then I get 1 warning(s)
+    And the warning mentions `Action frozen into a noun`
+
+  Scenario: Multiple string literals on the same line trigger warnings
+    Given the source code:
+      """
+      fn log_both() {
+          let _ = ("First; part", "Second; part");
+      }
+      """
+    When I run ste100
+    Then I get 2 warning(s)
+    And the warning mentions `STE bans the semicolon`

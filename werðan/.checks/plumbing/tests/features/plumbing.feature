@@ -76,3 +76,35 @@ Feature: Enforce chaining nested function calls (plumbing)
     When I run plumbing
     Then I get 2 warning(s)
     And the warning mentions `bar`
+
+  Scenario: Nested turbofish call triggers warnings
+    Given the source code:
+      """
+      fn run() {
+          foo(bar::<::core::primitive::u32>(x));
+      }
+      """
+    When I run plumbing
+    Then I get 1 warning(s)
+    And the warning mentions `bar`
+
+  Scenario: Multiple nested call arguments trigger warnings for each
+    Given the source code:
+      """
+      fn run() {
+          foo(bar(x), baz(y));
+      }
+      """
+    When I run plumbing
+    Then I get 2 warning(s)
+    And the warning mentions `bar`
+
+  Scenario: Method call as argument passes without warnings
+    Given the source code:
+      """
+      fn run() {
+          foo(x.bar());
+      }
+      """
+    When I run plumbing
+    Then I get 0 warning(s)

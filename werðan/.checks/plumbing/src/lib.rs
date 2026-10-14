@@ -88,11 +88,7 @@ fn scan(
                 scan(&inner, next_depth, out);
             },
             ::proc_macro2::TokenTree::Ident(id) if depth > 0 => {
-                let is_call = match trees.get(idx + 1) {
-                    ::core::option::Option::Some(::proc_macro2::TokenTree::Group(g)) =>
-                        g.delimiter() == ::proc_macro2::Delimiter::Parenthesis,
-                    _ => false,
-                };
+                let is_call = has_call_args(trees, idx);
                 let is_method = if idx > 0 {
                     match trees.get(idx - 1) {
                         ::core::option::Option::Some(::proc_macro2::TokenTree::Punct(p)) => p.as_char() == '.',
@@ -119,6 +115,47 @@ fn is_function_call(name: &::core::primitive::str) -> ::core::primitive::bool {
         ::core::option::Option::Some(c) => c.is_ascii_lowercase() || c == '_',
         _ => false,
     }
+}
+fn has_call_args(trees: &[::proc_macro2::TokenTree], idx: ::core::primitive::usize) -> ::core::primitive::bool {
+    if let ::core::option::Option::Some(::proc_macro2::TokenTree::Group(g)) = trees.get(idx + 1) {
+        if g.delimiter() == ::proc_macro2::Delimiter::Parenthesis {
+            return true;
+        }
+    }
+    let p1 = trees.get(idx + 1);
+    let p2 = trees.get(idx + 2);
+    let p3 = trees.get(idx + 3);
+    let is_turbofish = match (p1, p2, p3) {
+        (
+            ::core::option::Option::Some(::proc_macro2::TokenTree::Punct(a)),
+            ::core::option::Option::Some(::proc_macro2::TokenTree::Punct(b)),
+            ::core::option::Option::Some(::proc_macro2::TokenTree::Punct(c)),
+        ) => a.as_char() == ':' && b.as_char() == ':' && c.as_char() == '<',
+        _ => false,
+    };
+    if !is_turbofish {
+        return false;
+    }
+    let mut depth: ::core::primitive::usize = 0;
+    for (offset, tree) in trees[idx + 3..].iter().enumerate() {
+        if let ::proc_macro2::TokenTree::Punct(p) = tree {
+            match p.as_char() {
+                '<' => depth += 1,
+                '>' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return match trees.get(idx + 4 + offset) {
+                            ::core::option::Option::Some(::proc_macro2::TokenTree::Group(g)) =>
+                                g.delimiter() == ::proc_macro2::Delimiter::Parenthesis,
+                            _ => false,
+                        };
+                    }
+                },
+                _ => {},
+            }
+        }
+    }
+    false
 }
 
 fn is_keyword(s: &::core::primitive::str) -> ::core::primitive::bool {

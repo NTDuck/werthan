@@ -88,6 +88,7 @@ impl<'a> Checker<'a> {
     fn scan(&mut self, trees: &[::proc_macro2::TokenTree]) {
         let mut idx = 0;
         let mut ctx = self::Ctx::None;
+        let mut in_type_decl = false;
 
         while idx < trees.len() {
             if let ::core::option::Option::Some(skip) = self.check_attr(&trees[idx..]) {
@@ -97,7 +98,17 @@ impl<'a> Checker<'a> {
 
             match &trees[idx] {
                 ::proc_macro2::TokenTree::Punct(p) => match p.as_char() {
-                    ';' | '=' | ',' => ctx = self::Ctx::None,
+                    ';' => {
+                        in_type_decl = false;
+                        ctx = self::Ctx::None;
+                    },
+                    '=' =>
+                        if in_type_decl {
+                            ctx = self::Ctx::Type;
+                        } else {
+                            ctx = self::Ctx::None;
+                        },
+                    ',' => ctx = self::Ctx::None,
                     ':' if !is_part_of_colon2(trees, idx) => ctx = self::Ctx::Type,
                     '-' => {
                         let is_arrow = match trees.get(idx + 1) {
@@ -123,8 +134,15 @@ impl<'a> Checker<'a> {
                 ::proc_macro2::TokenTree::Ident(id) => {
                     let text = id.to_string();
                     match text.as_str() {
-                        "use" | "where" | "impl" | "type" | "as" => ctx = self::Ctx::Type,
-                        "fn" | "struct" | "enum" | "mod" | "let" => ctx = self::Ctx::None,
+                        "use" | "where" | "impl" | "as" => ctx = self::Ctx::Type,
+                        "type" => {
+                            in_type_decl = true;
+                            ctx = self::Ctx::None;
+                        },
+                        "fn" | "struct" | "enum" | "mod" | "let" => {
+                            in_type_decl = false;
+                            ctx = self::Ctx::None;
+                        },
                         _ =>
                             if is_macro(trees, idx, &text) {
                                 let has_colon_prefix = idx >= 2 && is_colon2(trees, idx - 2);

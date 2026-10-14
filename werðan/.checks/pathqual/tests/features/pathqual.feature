@@ -140,3 +140,61 @@ Feature: Enforce fully qualified paths (pathqual)
       """
     When I run pathqual
     Then I get 0 warning(s)
+
+  Scenario: Unqualified type in type alias triggers warning
+    Given the source code:
+      """
+      type Counter = usize;
+      """
+    When I run pathqual
+    Then I get 1 warning(s)
+    And the warning mentions `usize`
+
+  Scenario: Fully qualified type in type alias passes without warnings
+    Given the source code:
+      """
+      type Counter = ::core::primitive::usize;
+      """
+    When I run pathqual
+    Then I get 0 warning(s)
+
+  Scenario: Unqualified type in as cast triggers warning
+    Given the source code:
+      """
+      pub fn convert(val: ::core::primitive::usize) -> ::core::primitive::u64 {
+          val as u64
+      }
+      """
+    When I run pathqual
+    Then I get 1 warning(s)
+    And the warning mentions `u64`
+
+  Scenario: Fully qualified type in as cast passes without warnings
+    Given the source code:
+      """
+      pub fn convert(val: ::core::primitive::usize) -> ::core::primitive::u64 {
+          val as ::core::primitive::u64
+      }
+      """
+    When I run pathqual
+    Then I get 0 warning(s)
+
+  Scenario: Inner crate attribute passes without warnings
+    Given the source code:
+      """
+      #![allow(unused)]
+
+      pub fn run() {}
+      """
+    When I run pathqual
+    Then I get 0 warning(s)
+
+  Scenario: Fully qualified macro call passes without warnings
+    Given the source code:
+      """
+      pub fn make_vec() -> ::std::vec::Vec<::core::primitive::u8> {
+          ::std::vec![1, 2, 3]
+      }
+      """
+    When I run pathqual
+    Then I get 0 warning(s)

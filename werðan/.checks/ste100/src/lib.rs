@@ -112,13 +112,29 @@ pub fn check_source(
 }
 
 fn find_ste_lint_script() -> ::core::option::Option<::std::path::PathBuf> {
-    let script = ::std::path::Path::new(::core::env!("CARGO_MANIFEST_DIR"))
-        .join("references/asd-ste100-skill/scripts/ste-lint.py");
-    if script.exists() {
-        ::core::option::Option::Some(script)
-    } else {
-        ::core::option::Option::None
+    let manifest_path = ::std::path::Path::new(::core::env!("CARGO_MANIFEST_DIR"));
+    let candidates = [
+        manifest_path.join("references/asd-ste100-skill/scripts/ste-lint.py"),
+        manifest_path.join("../../.agents/skills/asd-ste100/scripts/ste-lint.py"),
+        manifest_path.join("../../../.agents/skills/asd-ste100/scripts/ste-lint.py"),
+    ];
+    for candidate in candidates {
+        if candidate.exists() {
+            return ::core::option::Option::Some(candidate);
+        }
     }
+    if let ::core::result::Result::Ok(cwd) = ::std::env::current_dir() {
+        let cwd_candidates = [
+            cwd.join("werðan/.checks/ste100/references/asd-ste100-skill/scripts/ste-lint.py"),
+            cwd.join(".agents/skills/asd-ste100/scripts/ste-lint.py"),
+        ];
+        for candidate in cwd_candidates {
+            if candidate.exists() {
+                return ::core::option::Option::Some(candidate);
+            }
+        }
+    }
+    ::core::option::Option::None
 }
 
 fn find_python() -> ::core::option::Option<::std::path::PathBuf> {
@@ -198,11 +214,13 @@ fn mask_source(source: &::core::primitive::str) -> ::std::string::String {
             continue;
         }
 
-        if trimmed.starts_with("/**") || trimmed.starts_with("/*!") {
+        if trimmed.starts_with("/**") || trimmed.starts_with("/*!") || trimmed.starts_with("/*") {
             let prefix = if trimmed.starts_with("/**") {
                 "/**"
-            } else {
+            } else if trimmed.starts_with("/*!") {
                 "/*!"
+            } else {
+                "/*"
             };
             if let ::core::option::Option::Some(pos) = line.find(prefix) {
                 let rest = &line[pos + prefix.len()..];
@@ -263,18 +281,23 @@ fn mask_source(source: &::core::primitive::str) -> ::std::string::String {
                 let line_num = start_line + offset;
                 if line_num > 0 && line_num <= masked_lines.len() {
                     let idx = line_num - 1;
+                    let col = if offset == 0 {
+                        start_col
+                    } else {
+                        0
+                    };
                     if masked_lines[idx].trim().is_empty() {
                         let mut s = ::std::string::String::new();
-                        let col = if offset == 0 {
-                            start_col
-                        } else {
-                            0
-                        };
                         for _ in 0..col {
                             s.push(' ');
                         }
                         s.push_str(sub);
                         masked_lines[idx] = s;
+                    } else if offset == 0 && col > masked_lines[idx].len() {
+                        for _ in masked_lines[idx].len()..col {
+                            masked_lines[idx].push(' ');
+                        }
+                        masked_lines[idx].push_str(sub);
                     }
                 }
             }

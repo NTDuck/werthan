@@ -88,3 +88,62 @@ Feature: Enforce Clean Code Stepdown Rule (stepdown)
       """
     When I run stepdown
     Then I get 0 warning(s)
+
+  Scenario: Public functions obeying stepdown pass without warnings
+    Given the source code:
+      """
+      pub fn public_caller() {
+          internal_callee();
+      }
+      fn internal_callee() {}
+      """
+    When I run stepdown
+    Then I get 0 warning(s)
+
+  Scenario: Async functions obeying stepdown pass without warnings
+    Given the source code:
+      """
+      async fn fetch_all() {
+          fetch_one().await;
+      }
+      async fn fetch_one() {}
+      """
+    When I run stepdown
+    Then I get 0 warning(s)
+
+  Scenario: Async callee before caller triggers warning
+    Given the source code:
+      """
+      async fn fetch_one() {}
+      async fn fetch_all() {
+          fetch_one().await;
+      }
+      """
+    When I run stepdown
+    Then I get 1 warning(s)
+    And the warning mentions `stepdown rule violation`
+
+  Scenario: Callee with turbofish called before definition triggers warning
+    Given the source code:
+      """
+      fn parse_item<T>() {}
+      fn load_all() {
+          parse_item::<::core::primitive::u32>();
+      }
+      """
+    When I run stepdown
+    Then I get 1 warning(s)
+    And the warning mentions `stepdown rule violation`
+
+  Scenario: In-order multiple callees pass without warnings
+    Given the source code:
+      """
+      fn top_level() {
+          step_one();
+          step_two();
+      }
+      fn step_one() {}
+      fn step_two() {}
+      """
+    When I run stepdown
+    Then I get 0 warning(s)
