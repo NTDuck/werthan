@@ -4,3 +4,6 @@
 [submodule "conventionalcommits.org"]
 	path = .omp/rules/references/conventionalcommits.org
 	url = https://github.com/conventional-commits/conventionalcommits.org
+[submodule "madr"]
+	path = .omp/rules/references/madr
+	url = https://github.com/adr/madr
