@@ -1,0 +1,6 @@
+[tasks]
+debug = "cargo run"
+release = "cargo run --release"
+check = "cargo check"
+test = "cargo nextest run"
+lint = "cargo fmt && cargo clippy"

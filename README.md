@@ -1,2 +1,1 @@
-# werthan
-werðan
+# werðan
