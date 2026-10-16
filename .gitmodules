@@ -7,3 +7,6 @@
 [submodule "madr"]
 	path = .omp/rules/references/madr
 	url = https://github.com/adr/madr
+[submodule "rig"]
+	path = .omp/rules/references/rig
+	url = https://github.com/0xPlaygrounds/rig

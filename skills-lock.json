@@ -7,6 +7,12 @@
       "skillPath": "SKILL.md",
       "computedHash": "911447778fee7936cc62f4ff8b86c9e38a9c11c73a1f14b2e233acdb517a9a12"
     },
+    "better-ui": {
+      "source": "jakubkrehel/skills",
+      "sourceType": "github",
+      "skillPath": "skills/better-ui/SKILL.md",
+      "computedHash": "6f69968c0d1ed034753d64aa22f2bf4332f1471164f110db720d05faf76c3551"
+    },
     "find-docs": {
       "source": "upstash/context7",
       "sourceType": "github",
