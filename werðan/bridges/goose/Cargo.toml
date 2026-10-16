@@ -1,0 +1,37 @@
+[package]
+name = "bridge-goose"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[build-dependencies]
+flatmods.workspace = true
+pathqual.workspace = true
+plumbing.workspace = true
+ste100.workspace = true
+stepdown.workspace = true
+turbofish.workspace = true
+
+[dependencies]
+bon.workspace = true
+futures-util = "0.3"
+reqwest = { workspace = true }
+rig = { workspace = true }
+serde = { workspace = true }
+serde_json = "1.0"
+tokio = { version = "1", features = ["sync", "macros", "rt"] }
+tokio-stream = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+cucumber.workspace = true
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[[test]]
+name = "cucumber"
+harness = false
