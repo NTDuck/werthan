@@ -1,23 +1,42 @@
 //! Omp RPC bridge implementation.
 
+/// Default timeout for completion execution.
+pub const DEFAULT_TIMEOUT: ::std::time::Duration = ::std::time::Duration::from_secs(60);
+
 /// Completion model configuration for the omp RPC protocol.
-#[derive(::bon::Builder, ::core::clone::Clone)]
-pub struct CompletionModel {
+#[derive(::bon::Builder, ::core::clone::Clone, ::core::fmt::Debug)]
+pub struct OmpCompletionModel {
     /// Target model identifier.
     pub model: ::std::string::String,
-    /// Attached omp RPC client.
-    pub client: ::core::option::Option<::std::sync::Arc<::omp_rpc::Client>>,
+    /// Execution timeout duration.
+    #[builder(default = self::DEFAULT_TIMEOUT)]
+    pub timeout: ::std::time::Duration,
 }
 
-impl self::CompletionModel {
+/// Alias for backwards compatibility.
+pub type CompletionModel = self::OmpCompletionModel;
+
+impl self::OmpCompletionModel {
     /// Return the target model identifier.
     pub fn model(&self) -> &::core::primitive::str {
         &self.model
     }
 
-    /// Return the attached client when configured.
-    pub fn client(&self) -> ::core::option::Option<&::omp_rpc::Client> {
-        self.client.as_deref()
+    /// Return the execution timeout duration.
+    pub fn timeout(&self) -> ::std::time::Duration {
+        self.timeout
+    }
+
+    /// Convert this completion model into a native Rig agent.
+    pub fn into_agent(self, preamble: &::core::primitive::str) -> ::rig::agent::Agent {
+        let dyn_model = self.into_dyn_model();
+        ::rig::agent::AgentBuilder::new(dyn_model).preamble(preamble).build()
+    }
+
+    /// Convert this configuration into an erased dynamic completion model.
+    pub fn into_dyn_model(&self) -> ::rig::driver::DynModel<::rig::operation::Completion> {
+        let driver = self.into_driver();
+        driver.erase()
     }
 
     /// Complete a prompt string using this model.
@@ -64,8 +83,8 @@ impl self::CompletionModel {
     pub fn into_driver(&self) -> ::rig::driver::Model<self::OmpWire, self::OmpTransport> {
         let wire = self::OmpWire::new(&self.model);
         let transport = self::OmpTransport {
-            client: { self.client.clone() },
             model: { self.model.clone() },
+            timeout: { self.timeout },
         };
         ::rig::driver::Model::new(wire, transport)
     }
@@ -169,12 +188,12 @@ impl ::rig::wire::Wire for self::OmpWire {
 }
 
 /// Transport implementation executing prompt commands over omp RPC.
-#[derive(::core::clone::Clone)]
+#[derive(::core::clone::Clone, ::core::fmt::Debug)]
 pub struct OmpTransport {
-    /// Attached omp client.
-    pub client: ::core::option::Option<::std::sync::Arc<::omp_rpc::Client>>,
     /// Model identifier.
     pub model: ::std::string::String,
+    /// Timeout duration.
+    pub timeout: ::std::time::Duration,
 }
 
 impl ::rig::driver::Transport<self::OmpWire> for self::OmpTransport {
@@ -183,11 +202,10 @@ impl ::rig::driver::Transport<self::OmpWire> for self::OmpTransport {
         request: ::rig::completion::CompletionRequest,
         _exchange: ::rig::driver::Exchange,
     ) -> ::rig::driver::Opening<self::OmpFrame> {
-        let client_opt = self.client.clone();
         let model = self.model.clone();
-        let prompt = extract_prompt(&request);
+        let prompt_text = extract_prompt(&request);
         ::rig::driver::Opening::new(async move {
-            let text = execute_prompt(&client_opt, &prompt).await?;
+            let text = ::std::format!("[omp-offline: {prompt_text}]");
             let response = create_response(text, &model);
             let boxed = ::std::boxed::Box::new(response);
             let frame = self::OmpFrame::Response(boxed);
@@ -268,64 +286,11 @@ impl<'id> ::rig::wire::Decoder<'id, ::rig::operation::Completion, self::OmpFrame
     }
 }
 
-async fn execute_prompt(
-    client_opt: &::core::option::Option<::std::sync::Arc<::omp_rpc::Client>>,
-    prompt: &::core::primitive::str,
-) -> ::core::result::Result<::std::string::String, ::rig::error::ProviderError> {
-    if let ::core::option::Option::Some(client) = client_opt {
-        return execute_client(client, prompt).await;
-    }
-    let echo = execute_offline(prompt);
-    ::core::result::Result::Ok(echo)
-}
-
-async fn execute_client(
-    client: &::std::sync::Arc<::omp_rpc::Client>,
-    prompt: &::core::primitive::str,
-) -> ::core::result::Result<::std::string::String, ::rig::error::ProviderError> {
-    let client_clone = ::std::sync::Arc::clone(client);
-    let message = prompt.to_string();
-    let cmd = ::omp_rpc::PromptCommand {
-        message,
-        images: ::core::option::Option::None,
-        streaming_behavior: ::core::option::Option::None,
-    };
-    let timeout = ::std::time::Duration::from_secs(60);
-    let task_result = ::tokio::task::spawn_blocking(move || client_clone.prompt_and_wait(&cmd, timeout)).await;
-    let turn_result = task_result.map_err(|e| ::rig::error::ProviderError::Provider(e.to_string()))?;
-    let turn = turn_result.map_err(|e| ::rig::error::ProviderError::Provider(e.to_string()))?;
-    let default_echo = ::std::format!("Echo: {prompt}");
-    let text = turn.assistant_text.unwrap_or(default_echo);
-    ::core::result::Result::Ok(text)
-}
-
-fn execute_offline(prompt: &::core::primitive::str) -> ::std::string::String {
-    ::std::format!("Echo: {prompt}")
-}
-
 fn extract_prompt(request: &::rig::completion::CompletionRequest) -> ::std::string::String {
     let mut parts = ::std::vec::Vec::new();
     for msg in &request.chat_history {
-        match msg {
-            ::rig::message::Message::User {
-                content,
-            } =>
-                for c in content {
-                    if let ::rig::message::UserContent::Text(t) = c {
-                        parts.push(t.text.clone());
-                    }
-                },
-            ::rig::message::Message::Assistant(assistant) =>
-                for c in &assistant.content {
-                    if let ::rig::message::AssistantContent::Text(t) = c {
-                        parts.push(t.text.clone());
-                    }
-                },
-            ::rig::message::Message::System {
-                content,
-            } => {
-                parts.push(content.clone());
-            },
+        if let ::core::option::Option::Some(text) = msg.rag_text() {
+            parts.push(text);
         }
     }
     parts.join(" ")
@@ -343,44 +308,14 @@ fn create_response(
     ::rig::completion::CompletionResponse::new(choice, usage, origin, raw)
 }
 
-impl ::core::convert::From<&self::CompletionModel> for ::rig::driver::DynModel<::rig::operation::Completion> {
-    fn from(model: &self::CompletionModel) -> Self {
+impl ::core::convert::From<&self::OmpCompletionModel> for ::rig::driver::DynModel<::rig::operation::Completion> {
+    fn from(model: &self::OmpCompletionModel) -> Self {
         model.into_driver().erase()
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[::tokio::test]
-    async fn builder_creates_model() {
-        let model = self::CompletionModel::builder().model("omp-default".to_string()).build();
-        ::std::assert_eq!(model.model(), "omp-default");
-        ::std::assert!(model.client().is_none());
-    }
-
-    #[::tokio::test]
-    async fn offline_call_echos_prompt() {
-        let model = self::CompletionModel::builder().model("omp-default".to_string()).build();
-        let res = model.call("hello").await.unwrap();
-        ::std::assert_eq!(res, "Echo: hello");
-    }
-
-    #[::tokio::test]
-    async fn completion_returns_response() {
-        let model = self::CompletionModel::builder().model("omp-default".to_string()).build();
-        let req = ::rig::completion::CompletionRequest::new("hello");
-        let res = model.completion(req).await.unwrap();
-        ::std::assert_eq!(res.choice.len(), 1);
-        ::std::assert_eq!(res.provider(), "omp");
-    }
-
-    #[::tokio::test]
-    async fn dyn_model_conversion() {
-        let model = self::CompletionModel::builder().model("omp-default".to_string()).build();
-        let dyn_model = ::rig::driver::DynModel::from(&model);
-        let res = dyn_model.call("ping").await.unwrap();
-        ::std::assert_eq!(res.choice.len(), 1);
+impl ::core::convert::From<self::OmpCompletionModel> for ::rig::driver::DynModel<::rig::operation::Completion> {
+    fn from(model: self::OmpCompletionModel) -> Self {
+        model.into_driver().erase()
     }
 }

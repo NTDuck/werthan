@@ -1,5 +1,5 @@
 [tasks]
-tui = "cargo run -p tui"
+tui = "cargo run -p tui --"
 check = "cargo check"
 test = "cargo nextest run"
 lint = "cargo fmt && cargo clippy"

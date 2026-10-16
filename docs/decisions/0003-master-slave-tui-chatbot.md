@@ -25,13 +25,13 @@ How should the TUI binary be configured, structured, and invoked to support dete
 
 Chosen option: Implement a Ratatui-based TUI in `werðan/bins/tui/` with a horizontal master/slave split (50/50):
 - **Master (Left)**: Orchestrator agent displaying message history, input prompt, and dispatch status bar.
-- **Slaves (Right)**: Four vertically stacked panes displaying outputs from `bridge-rig`, `bridge-omp`, `bridge-goose`, and `bridge-codex`.
+- **Workers (Right)**: Three vertically stacked panes displaying outputs from `bridge-omp`, `bridge-goose`, and `bridge-codex`.
 - **Deterministic Relay**: Prompt submissions deterministically invoke each bridge's `call()` method without prompt-based translation indirection.
 - **Task Runner**: Configured in `mise.toml` as `tui = "cargo run -p tui"` (replacing `debug` and `release`).
 
 ### Consequences
 
-* Good, because developers can observe and interact with all four bridge models in parallel in real time.
+* Good, because developers can observe and interact with all bridge models in parallel in real time.
 * Good, because `werðan/bins/tui/` adheres 100% to repository linter policies at build time.
 * Good, because smoke/headless environments automatically complete a verification turn without hanging.
 

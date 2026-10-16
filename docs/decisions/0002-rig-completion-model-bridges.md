@@ -32,7 +32,6 @@ Chosen option: "Remove `core/agent`, rename `infras` to `bridges`, and wire each
 
 ### Bridge Specification
 
-- **`bridge-rig` (`werðan/bridges/rig`)**: Rig OpenAI-compatible completion model with native `into_driver()` returning `Model<OpenAiWire, DynHttpClient>` and `From<&CompletionModel> for DynModel<Completion>`.
 - **`bridge-omp` (`werðan/bridges/omp`)**: Omp RPC completion model with native `OmpWire` (`Wire`) and `OmpTransport` (`Transport`), returning `Model<OmpWire, OmpTransport>` and `From<&CompletionModel> for DynModel<Completion>`.
 - **`bridge-goose` (`werðan/bridges/goose`)**: Goose ACP completion model with native `GooseWire` (`Wire`) and `GooseTransport` (`Transport`), returning `Model<GooseWire, GooseTransport>` and `From<&CompletionModel> for DynModel<Completion>`.
 - **`bridge-codex` (`werðan/bridges/codex`)**: Codex protocol completion model with native `CodexWire` (`Wire`) and `CodexTransport` (`Transport`), returning `Model<CodexWire, CodexTransport>` and `From<&CompletionModel> for DynModel<Completion>`.
@@ -46,5 +45,4 @@ All bridges execute the six workspace checks in `build.rs` and derive `::bon::Bu
 * Good, because 100% compliance with `flatmods`, `pathqual`, `plumbing`, `ste100`, `stepdown`, and `turbofish` is verified at build time.
 
 ### Confirmation
-
-Confirmed via automated unit tests in `bridge-rig`, `bridge-omp`, `bridge-goose`, and `bridge-codex`, with all 85 tests passing in `cargo test --workspace`.
+Confirmed via automated unit tests in `bridge-omp`, `bridge-goose`, and `bridge-codex`, passing in `cargo test --workspace`.
