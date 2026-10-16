@@ -2,8 +2,7 @@
 members = [
     "werðan/.checks/*",
     "werðan/.examples/*",
-    "werðan/core/*",
-    "werðan/infras/agent/*",
+    "werðan/bridges/*",
     "werðan/bins/*",
 ]
 resolver = "2"
@@ -27,6 +26,8 @@ turbofish = { path = "werðan/.checks/turbofish" }
 # See: https://blessed.rs/crates
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
 serde = { version = "1.0", features = ["derive"] }
+bon = "3"
+rig = { package = "rig-core", version = "0.44.0" }
 
 [workspace.lints.rust]
 # See: https://doc.rust-lang.org/rustc/lints/listing/index.html

@@ -6,7 +6,22 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[build-dependencies]
+flatmods.workspace = true
+pathqual.workspace = true
+plumbing.workspace = true
+ste100.workspace = true
+stepdown.workspace = true
+turbofish.workspace = true
+
 [dependencies]
+bridge-codex = { path = "../../bridges/codex" }
+bridge-goose = { path = "../../bridges/goose" }
+bridge-omp = { path = "../../bridges/omp" }
+bridge-rig = { path = "../../bridges/rig" }
+crossterm = "0.29"
+ratatui = "0.30"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time"] }
 
 [lints]
 workspace = true

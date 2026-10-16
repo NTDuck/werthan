@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "superseded by [0002-rig-completion-model-bridges.md](0002-rig-completion-model-bridges.md)"
 date: 2026-10-15
 decision-makers: ["NTDuck", "omp"]
 consulted: ["werðan architecture team"]
