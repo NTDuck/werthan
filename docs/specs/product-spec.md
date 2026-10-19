@@ -108,7 +108,7 @@ werthan-daemon --config <path/to/migration.yml>
 ```
 
 ### 4.2 Behavior & Tracing
-* Operates non-interactively, linking the exact same `topology::daedalus` engine as `bins/interactive`.
+* Operates non-interactively, linking the exact same `topology` engine as `bins/interactive`.
 * Dual-sink logging infrastructure:
   - ANSI colored formatted logs directed to `stdout`.
   - Structured JSONL log events directed to `{output_dir}/logs/daemon.jsonl` using daily rolling file appenders.

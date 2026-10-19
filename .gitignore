@@ -28,4 +28,5 @@ rustc-ice-*.txt
 
 # Modernization campaign output workspaces
 workspace/
+benchmarks/outputs/
 pi-warden.md

@@ -30,6 +30,6 @@ laya = { workspace = true }
 rea = { workspace = true }
 mcp = { workspace = true }
 cluster = { workspace = true }
-daedalus = { workspace = true }
+topology = { workspace = true }
 [lints]
 workspace = true

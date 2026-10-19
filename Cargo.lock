@@ -526,39 +526,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "daedalus"
-version = "0.1.0"
-dependencies = [
- "blackboard",
- "bon",
- "cluster",
- "flatmods",
- "laya",
- "mcp",
- "operative",
- "pathqual",
- "plumbing",
- "protocol",
- "ratatui",
- "rea",
- "rig-core",
- "serde",
- "serde_json",
- "serde_yaml_ng",
- "sha2",
- "statechart",
- "ste100",
- "stepdown",
- "tokio",
- "turbofish",
-]
-
-[[package]]
 name = "daemon"
 version = "0.1.0"
 dependencies = [
  "bon",
- "daedalus",
  "flatmods",
  "interactive",
  "pathqual",
@@ -567,6 +538,7 @@ dependencies = [
  "ste100",
  "stepdown",
  "tokio",
+ "topology",
  "tracing",
  "tracing-subscriber",
  "turbofish",
@@ -1355,7 +1327,6 @@ dependencies = [
  "bon",
  "cluster",
  "crossterm",
- "daedalus",
  "flatmods",
  "laya",
  "mcp",
@@ -1372,6 +1343,7 @@ dependencies = [
  "ste100",
  "stepdown",
  "tokio",
+ "topology",
  "turbofish",
 ]
 
@@ -2909,6 +2881,34 @@ dependencies = [
  "libc",
  "pin-project-lite",
  "tokio",
+]
+
+[[package]]
+name = "topology"
+version = "0.1.0"
+dependencies = [
+ "blackboard",
+ "bon",
+ "cluster",
+ "flatmods",
+ "laya",
+ "mcp",
+ "operative",
+ "pathqual",
+ "plumbing",
+ "protocol",
+ "ratatui",
+ "rea",
+ "rig-core",
+ "serde",
+ "serde_json",
+ "serde_yaml_ng",
+ "sha2",
+ "statechart",
+ "ste100",
+ "stepdown",
+ "tokio",
+ "turbofish",
 ]
 
 [[package]]

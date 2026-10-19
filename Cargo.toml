@@ -10,7 +10,7 @@ members = [
     "werðan/infras/tools/rea",
     "werðan/topology/operative",
     "werðan/topology/cluster",
-    "werðan/topology/daedalus",
+    "werðan/topology/topology",
     "werðan/bins/daemon",
     "werðan/bins/interactive",
 ]
@@ -46,7 +46,7 @@ rea = { path = "werðan/infras/tools/rea" }
 # Topology
 operative = { path = "werðan/topology/operative" }
 cluster = { path = "werðan/topology/cluster" }
-daedalus = { path = "werðan/topology/daedalus" }
+topology = { path = "werðan/topology/topology" }
 
 # Bins
 daemon = { path = "werðan/bins/daemon" }

@@ -378,9 +378,9 @@ fn default_user_input_mode() -> ::std::string::String {
     "wait".to_string()
 }
 fn default_max_shards() -> ::core::primitive::u32 { 2 }
-fn default_inference_max_tokens() -> ::core::primitive::u32 { 4096 }
+fn default_inference_max_tokens() -> ::core::primitive::u32 { 32768 }
 fn default_inference_temperature() -> ::core::primitive::f64 { 0.2 }
-fn default_inference_timeout_secs() -> ::core::primitive::u64 { 180 }
+fn default_inference_timeout_secs() -> ::core::primitive::u64 { 600 }
 fn default_build_timeout_secs() -> ::core::primitive::u64 { 120 }
 fn default_test_timeout_secs() -> ::core::primitive::u64 { 120 }
 

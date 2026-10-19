@@ -2,7 +2,7 @@ campaign_id: crust-lib2bit-bench
 execution_mode: full_auto
 paths:
   input_legacy_dir: benchmarks/assets/ReCodeAgent/data/tool_projects/crust/lib2bit/c
-  workspace_root: ./workspace/crust-lib2bit
+  workspace_root: benchmarks/outputs/crust/lib2bit/rust
   off_limits_globs: []
 stack:
   source_language: c
@@ -19,6 +19,14 @@ inference:
   fast_model: qwen3.8-27b
   max_parallel_shards: 2
   user_input_mode: wait
+  max_shards: 2
+  base_url: ''
+  model: ashalliant/qwen3.8-27b-abliterated
+  inference_max_tokens: 32768
+  inference_temperature: 0.2
+  inference_timeout_secs: 600
+  build_timeout_secs: 120
+  test_timeout_secs: 120
 verification:
   max_self_heal_retries: 3
   require_byte_identical_io: false
