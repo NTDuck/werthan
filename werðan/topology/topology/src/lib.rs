@@ -364,8 +364,7 @@ pub async fn execute_fsm(
 
     let state_s9 = ::protocol::WorkflowState::S9Completed;
     ::std::println!("[FSM] State: {state_s9} - Modernization pipeline finished successfully");
-
-    (receipts, s4_real_used)
+    (receipts, s4_real_used || s6_real_used)
 }
 
 fn collect_shard_files(
