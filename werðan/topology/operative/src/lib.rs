@@ -433,10 +433,7 @@ pub fn can_spawn_child(parent: self::AgentRole, child: self::AgentRole) -> ::cor
 
 /// Check whether an agent role can spawn any subagents.
 pub fn can_spawn(role: self::AgentRole) -> ::core::primitive::bool {
-    match role {
-        self::AgentRole::RootOrchestrator | self::AgentRole::ModuleLead => true,
-        _ => false,
-    }
+    ::core::matches!(role, self::AgentRole::RootOrchestrator | self::AgentRole::ModuleLead)
 }
 
 /// Return the hierarchical depth of an agent role in the asymmetric tree.

@@ -622,35 +622,51 @@ pub async fn run_benchmark_all(base_dir: &::std::path::Path) {
             "oxidizer" => ("cargo check".to_string(), "cargo test".to_string(), "go test ./...".to_string()),
             _ => ("cargo check".to_string(), "cargo test".to_string(), "make test".to_string()),
         };
-
-        let mut config = ::protocol::ModernizeConfig::default();
-        config.campaign_id = campaign_id;
-        config.execution_mode = ::protocol::ExecutionMode::FullAuto;
         let src_dir = proj_path.join(src);
         let input_legacy_dir = if src_dir.exists() {
             src_dir.to_str().unwrap_or(".").to_string()
         } else {
             proj_path.to_str().unwrap_or(".").to_string()
         };
-        config.paths.input_legacy_dir = input_legacy_dir;
-        config.paths.workspace_root = ws_root_str;
-        config.paths.off_limits_globs = ::std::vec![];
-        config.stack.source_language = src.clone();
-        config.stack.binary_artifacts = ::std::vec![];
-        config.stack.use_ghidra_rea = false;
-        config.stack.target_language = tgt.clone();
-        config.stack.target_edition_or_framework = "2024".to_string();
-        config.stack.target_build_cmd = target_build_cmd;
-        config.stack.target_test_cmd = target_test_cmd;
-        config.stack.legacy_test_harness_cmd = legacy_harness_cmd;
-        config.inference.ninfer_base_url = default_base_url.clone();
-        config.inference.deep_model = deep_model.clone();
-        config.inference.fast_model = fast_model.clone();
-        config.inference.max_parallel_shards = 2;
-        config.inference.user_input_mode = "wait".to_string();
-        config.verification.max_self_heal_retries = 3;
-        config.verification.require_byte_identical_io = false;
 
+        let config = ::protocol::ModernizeConfig {
+            campaign_id: { campaign_id },
+            execution_mode: { ::protocol::ExecutionMode::FullAuto },
+            paths: {
+                ::protocol::ModernizePaths {
+                    input_legacy_dir: { input_legacy_dir },
+                    workspace_root: { ws_root_str },
+                    off_limits_globs: ::std::vec![],
+                }
+            },
+            stack: {
+                ::protocol::ModernizeStack {
+                    source_language: { src.clone() },
+                    target_language: { tgt.clone() },
+                    target_edition_or_framework: { "2024".to_string() },
+                    target_build_cmd: { target_build_cmd },
+                    target_test_cmd: { target_test_cmd },
+                    legacy_test_harness_cmd: { legacy_harness_cmd },
+                    use_ghidra_rea: false,
+                    binary_artifacts: ::std::vec![],
+                }
+            },
+            inference: {
+                ::protocol::ModernizeInference {
+                    ninfer_base_url: { default_base_url.clone() },
+                    deep_model: { deep_model.clone() },
+                    fast_model: { fast_model.clone() },
+                    max_parallel_shards: 2,
+                    user_input_mode: { "wait".to_string() },
+                }
+            },
+            verification: {
+                ::protocol::ModernizeVerification {
+                    max_self_heal_retries: 3,
+                    require_byte_identical_io: false,
+                }
+            },
+        };
         if let ::core::result::Result::Ok(yaml_str) = ::serde_yaml_ng::to_string(&config) {
             let _ = ::std::fs::write(&cfg_path, yaml_str);
         }

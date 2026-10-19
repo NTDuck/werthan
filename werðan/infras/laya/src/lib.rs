@@ -714,7 +714,7 @@ impl self::PreToolGuardrail {
         let subcommands = self::split_shell_commands(command);
 
         let cmd_taints = self::detect_build_config_touch(command);
-        let diff_taints = diff_content.map_or(false, self::detect_build_config_touch);
+        let diff_taints = diff_content.is_some_and(self::detect_build_config_touch);
         if cmd_taints || diff_taints {
             self.tainted_build_config = true;
             let note = ::std::format!("Tainted by: {command}");
@@ -1141,20 +1141,18 @@ fn calculate_shell_safety_risk(subcommands: &[::std::string::String]) -> ::core:
 
     for sub in subcommands {
         let lower = sub.to_ascii_lowercase();
-        if lower.contains("curl") || lower.contains("wget") || lower.contains("nc ") || lower.contains("netcat") {
-            if max_risk < 0.90 {
-                max_risk = 0.90;
-            }
+        if (lower.contains("curl") || lower.contains("wget") || lower.contains("nc ") || lower.contains("netcat"))
+            && max_risk < 0.90
+        {
+            max_risk = 0.90;
         }
-        if lower.contains("npm postinstall") || lower.contains("sh ") || lower.contains("bash ") {
-            if max_risk < 0.80 {
-                max_risk = 0.80;
-            }
+        if (lower.contains("npm postinstall") || lower.contains("sh ") || lower.contains("bash "))
+            && max_risk < 0.80
+        {
+            max_risk = 0.80;
         }
-        if lower.contains("git config") || lower.contains("git push") {
-            if max_risk < 0.40 {
-                max_risk = 0.40;
-            }
+        if (lower.contains("git config") || lower.contains("git push")) && max_risk < 0.40 {
+            max_risk = 0.40;
         }
     }
 
@@ -1338,8 +1336,8 @@ fn check_deleted_assertions(hashline_diff: &::core::primitive::str) -> ::core::o
 fn check_hardcoded_returns(hashline_diff: &::core::primitive::str) -> ::core::option::Option<self::RubricDefect> {
     for line in hashline_diff.lines() {
         let trimmed = line.trim_start();
-        if trimmed.starts_with('+') {
-            let body = trimmed[1..].trim();
+        if let ::core::option::Option::Some(rest) = trimmed.strip_prefix('+') {
+            let body = rest.trim();
             let is_hardcoded = body == "return true;"
                 || body == "return false;"
                 || body == "return Ok(());"

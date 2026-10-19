@@ -85,13 +85,13 @@ fn compute_hmac_sha256(key: &[::core::primitive::u8], data: &[::core::primitive:
     }
 
     let mut inner_hasher = ::sha2::Sha256::new();
-    inner_hasher.update(&inner_pad);
+    inner_hasher.update(inner_pad);
     inner_hasher.update(data);
     let inner_hash = inner_hasher.finalize();
 
     let mut outer_hasher = ::sha2::Sha256::new();
-    outer_hasher.update(&outer_pad);
-    outer_hasher.update(&inner_hash);
+    outer_hasher.update(outer_pad);
+    outer_hasher.update(inner_hash);
     let outer_hash = outer_hasher.finalize();
 
     let mut result = [0u8; 32];
