@@ -1,5 +1,5 @@
 ---
-status: "superseded by [0004-code-modernization-tmux-omp-pipeline.md](0004-code-modernization-tmux-omp-pipeline.md)"
+status: "superseded by [0004-code-modernization-rig-rust-pipeline.md](0004-code-modernization-rig-rust-pipeline.md)"
 date: 2026-10-15
 decision-makers: ["NTDuck", "omp"]
 consulted: ["werðan architecture team"]

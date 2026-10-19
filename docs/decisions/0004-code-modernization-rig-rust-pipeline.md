@@ -7,24 +7,24 @@ informed: ["werðan development team"]
 supersedes: ["0002-rig-completion-model-bridges.md", "0003-master-slave-tui-chatbot.md"]
 ---
 
-# Code Modernization Pipeline via Pure Rust Rig, Ratatui, and OMP Engineering Achievements Architecture
+# Code Modernization Pipeline via Rig, Rust, and Ecosystem Architecture
 
 ## Context and Problem Statement
 
-`werðan` was previously conceptualized as a runtime traffic and council chatbot leveraging direct Rig completion model bridges (ADR 0002) and a custom Ratatui master/slave TUI (ADR 0003), or alternatively an external tmux multiplexer running Oh-My-Pi RPC sessions with a TypeScript socket extension (Option 1). However, enterprise code modernization requires an offline, batch-oriented, static codebase-to-codebase compiler and verification pipeline with zero runtime RPC overhead, zero brittle PTY/tmux coupling, and deterministic semantic parity.
+`werðan` was previously conceptualized as a runtime traffic and council chatbot leveraging completion model bridges (ADR 0002, ADR 0003), or alternatively an external tmux multiplexer running Oh-My-Pi (OMP) RPC sessions with a TypeScript socket extension. That tech stack is valid no more. Enterprise code modernization requires an offline, batch-oriented, static codebase-to-codebase compiler and verification pipeline with zero runtime RPC overhead, zero brittle PTY/tmux coupling, and deterministic semantic parity. We now standardize on **Rig + Rust + its ecosystem** as our primary tech stack.
 
 Modernizing legacy mission-critical systems (e.g. COBOL, PL/SQL, legacy Java/C) involves large structured codebases, deep dependency trees, and non-negotiable semantic parity. The workflow must transition deterministically through distinct workspace stages:
 `legacy/<sys>/` (original legacy code and DDL) $\rightarrow$ `analysis/<sys>/` (extracted domain clusters, business rules, architecture models) $\rightarrow$ `modernized/<sys>/` (target modern implementation, equivalence tests, verification suites), adhering to the Anthropic code-modernization methodology.
 
-External process wrappers, tmux pane manipulation, Node/TypeScript IPC extensions (`mas-bridge`), and JSONL RPC streams add unnecessary operational overhead, break terminal portability, and introduce fragility. Instead, we require a pure Rust in-process architecture that captures the best engineering achievements and ideologies pioneered by Oh-My-Pi (OMP)—rebuilt natively in Rust without any RPC daemon or external tool dependencies.
+External process wrappers, tmux pane manipulation, Node/TypeScript IPC extensions (`mas-bridge`), and JSONL RPC streams add unnecessary operational overhead, break terminal portability, and introduce fragility. Instead, we require a pure Rust in-process architecture built with Rig and its ecosystem, implementing proven engineering feats—hashline editing, snapcompact, stream rules, in-process search, and sandboxing—natively in Rust without any external tmux or RPC daemon dependencies.
 
 How should the codebase-to-codebase modernization pipeline be orchestrated, displayed, and governed in pure Rust to achieve deterministic migrations while guaranteeing in-process safety and sub-second decision making?
 
 ## Decision Drivers
 
 * **Static Codebase-to-Codebase Translation**: Zero reliance on runtime traffic or council chatbots; operate as an offline, staged migration compiler pipeline (`legacy/<sys>/` $\rightarrow$ `analysis/<sys>/` $\rightarrow$ `modernized/<sys>/`).
-* **Pure Rust In-Process Architecture (Option 2)**: Eliminate external `tmux`, `omp` RPC daemons, and Node/TypeScript extensions; package the entire pipeline, TUI, and agent infrastructure into cohesive Rust workspace crates.
-* **OMP Engineering Achievements Rebuilt in Rust**:
+* **Pure Rust Rig Ecosystem Architecture (Option 2)**: Eliminate external `tmux`, `omp` RPC daemons, and Node/TypeScript extensions; package the entire pipeline, TUI, and agent infrastructure into cohesive Rust workspace crates residing exclusively under `werðan/`.
+* **Native In-Process Engineering Systems**:
   - **Hashline Editing**: 4-character SHA-256 base62 line anchor content addressing with neighboring context triplet hashing and collision rejection (`HASHLINE_AMBIGUOUS`), eliminating hallucinated line offset drift.
   - **SnapCompact**: HMAC-SHA256 authenticated frame manifests, deterministic immutable cache index stubs (`[snapcompact:sha256=...:lines=...]`), and frame byte verification, preserving LLM KV-cache prefixes across compaction boundaries.
   - **Time-Traveling Stream Rules**: Dormant token stream interceptors scanning chunked streaming output; on forbidden placeholder emission (e.g. `unimplemented!()`, `todo!`), performing mid-token stream abort, prefix rewind to clean newline, and `<system-reminder>` injection to steer the model back into compliance.
@@ -39,12 +39,12 @@ How should the codebase-to-codebase modernization pipeline be orchestrated, disp
 
 ## Considered Options
 
-* **Option 1: Tmux + Oh-My-Pi with TypeScript Socket Bridge (`extensions/mas-bridge`) & OMP RPC** (Rejected: requires external tmux, bun/node, RPC daemon socket, brittle PTY coordination).
-* **Option 2: Pure Rust Rig + Ratatui with OMP Engineering Achievements (In-Process MAS Engine)** (Accepted: zero external process dependencies, native 60/40 Ratatui TUI with CSI-2026, 7 native OMP engineering systems consolidated into 8 deep-domain crates in pure Rust).
+* **Option 1: Tmux + Oh-My-Pi with TypeScript Socket Bridge (`extensions/mas-bridge`) & OMP RPC** (Rejected: valid no more; introduces external process dependencies, fragile PTY handling, and runtime RPC overhead).
+* **Option 2: Pure Rust Rig + Ratatui Ecosystem (In-Process MAS Engine)** (Accepted: zero external process dependencies, native 60/40 Ratatui TUI with CSI-2026, 7 native in-process engineering systems consolidated into deep-domain crates in pure Rust).
 
 ## Decision Outcome
 
-Chosen option: **Option 2: Pure Rust Rig + Ratatui with OMP Engineering Achievements (In-Process MAS Engine)**, superseding ADR 0002, ADR 0003, and Option 1, because it eliminates all external tmux, Node.js, and RPC daemon dependencies in favor of a 100% Rust in-process architecture implementing OMP's proven engineering feats: Hashline editing, SnapCompact, Time-Traveling Stream Rules, Persistent LSP, In-process Search, Filesystem Sandboxing, Jev 3-Role Decision Middleware, and 60/40 Ratatui CSI-2026 TUI.
+Chosen option: **Option 2: Pure Rust Rig + Ratatui Ecosystem (In-Process MAS Engine)**, superseding ADR 0002, ADR 0003, and Option 1, because it eliminates all external tmux, Node.js, and RPC daemon dependencies in favor of a 100% Rust in-process architecture powered by Rig, Ratatui, and native engineering systems: Hashline editing, SnapCompact, Time-Traveling Stream Rules, Persistent LSP, In-process Search, Filesystem Sandboxing, Jev 3-Role Decision Middleware, and 60/40 Ratatui CSI-2026 TUI.
 
 #### 1. Directory & Staging Layout
 The modernization compiler operates strictly over three staged workspaces:
@@ -58,35 +58,37 @@ The repository is structured into infrastructure schemas and cohesive, deep-doma
 ```text
 .
 ├── Cargo.toml                        # Workspace root
-├── modernize.schema.json             # JSON Schema for ModernizeConfig
-├── pi-warden.template.md             # Guardrail template rendered per run
-├── middleware/
-│   ├── laya/                         # Laya fast non-generative encoder daemon & 3 deterministic hooks
-│   └── tools/REA/                    # REA MCP tools (Headless Ghidra, DAP, Obligation Ledger)
-├── blackboard/                       # ARIADNE/LLMAS inspired shared knowledge repository
-├── infras/
-│   ├── topology/                     # Asymmetric Agent Hierarchy & spawning permissions
-│   └── state-machine/                # Exogenous State Machine (S0 to S9) & 6 Human Decision Gates
+├── docs/                             # Architectural decision records & benchmarks
 └── werðan/
+    ├── .checks/                      # Build-time quality linters
+    ├── .examples/                    # Reference library & binary templates
+    ├── blackboard/                   # ARIADNE/LLMAS inspired shared knowledge repository
+    ├── infras/
+    │   ├── topology/                 # Asymmetric Agent Hierarchy & spawning permissions
+    │   └── state-machine/            # Exogenous State Machine (S0 to S9) & 6 Human Decision Gates
+    ├── middleware/
+    │   ├── laya/                     # Laya fast non-generative encoder daemon & 3 deterministic hooks
+    │   └── tools/REA/                # REA MCP tools (Headless Ghidra, DAP, Obligation Ledger)
     ├── protocol/                     # Wire formats, ModernizeConfig, magic directives
     ├── harness/                      # Tooling: hashline, lsp-tools, snapcompact, stream-rules, sandbox
     ├── verify/                       # Clean-room build/test runner, output differ, receipt signer
     ├── orchestrator/                 # High-level coordinator, benchmark runner, agent factories
-    ├── bins/
-    │   ├── interactive/              # 60/40 Ratatui TUI cockpit with real-time continuous streaming
-    │   └── daemon/                   # CLI daemon entry point (interactive or batch config runner)
+    │   └── assets/                   # Crate assets (modernize.schema.json, pi-warden.template.md)
+    └── bins/
+        ├── interactive/              # 60/40 Ratatui TUI cockpit with real-time continuous streaming
+        └── daemon/                   # CLI daemon entry point (interactive or batch config runner)
 ```
 
 ##### Crate Responsibilities
-- **`infras/topology`**: Encapsulates the Asymmetric Agent Hierarchy. Root Orchestrator (Depth 0) is the session owner with spawning permissions; Depth 1 has global read-only leaves and the Module-Lead (sub-orchestrator) with Depth 2 spawning authority; Depth 2 has module execution leaves. Defines role authorities, spawning rules, and tool scopes.
-- **`infras/state-machine`**: Owns the deterministic lifecycle (S0: INTENT through S9: COMPLETED) and the 6 Human Decision Gates, executing outside prompts in host code.
-- **`blackboard`**: Central shared knowledge repository inspired by ARIADNE/LLMAS with structured partitions for Obligation Ledger, Business Rules, Domain Clusters, Module Worktrees, Taint Ledger, and Audit Trails.
-- **`middleware/laya`**: Lightweight non-generative encoder daemon (~30ms latency, $0 token cost) executing 3 deterministic hooks: Stateful Pre-Tool Guardrail (`pre_tool_use` with taint tracking), Historian Airlock (S4 & S6b schema and injection verification), and Fast Pre-Critic Rubric Gate (S6c 12-question quality rubric).
-- **`middleware/tools/REA`**: Reverse Engineer Anything tools wrapping Headless Ghidra, scc metrics, and DAP memory snapshots. Strictly role-isolated to binary-historian and business-rules-extractor, seeding and verifying the Obligation Ledger.
+- **`werðan/infras/topology`**: Encapsulates the Asymmetric Agent Hierarchy. Root Orchestrator (Depth 0) is the session owner with spawning permissions; Depth 1 has global read-only leaves and the Module-Lead (sub-orchestrator) with Depth 2 spawning authority; Depth 2 has module execution leaves. Defines role authorities, spawning rules, and tool scopes.
+- **`werðan/infras/state-machine`**: Owns the deterministic lifecycle (S0: INTENT through S9: COMPLETED) and the 6 Human Decision Gates, executing outside prompts in host code.
+- **`werðan/blackboard`**: Central shared knowledge repository inspired by ARIADNE/LLMAS with structured partitions for Obligation Ledger, Business Rules, Domain Clusters, Module Worktrees, Taint Ledger, and Audit Trails.
+- **`werðan/middleware/laya`**: Lightweight non-generative encoder daemon (~30ms latency, $0 token cost) executing 3 deterministic hooks: Stateful Pre-Tool Guardrail (`pre_tool_use` with taint tracking), Historian Airlock (S4 & S6b schema and injection verification), and Fast Pre-Critic Rubric Gate (S6c 12-question quality rubric).
+- **`werðan/middleware/tools/REA`**: Reverse Engineer Anything tools wrapping Headless Ghidra, scc metrics, and DAP memory snapshots. Strictly role-isolated to binary-historian and business-rules-extractor, seeding and verifying the Obligation Ledger.
 - **`werðan/protocol`**: Defines wire-format IPC structs, ModernizeConfig schema, and magic directives (`ultrathink`, `orchestrate`, `workflowz`).
 - **`werðan/harness`**: Core tools: hashline anchor editing, snapcompact KV-cache preservation, stream rules, sandbox filesystem enforcement.
 - **`werðan/verify`**: Deterministic clean-room build/test runner, JUnit XML parsing, and benchmark runners.
-- **`werðan/orchestrator`**: Coordinates FSM execution, benchmark loops, and rig AgentBuilder factories.
+- **`werðan/orchestrator`**: Coordinates FSM execution, benchmark loops, and Rig AgentBuilder factories. Owns runtime assets under `assets/`.
 - **`werðan/bins/interactive`**: 60/40 Ratatui cockpit: Left pane (60%) conversational agent with slash commands (`/init`, `/start`, `/approve`); Right pane (40%) vertically stacked windows streaming independent continuous specialist logs.
 - **`werðan/bins/daemon`**: CLI entry point supporting both interactive TUI launch and batch `--config <path>` runs for automated benchmarks.
 
@@ -119,7 +121,7 @@ Option 2 executes the complete modernization engine in-process in pure Rust:
 The hierarchy is intentionally unbalanced (Depth 1 for analysis/audit, Depth 2 only for module synthesis):
 
 ```text
-[Depth 0] Root Orchestrator (Session Owner — hooks/state.ts) [CAN SPAWN SUBAGENTS]
+[Depth 0] Root Orchestrator (Session Owner) [CAN SPAWN SUBAGENTS]
  │
  ├── [Depth 1: Global Read-Only & Audit Leaves] [CANNOT SPAWN]
  │    ├── legacy-analyst            (Read-only source AST/LSP exploration)
@@ -130,7 +132,7 @@ The hierarchy is intentionally unbalanced (Depth 1 for analysis/audit, Depth 2 o
  │    └── boundary-mediator         (Scoped R/W adapter fixer across 2 module boundaries)
  │
  └── [Depth 1: Module Sub-Orchestrator] [CAN SPAWN SUBAGENTS]
-      └── module-lead               (1 per module in an isolated omp CoW worktree)
+     └── module-lead               (1 per module in an isolated CoW worktree)
            │
            └── [Depth 2: Module Execution Leaves] [CANNOT SPAWN]
                 ├── test-engineer     (R/W strictly to modernized/<mod>/tests/**)
