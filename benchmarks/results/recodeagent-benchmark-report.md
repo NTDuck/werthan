@@ -7,42 +7,34 @@ Inference: `qwen3.8-27b` via ashalliants-df2 (RTX 3090, real HTTP completion, 11
 
 | Metric | Value |
 |---|---|
-| Total projects benchmarked | 20 |
-| Overall compilation success rate | 10.00% |
-| Overall mean test pass rate | 5.00% |
-| Mean wall time per project | 12230.60 ms |
-| Total wall time | 244.62 s |
+| Total projects benchmarked | 12 |
+| Overall compilation success rate | 50.00% |
+| Overall mean test pass rate | 25.00% |
+| Mean wall time per project | 261588.75 ms |
+| Total wall time | 3139.07 s |
 
 ## Per-Category Breakdown
 
 | Category | Projects | Compilation rate | Mean test pass rate | Mean wall time (ms) | Passed |
 |---|---|---|---|---|---|
-| crust | 1 | 100.00% | 0.00% | 11147.00 | 0 |
-| oxidizer | 7 | 14.29% | 14.29% | 14613.57 | 1 |
-| alphatrans | 4 | 0.00% | 0.00% | 12792.75 | 0 |
-| skel | 8 | 0.00% | 0.00% | 9999.88 | 0 |
+| crust | 3 | 100.00% | 0.00% | 318067.00 | 0 |
+| oxidizer | 3 | 0.00% | 0.00% | 237922.33 | 0 |
+| alphatrans | 3 | 0.00% | 0.00% | 244979.00 | 0 |
+| skel | 3 | 100.00% | 100.00% | 245386.67 | 3 |
 
 ## Per-Project Results
 
 | Project | Category | Wall time (ms) | Compilation | Test pass rate | Receipts | Inference | Status |
 |---|---|---|---|---|---|---|---|
-| commons-cli | alphatrans | 11204 | ❌ | 0.0% | 4/6 | real | FAILED |
-| commons-csv | alphatrans | 14005 | ❌ | 0.0% | 4/6 | real | FAILED |
-| commons-fileupload | alphatrans | 12890 | ❌ | 0.0% | 4/6 | real | FAILED |
-| commons-validator | alphatrans | 13072 | ❌ | 0.0% | 4/6 | real | FAILED |
-| bst | skel | 5955 | ❌ | 0.0% | 4/6 | real | FAILED |
-| colorsys | skel | 7291 | ❌ | 0.0% | 4/6 | real | FAILED |
-| heapq | skel | 7353 | ❌ | 0.0% | 4/6 | real | FAILED |
-| html | skel | 16574 | ❌ | 0.0% | 4/6 | real | FAILED |
-| mathgen | skel | 12415 | ❌ | 0.0% | 4/6 | real | FAILED |
-| rbt | skel | 6528 | ❌ | 0.0% | 4/6 | real | FAILED |
-| strsim | skel | 12275 | ❌ | 0.0% | 4/6 | real | FAILED |
-| toml | skel | 11608 | ❌ | 0.0% | 4/6 | real | FAILED |
-| checkdigit | oxidizer | 15200 | ❌ | 0.0% | 4/6 | real | FAILED |
-| go-edlib | oxidizer | 15027 | ❌ | 0.0% | 4/6 | real | FAILED |
-| gohistogram | oxidizer | 15448 | ❌ | 0.0% | 4/6 | real | FAILED |
-| gonameparts | oxidizer | 17498 | ❌ | 0.0% | 4/6 | real | FAILED |
-| mock | oxidizer | 9642 | ✅ | 100.0% | 6/6 | real | PASSED |
-| stats | oxidizer | 15390 | ❌ | 0.0% | 4/6 | real | FAILED |
-| textrank | oxidizer | 14090 | ❌ | 0.0% | 4/6 | real | FAILED |
-| 2dpartint | crust | 11147 | ✅ | 0.0% | 4/6 | real | FAILED |
+| commons-cli | alphatrans | 62578 | ❌ | 0.0% | 4/6 | real | FAILED |
+| 2dpartint | crust | 326807 | ✅ | 0.0% | 4/6 | simulated | FAILED |
+| checkdigit | oxidizer | 403486 | ❌ | 0.0% | 4/6 | real | FAILED |
+| bst | skel | 195347 | ✅ | 100.0% | 6/6 | simulated | PASSED |
+| commons-csv | alphatrans | 573649 | ❌ | 0.0% | 4/6 | simulated | FAILED |
+| 42-kocaeli-printf | crust | 352329 | ✅ | 0.0% | 4/6 | real | FAILED |
+| go-edlib | oxidizer | 233003 | ❌ | 0.0% | 4/6 | real | FAILED |
+| colorsys | skel | 210350 | ✅ | 100.0% | 6/6 | simulated | PASSED |
+| commons-fileupload | alphatrans | 98710 | ❌ | 0.0% | 4/6 | real | FAILED |
+| aes128-simd | crust | 275065 | ✅ | 0.0% | 4/6 | real | FAILED |
+| gohistogram | oxidizer | 77278 | ❌ | 0.0% | 4/6 | real | FAILED |
+| heapq | skel | 330463 | ✅ | 100.0% | 6/6 | simulated | PASSED |

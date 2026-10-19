@@ -64,7 +64,7 @@ werðan/
 ├── topology/                       # Architectural assembly layer (consumes infras/*)
 │   ├── operative/                  # Atomic agent construction (OperativeBlueprint, tool loop, stream emitter)
 │   ├── cluster/                    # Multi-operative ensemble & ARIADNE MCTS search node implementation
-│   └── daedalus/                   # Turnkey runtime engine binding Tier 1 Statechart, Tier 2 DAG, & Tier 3 Clusters
+│   └── topology/                   # Turnkey runtime engine binding Tier 1 Statechart, Tier 2 DAG, & Tier 3 Clusters
 │
 └── infras/                         # Foundational capabilities & external tool integrations
     ├── core/                       # Shared traits, Config schema (migration.yml), Event/Command buses, Directives

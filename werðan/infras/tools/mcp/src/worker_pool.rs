@@ -168,15 +168,13 @@ async fn run_shard_task(
                     return ::core::result::Result::Ok((card, true));
                 },
                 ::core::result::Result::Err(err) => {
-                    ::std::eprintln!("[worker_pool] inference failed for {shard_file}: {err} (fell back to simulated)");
+                    return ::core::result::Result::Err(::std::format!("inference failed for {shard_file}: {err}"));
                 },
             }
         }
     }
 
-    let dur = ::std::time::Duration::from_millis(50);
-    ::tokio::time::sleep(dur).await;
-    let _cmd = self::WorkerPool::build_shard_cmd(shard_file, model);
+    // Offline test mode (no inference URL configured)
     let card = ::std::format!("GIVEN legacy file {shard_file} WHEN processed THEN extracted business rules card");
     ::core::result::Result::Ok((card, false))
 }
@@ -210,7 +208,7 @@ async fn execute_real_shard_inference(
     let client = ::reqwest::Client::new();
     let body = ::serde_json::json!({
         "model": model,
-        "max_tokens": 1024,
+        "max_tokens": 16384,
         "messages": [
             {
                 "role": "system",
@@ -243,15 +241,10 @@ async fn execute_real_shard_inference(
 
     let msg_obj = val.get("choices").and_then(|c| c.get(0)).and_then(|c0| c0.get("message"));
 
-    let content_opt =
-        msg_obj.and_then(|m| m.get("content")).and_then(|ct| ct.as_str()).filter(|ct| !ct.trim().is_empty()).or_else(
-            || {
-                msg_obj
-                    .and_then(|m| m.get("reasoning_content"))
-                    .and_then(|rc| rc.as_str())
-                    .filter(|rc| !rc.trim().is_empty())
-            },
-        );
+    let content_opt = msg_obj
+        .and_then(|m| m.get("content"))
+        .and_then(|ct| ct.as_str())
+        .filter(|ct| !ct.trim().is_empty());
 
     match content_opt {
         ::core::option::Option::Some(text) if !text.trim().is_empty() => {
@@ -279,13 +272,14 @@ async fn run_translation_task(
             let sys = "You are a code translator. Output only the translated source code.";
             match self::execute_real_translation_inference(sys, &prompt, model, trimmed).await {
                 ::core::result::Result::Ok(code) => return ::core::result::Result::Ok((shard.relative_path.clone(), code, true)),
-                ::core::result::Result::Err(e) => ::std::eprintln!("[worker_pool] translation failed for {}: {e}", shard.relative_path),
+                ::core::result::Result::Err(e) => return ::core::result::Result::Err(::std::format!("translation failed for {}: {e}", shard.relative_path)),
             }
         }
     }
-    ::core::result::Result::Ok((shard.relative_path.clone(), ::std::format!("// TODO: translate {} to {}", shard.relative_path, shard.target_language), false))
-}
 
+    // Offline test mode (no inference URL configured)
+    ::core::result::Result::Ok((shard.relative_path.clone(), ::std::format!("// offline stub {} to {}", shard.relative_path, shard.target_language), false))
+}
 async fn execute_real_translation_inference(
     system: &::core::primitive::str,
     user: &::core::primitive::str,
@@ -300,14 +294,14 @@ async fn execute_real_translation_inference(
     let client = ::reqwest::Client::new();
     let body = ::serde_json::json!({
         "model": model,
-        "max_tokens": 4096,
+        "max_tokens": 32768,
         "temperature": 0.2,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user}
         ]
     });
-    let timeout_dur = ::core::time::Duration::from_secs(180);
+    let timeout_dur = ::core::time::Duration::from_secs(600);
     let resp = match client.post(&endpoint).json(&body).timeout(timeout_dur).send().await {
         ::core::result::Result::Ok(r) => r,
         ::core::result::Result::Err(e) => return ::core::result::Result::Err(e.to_string()),
@@ -320,19 +314,13 @@ async fn execute_real_translation_inference(
         ::core::result::Result::Err(e) => return ::core::result::Result::Err(e.to_string()),
     };
     let msg_obj = val.get("choices").and_then(|c| c.get(0)).and_then(|c0| c0.get("message"));
-    let content_opt = msg_obj
+    let content = match msg_obj
         .and_then(|m| m.get("content"))
         .and_then(|ct| ct.as_str())
         .filter(|ct| !ct.trim().is_empty())
-        .or_else(|| {
-            msg_obj
-                .and_then(|m| m.get("reasoning_content"))
-                .and_then(|rc| rc.as_str())
-                .filter(|rc| !rc.trim().is_empty())
-        });
-    let content = match content_opt {
+    {
         ::core::option::Option::Some(c) => c,
-        ::core::option::Option::None => return ::core::result::Result::Err(::std::string::String::from("no content or reasoning_content in response")),
+        ::core::option::Option::None => return ::core::result::Result::Err(::std::string::String::from("no content in completion response")),
     };
     let cleaned = content.trim();
     let unquoted = if cleaned.starts_with("```") {
