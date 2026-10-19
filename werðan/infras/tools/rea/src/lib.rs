@@ -329,10 +329,7 @@ fn is_native_binary(path: &::std::path::Path) -> ::core::primitive::bool {
         ::core::option::Option::None => return false,
     };
     let lower = ext_str.to_ascii_lowercase();
-    match lower.as_str() {
-        "dll" | "so" | "exe" | "asar" | "apk" => true,
-        _ => false,
-    }
+    ::core::matches!(lower.as_str(), "dll" | "so" | "exe" | "asar" | "apk")
 }
 
 /// Catalog candidate items for detected binary path.
@@ -356,12 +353,7 @@ fn catalog_binary_candidates(path: &::std::path::Path) -> ::std::vec::Vec<self::
     let struct_cand =
         self::build_candidate(&struct_name, self::ObligationCandidateKind::Struct, "0x3000", &bin_path_str);
 
-    let mut out = ::std::vec::Vec::new();
-    out.push(fn_cand);
-    out.push(export_cand);
-    out.push(ipc_cand);
-    out.push(struct_cand);
-    out
+    ::std::vec![fn_cand, export_cand, ipc_cand, struct_cand]
 }
 
 /// Build single obligation candidate item.
@@ -496,9 +488,7 @@ pub fn rea_query_retained_view(
     let bin_name = binary_path.file_name().and_then(|n| n.to_str()).unwrap_or(default_name);
     let header = ::std::format!("// retained-view/{bin_name}/{view_id}.c:1 - Anchor: ghidra:0x1000#xref");
     let body = ::std::format!("// Retained view slice for {view_id} in {bin_name}");
-    let mut lines = ::std::vec::Vec::new();
-    lines.push(header);
-    lines.push(body);
+    let lines = ::std::vec![header, body];
     let output = lines.join("\n");
     ::core::result::Result::Ok(output)
 }

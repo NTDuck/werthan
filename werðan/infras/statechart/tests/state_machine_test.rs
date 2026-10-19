@@ -292,11 +292,21 @@ fn create_test_config(
     let ws_root = root.join("workspace").to_string_lossy().to_string();
     let legacy_dir = root.join("legacy").to_string_lossy().to_string();
 
-    let mut config = ::protocol::ModernizeConfig::default();
-    config.campaign_id = campaign_id.to_string();
-    config.paths.workspace_root = ws_root;
-    config.paths.input_legacy_dir = legacy_dir;
-    config.stack.target_language = "rust".to_string();
-    config.stack.target_edition_or_framework = "2021".to_string();
-    config
+    let paths = ::protocol::ModernizePaths {
+        workspace_root: ws_root,
+        input_legacy_dir: legacy_dir,
+        ..::protocol::ModernizePaths::default()
+    };
+
+    let stack = ::protocol::ModernizeStack {
+        target_language: "rust".to_string(),
+        target_edition_or_framework: "2021".to_string(),
+        ..::protocol::ModernizeStack::default()
+    };
+    ::protocol::ModernizeConfig {
+        campaign_id: campaign_id.to_string(),
+        paths,
+        stack,
+        ..::protocol::ModernizeConfig::default()
+    }
 }

@@ -125,9 +125,7 @@ pub async fn run_daemon_server() {
 
 /// Start interactive TUI cockpit session with ratatui terminal.
 pub async fn run_interactive_tui() -> ::core::result::Result<(), ::std::string::String> {
-    let mut term = match ::ratatui::init() {
-        terminal => terminal,
-    };
+    let mut term = ::ratatui::init();
     let loop_res = self::run_tui_event_loop(&mut term).await;
     ::ratatui::restore();
     loop_res
@@ -513,6 +511,12 @@ fn render_specialist_card(
     frame.render_widget(para, inner);
 }
 
+impl ::core::default::Default for self::InteractiveCockpit {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl self::InteractiveCockpit {
     /// Create new interactive cockpit instance.
     pub fn new() -> Self {
@@ -727,8 +731,8 @@ impl self::InteractiveCockpit {
                 }
             },
             "/start" => {
-                let is_auto = parts.iter().any(|&p| p == "--auto");
-                let is_hitl = parts.iter().any(|&p| p == "--hitl");
+                let is_auto = parts.contains(&"--auto");
+                let is_hitl = parts.contains(&"--hitl");
                 let mode = if is_auto {
                     ::protocol::ExecutionMode::FullAuto
                 } else if is_hitl {

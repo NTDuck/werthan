@@ -113,8 +113,8 @@ fn assemble_replacement(
     has_trailing_newline: ::core::primitive::bool,
 ) -> ::std::string::String {
     let mut output = ::std::string::String::new();
-    for idx in 0..start_idx {
-        output.push_str(lines[idx]);
+    for line in &lines[..start_idx] {
+        output.push_str(line);
         output.push('\n');
     }
     if !replacement.is_empty() {
@@ -123,8 +123,8 @@ fn assemble_replacement(
             output.push('\n');
         }
     }
-    for idx in (end_idx + 1)..lines.len() {
-        output.push_str(lines[idx]);
+    for line in &lines[(end_idx + 1)..] {
+        output.push_str(line);
         output.push('\n');
     }
     if !has_trailing_newline && output.ends_with('\n') {

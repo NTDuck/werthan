@@ -838,22 +838,12 @@ impl BusinessRulesPartition {
 
     /// Find rule card by identifier.
     pub fn get_by_id(&self, id: &::core::primitive::str) -> ::core::option::Option<&::laya::CleanRuleCard> {
-        for card in &self.cards {
-            if card.id == id {
-                return ::core::option::Option::Some(card);
-            }
-        }
-        ::core::option::Option::None
+        self.cards.iter().find(|card| card.id == id)
     }
 
     /// Find rule card by citation anchor.
     pub fn get_by_anchor(&self, anchor: &::core::primitive::str) -> ::core::option::Option<&::laya::CleanRuleCard> {
-        for card in &self.cards {
-            if card.citation_anchor == anchor {
-                return ::core::option::Option::Some(card);
-            }
-        }
-        ::core::option::Option::None
+        self.cards.iter().find(|card| card.citation_anchor == anchor)
     }
 
     /// Return immutable slice of rule cards.
@@ -896,12 +886,7 @@ impl DomainClustersPartition {
 
     /// Find cluster by identifier.
     pub fn get_cluster(&self, id: &::core::primitive::str) -> ::core::option::Option<&self::DomainCluster> {
-        for cluster in &self.clusters {
-            if cluster.id == id {
-                return ::core::option::Option::Some(cluster);
-            }
-        }
-        ::core::option::Option::None
+        self.clusters.iter().find(|cluster| cluster.id == id)
     }
 
     /// Return slice of all domain clusters.
@@ -976,12 +961,7 @@ impl ModuleWorktreesPartition {
         &self,
         module_name: &::core::primitive::str,
     ) -> ::core::option::Option<&self::ModuleWorktreeEntry> {
-        for entry in &self.worktrees {
-            if entry.module_name == module_name {
-                return ::core::option::Option::Some(entry);
-            }
-        }
-        ::core::option::Option::None
+        self.worktrees.iter().find(|entry| entry.module_name == module_name)
     }
 
     /// Find mutable worktree entry by module name.
@@ -989,12 +969,7 @@ impl ModuleWorktreesPartition {
         &mut self,
         module_name: &::core::primitive::str,
     ) -> ::core::option::Option<&mut self::ModuleWorktreeEntry> {
-        for entry in &mut self.worktrees {
-            if entry.module_name == module_name {
-                return ::core::option::Option::Some(entry);
-            }
-        }
-        ::core::option::Option::None
+        self.worktrees.iter_mut().find(|entry| entry.module_name == module_name)
     }
 
     /// Update status of a module worktree.
