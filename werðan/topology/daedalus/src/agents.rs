@@ -90,7 +90,7 @@ pub fn build_legacy_analyst_agent() -> ::core::option::Option<AgentBuilder<opena
 pub fn build_rules_extractor_agent() -> ::core::option::Option<AgentBuilder<openai::CompletionModel>> {
     completion_client().map(|client| {
         let model =
-            client.completion_model(&::std::env::var("WERTHAN_MODEL").unwrap_or_else(|_| "qwen3.8-27b".to_string()));
+            client.completion_model(&::std::env::var("WERTHAN_MODEL").unwrap_or_else(|_| "ashalliant/qwen3.8-27b-abliterated".to_string()));
         AgentBuilder::new(model)
             .preamble(&role_preamble(
                 "rules_extractor",
@@ -105,7 +105,7 @@ pub fn build_rules_extractor_agent() -> ::core::option::Option<AgentBuilder<open
 pub fn build_translator_test_agent() -> ::core::option::Option<AgentBuilder<openai::CompletionModel>> {
     completion_client().map(|client| {
         let model = client.completion_model(
-            &::std::env::var("WERTHAN_MODEL").unwrap_or_else(|_| "qwen3.8-27b".to_string()),
+            &::std::env::var("WERTHAN_MODEL").unwrap_or_else(|_| "ashalliant/qwen3.8-27b-abliterated".to_string()),
         );
         AgentBuilder::new(model)
             .preamble(&role_preamble(
@@ -122,7 +122,7 @@ pub fn build_translator_test_agent() -> ::core::option::Option<AgentBuilder<open
 pub fn build_architecture_critic_agent() -> ::core::option::Option<AgentBuilder<openai::CompletionModel>> {
     completion_client().map(|client| {
         let model =
-            client.completion_model(&::std::env::var("WERTHAN_MODEL").unwrap_or_else(|_| "qwen3.8-27b".to_string()));
+            client.completion_model(&::std::env::var("WERTHAN_MODEL").unwrap_or_else(|_| "ashalliant/qwen3.8-27b-abliterated".to_string()));
         AgentBuilder::new(model)
             .preamble(&role_preamble(
                 "architecture_critic",
@@ -136,7 +136,7 @@ pub fn build_architecture_critic_agent() -> ::core::option::Option<AgentBuilder<
 pub fn build_security_auditor_agent() -> ::core::option::Option<AgentBuilder<openai::CompletionModel>> {
     completion_client().map(|client| {
         let model =
-            client.completion_model(&::std::env::var("WERTHAN_MODEL").unwrap_or_else(|_| "qwen3.8-27b".to_string()));
+            client.completion_model(&::std::env::var("WERTHAN_MODEL").unwrap_or_else(|_| "ashalliant/qwen3.8-27b-abliterated".to_string()));
         AgentBuilder::new(model)
             .preamble(&role_preamble(
                 "security_auditor",

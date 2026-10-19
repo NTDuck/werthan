@@ -249,6 +249,14 @@ pub async fn execute_javascript_target_benchmark_with_cmds(
             },
         }
     };
+    let file_size = ::std::fs::metadata(&target_js).map(|m| m.len()).unwrap_or(0);
+    if file_size == 0 {
+        return self::CategoryExecutionOutcome {
+            compilation_success: false,
+            test_pass_rate: 0.0,
+            status: "FAILED".to_string(),
+        };
+    }
     let target_js_file_name = target_js.file_name().unwrap_or(target_js.as_os_str());
 
     let compilation_success = if !build_cmd.trim().is_empty() {
