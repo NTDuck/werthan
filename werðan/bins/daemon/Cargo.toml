@@ -16,7 +16,9 @@ turbofish.workspace = true
 
 [dependencies]
 bon = { workspace = true }
-orchestrator = { workspace = true }
+daedalus = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 protocol = { workspace = true }
 interactive = { workspace = true }
 tokio = { workspace = true }
