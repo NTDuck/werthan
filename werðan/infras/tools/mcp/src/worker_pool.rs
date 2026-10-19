@@ -173,10 +173,7 @@ async fn run_shard_task(
             }
         }
     }
-
-    // Offline test mode (no inference URL configured)
-    let card = ::std::format!("GIVEN legacy file {shard_file} WHEN processed THEN extracted business rules card");
-    ::core::result::Result::Ok((card, false))
+    ::core::result::Result::Err(::std::format!("no inference URL configured for {shard_file}"))
 }
 
 async fn execute_real_shard_inference(
@@ -276,9 +273,7 @@ async fn run_translation_task(
             }
         }
     }
-
-    // Offline test mode (no inference URL configured)
-    ::core::result::Result::Ok((shard.relative_path.clone(), ::std::format!("// offline stub {} to {}", shard.relative_path, shard.target_language), false))
+    ::core::result::Result::Err(::std::format!("no inference URL configured for {}", shard.relative_path))
 }
 async fn execute_real_translation_inference(
     system: &::core::primitive::str,
