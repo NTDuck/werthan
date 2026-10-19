@@ -11,14 +11,14 @@ pub mod benchmark;
 
 pub use benchmark::{AggregateBenchmarkSummary, ProjectBenchmarkRecord};
 
-/// Path to the checked-in modernization schema from the workspace root.
+/// Path to the checked-in modernization schema within crate assets.
 pub fn include_schema() -> &'static ::core::primitive::str {
-    ::core::include_str!("../../../modernize.schema.json")
+    ::core::include_str!("../assets/modernize.schema.json")
 }
 
-/// Path to the checked-in pi-warden template from the workspace root.
+/// Path to the checked-in pi-warden template within crate assets.
 pub fn include_pi_warden_template() -> &'static ::core::primitive::str {
-    ::core::include_str!("../../../pi-warden.template.md")
+    ::core::include_str!("../assets/pi-warden.template.md")
 }
 fn load_config(
     config_path: &::std::path::Path,
