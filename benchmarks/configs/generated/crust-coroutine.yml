@@ -1,0 +1,24 @@
+campaign_id: crust-coroutine-bench
+execution_mode: full_auto
+paths:
+  input_legacy_dir: benchmarks/assets/ReCodeAgent/data/tool_projects/crust/coroutine/c
+  workspace_root: ./workspace/crust-coroutine
+  off_limits_globs: []
+stack:
+  source_language: c
+  binary_artifacts: []
+  use_ghidra_rea: false
+  target_language: rust
+  target_edition_or_framework: '2024'
+  target_build_cmd: cargo check
+  target_test_cmd: cargo test
+  legacy_test_harness_cmd: make test
+inference:
+  ninfer_base_url: http://127.0.0.1:8092/v1
+  deep_model: qwen3.8-27b
+  fast_model: qwen3.8-27b
+  max_parallel_shards: 2
+  user_input_mode: wait
+verification:
+  max_self_heal_retries: 3
+  require_byte_identical_io: false

@@ -1,0 +1,135 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ModernizeConfig",
+  "description": "Configuration schema for Gemini Argon modernization MAS campaign.",
+  "type": "object",
+  "required": [
+    "campaign_id"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "description": "Unique identifier for this modernization campaign."
+    },
+    "execution_mode": {
+      "type": "string",
+      "enum": [
+        "hitl",
+        "full_auto"
+      ],
+      "default": "hitl",
+      "description": "Execution mode: human-in-the-loop (hitl) or fully automated (full_auto)."
+    },
+    "paths": {
+      "type": "object",
+      "description": "Directory paths and exclusion globs for modernization workspaces.",
+      "properties": {
+        "input_legacy_dir": {
+          "type": "string",
+          "description": "Path to input directory containing legacy source code."
+        },
+        "workspace_root": {
+          "type": "string",
+          "description": "Root path for the modernization workspace (analysis and modernized targets)."
+        },
+        "off_limits_globs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Glob patterns for paths that must not be inspected or modified."
+        }
+      },
+      "additionalProperties": false
+    },
+    "stack": {
+      "type": "object",
+      "description": "Source and target technology stack specifications.",
+      "properties": {
+        "source_language": {
+          "type": "string",
+          "description": "Source programming language (e.g., c99, cobol, java8)."
+        },
+        "binary_artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Paths to compiled legacy binary artifacts (.so, .dll, binaries) for reverse-engineering."
+        },
+        "use_ghidra_rea": {
+          "type": "boolean",
+          "description": "Whether to use Ghidra REA MCP for binary disassembly and decompilation."
+        },
+        "target_language": {
+          "type": "string",
+          "description": "Target programming language (e.g., rust, typescript, go)."
+        },
+        "target_edition_or_framework": {
+          "type": "string",
+          "description": "Target edition or framework version (e.g., 2024, spring-boot-3)."
+        },
+        "target_build_cmd": {
+          "type": "string",
+          "description": "Command to build the modernized target."
+        },
+        "target_test_cmd": {
+          "type": "string",
+          "description": "Command to execute modernized target verification tests."
+        },
+        "legacy_test_harness_cmd": {
+          "type": "string",
+          "description": "Command to run legacy golden test harness."
+        }
+      },
+      "additionalProperties": false
+    },
+    "inference": {
+      "type": "object",
+      "description": "Inference and model execution configuration.",
+      "properties": {
+        "ninfer_base_url": {
+          "type": "string",
+          "description": "Base URL for the ninfer inference service."
+        },
+        "deep_model": {
+          "type": "string",
+          "description": "Dense model identifier for complex analysis, briefs, and code transformations."
+        },
+        "fast_model": {
+          "type": "string",
+          "description": "Fast model identifier for interactive config chat, rule shards, and fast checks."
+        },
+        "max_parallel_shards": {
+          "type": "integer",
+          "description": "Maximum concurrent dynamic worker shards (e.g. 2 for 3090 KV ceiling)."
+        },
+        "user_input_mode": {
+          "type": "string",
+          "enum": [
+            "wait",
+            "immediate"
+          ],
+          "description": "User input mode: wait (blocking) or immediate (async steering)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "verification": {
+      "type": "object",
+      "description": "Clean-room verification and self-healing parameters.",
+      "properties": {
+        "max_self_heal_retries": {
+          "type": "integer",
+          "description": "Maximum self-healing retry iterations before escalation."
+        },
+        "require_byte_identical_io": {
+          "type": "boolean",
+          "description": "Whether output verification requires byte-identical stdout/stderr/files against legacy."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

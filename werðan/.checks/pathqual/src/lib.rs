@@ -102,12 +102,13 @@ impl<'a> Checker<'a> {
                         in_type_decl = false;
                         ctx = self::Ctx::None;
                     },
-                    '=' =>
+                    '=' => {
                         if in_type_decl {
                             ctx = self::Ctx::Type;
                         } else {
                             ctx = self::Ctx::None;
-                        },
+                        }
+                    },
                     ',' => ctx = self::Ctx::None,
                     ':' if !is_part_of_colon2(trees, idx) => ctx = self::Ctx::Type,
                     '-' => {
@@ -143,7 +144,7 @@ impl<'a> Checker<'a> {
                             in_type_decl = false;
                             ctx = self::Ctx::None;
                         },
-                        _ =>
+                        _ => {
                             if is_macro(trees, idx, &text) {
                                 let has_colon_prefix = idx >= 2 && is_colon2(trees, idx - 2);
                                 if !has_colon_prefix {
@@ -158,7 +159,8 @@ impl<'a> Checker<'a> {
                                 if is_type_or_colon && should_flag(trees, idx, &text) {
                                     self.warn(id.span(), &text);
                                 }
-                            },
+                            }
+                        },
                     }
                 },
                 _ => {},
@@ -260,8 +262,9 @@ fn is_macro(
         return false;
     }
     let is_bang = match trees.get(idx + 1) {
-        ::core::option::Option::Some(::proc_macro2::TokenTree::Punct(p)) =>
-            p.as_char() == '!' && p.spacing() != ::proc_macro2::Spacing::Joint,
+        ::core::option::Option::Some(::proc_macro2::TokenTree::Punct(p)) => {
+            p.as_char() == '!' && p.spacing() != ::proc_macro2::Spacing::Joint
+        },
         _ => false,
     };
     if !is_bang {

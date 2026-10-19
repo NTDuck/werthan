@@ -161,8 +161,9 @@ impl<'a> Checker<'a> {
                         }
                     } else if idx > 0 {
                         match tokens.get(idx - 1) {
-                            ::core::option::Option::Some(::proc_macro2::TokenTree::Punct(p0)) =>
-                                p0.as_char() == ':' && p0.spacing() == ::proc_macro2::Spacing::Joint,
+                            ::core::option::Option::Some(::proc_macro2::TokenTree::Punct(p0)) => {
+                                p0.as_char() == ':' && p0.spacing() == ::proc_macro2::Spacing::Joint
+                            },
                             _ => false,
                         }
                     } else {
@@ -248,8 +249,9 @@ fn has_call_args(trees: &[::proc_macro2::TokenTree], idx: ::core::primitive::usi
                     depth -= 1;
                     if depth == 0 {
                         return match trees.get(idx + 4 + offset) {
-                            ::core::option::Option::Some(::proc_macro2::TokenTree::Group(g)) =>
-                                g.delimiter() == ::proc_macro2::Delimiter::Parenthesis,
+                            ::core::option::Option::Some(::proc_macro2::TokenTree::Group(g)) => {
+                                g.delimiter() == ::proc_macro2::Delimiter::Parenthesis
+                            },
                             _ => false,
                         };
                     }
