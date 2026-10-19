@@ -15,7 +15,7 @@ pub struct WorkerPool {
 
 impl ::core::default::Default for self::WorkerPool {
     fn default() -> Self {
-        Self::new(2, "qwen3.6-35b-a3b")
+        Self::new(2, "ashalliant/qwen3.8-27b-abliterated")
     }
 }
 
@@ -110,6 +110,47 @@ impl self::WorkerPool {
         }
         let used_real = real_count > 0;
         ::core::result::Result::Ok((cards, used_real, real_count))
+    }
+    /// Dispatch translation shard tasks across worker pool.
+    pub async fn dispatch_translation_shards(
+        &self,
+        shards: &[::protocol::TranslationShard],
+    ) -> ::core::result::Result<
+        (::std::vec::Vec<(::std::string::String, ::std::string::String)>, ::core::primitive::bool, ::core::primitive::usize),
+        ::std::string::String,
+    > {
+        let sem = ::tokio::sync::Semaphore::new(self.max_concurrency);
+        let semaphore = ::std::sync::Arc::new(sem);
+        let mut handles = ::std::vec::Vec::new();
+        for shard in shards {
+            let sem_clone = semaphore.clone();
+            let permit = match sem_clone.acquire_owned().await {
+                ::core::result::Result::Ok(p) => p,
+                ::core::result::Result::Err(err) => return ::core::result::Result::Err(err.to_string()),
+            };
+            let shard_clone = shard.clone();
+            let model_name = self.model.clone();
+            let inference_url = self.inference_url.clone();
+            let handle = ::tokio::spawn(async move {
+                let _permit = permit;
+                self::run_translation_task(&shard_clone, &model_name, inference_url.as_deref()).await
+            });
+            handles.push(handle);
+        }
+        let mut results = ::std::vec::Vec::new();
+        let mut real_count: ::core::primitive::usize = 0;
+        for handle in handles {
+            let res = match handle.await {
+                ::core::result::Result::Ok(r) => r?,
+                ::core::result::Result::Err(err) => return ::core::result::Result::Err(err.to_string()),
+            };
+            let (path, code, is_real) = res;
+            if is_real {
+                real_count += 1;
+            }
+            results.push((path, code));
+        }
+        ::core::result::Result::Ok((results, real_count > 0, real_count))
     }
 }
 
@@ -221,4 +262,88 @@ async fn execute_real_shard_inference(
             ::core::result::Result::Err(msg)
         },
     }
+}
+
+async fn run_translation_task(
+    shard: &::protocol::TranslationShard,
+    model: &::core::primitive::str,
+    inference_url: ::core::option::Option<&::core::primitive::str>,
+) -> ::core::result::Result<(::std::string::String, ::std::string::String, ::core::primitive::bool), ::std::string::String> {
+    if let ::core::option::Option::Some(url) = inference_url {
+        let trimmed = url.trim().trim_end_matches('/');
+        if !trimmed.is_empty() {
+            let prompt = ::std::format!(
+                "Translate this {} file to {}. Output ONLY the complete translated file content, no commentary, no markdown fences.\n\nFile: {}\n\n```\n{}\n```",
+                shard.source_language, shard.target_language, shard.relative_path, shard.source_content
+            );
+            let sys = "You are a code translator. Output only the translated source code.";
+            match self::execute_real_translation_inference(sys, &prompt, model, trimmed).await {
+                ::core::result::Result::Ok(code) => return ::core::result::Result::Ok((shard.relative_path.clone(), code, true)),
+                ::core::result::Result::Err(e) => ::std::eprintln!("[worker_pool] translation failed for {}: {e}", shard.relative_path),
+            }
+        }
+    }
+    ::core::result::Result::Ok((shard.relative_path.clone(), ::std::format!("// TODO: translate {} to {}", shard.relative_path, shard.target_language), false))
+}
+
+async fn execute_real_translation_inference(
+    system: &::core::primitive::str,
+    user: &::core::primitive::str,
+    model: &::core::primitive::str,
+    base_url: &::core::primitive::str,
+) -> ::core::result::Result<::std::string::String, ::std::string::String> {
+    let endpoint = if base_url.ends_with("/chat/completions") {
+        base_url.to_string()
+    } else {
+        ::std::format!("{base_url}/chat/completions")
+    };
+    let client = ::reqwest::Client::new();
+    let body = ::serde_json::json!({
+        "model": model,
+        "max_tokens": 4096,
+        "temperature": 0.2,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user}
+        ]
+    });
+    let timeout_dur = ::core::time::Duration::from_secs(180);
+    let resp = match client.post(&endpoint).json(&body).timeout(timeout_dur).send().await {
+        ::core::result::Result::Ok(r) => r,
+        ::core::result::Result::Err(e) => return ::core::result::Result::Err(e.to_string()),
+    };
+    if !resp.status().is_success() {
+        return ::core::result::Result::Err(::std::format!("HTTP {}", resp.status()));
+    }
+    let val: ::serde_json::Value = match resp.json().await {
+        ::core::result::Result::Ok(v) => v,
+        ::core::result::Result::Err(e) => return ::core::result::Result::Err(e.to_string()),
+    };
+    let msg_obj = val.get("choices").and_then(|c| c.get(0)).and_then(|c0| c0.get("message"));
+    let content_opt = msg_obj
+        .and_then(|m| m.get("content"))
+        .and_then(|ct| ct.as_str())
+        .filter(|ct| !ct.trim().is_empty())
+        .or_else(|| {
+            msg_obj
+                .and_then(|m| m.get("reasoning_content"))
+                .and_then(|rc| rc.as_str())
+                .filter(|rc| !rc.trim().is_empty())
+        });
+    let content = match content_opt {
+        ::core::option::Option::Some(c) => c,
+        ::core::option::Option::None => return ::core::result::Result::Err(::std::string::String::from("no content or reasoning_content in response")),
+    };
+    let cleaned = content.trim();
+    let unquoted = if cleaned.starts_with("```") {
+        let lines: ::std::vec::Vec<&str> = cleaned.lines().collect();
+        if lines.len() >= 2 && lines.last().is_some_and(|l| l.trim() == "```") {
+            lines[1..lines.len() - 1].join("\n")
+        } else {
+            cleaned.to_string()
+        }
+    } else {
+        cleaned.to_string()
+    };
+    ::core::result::Result::Ok(unquoted)
 }

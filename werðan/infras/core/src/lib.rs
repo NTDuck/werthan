@@ -298,6 +298,19 @@ impl ::core::default::Default for self::ModernizeStack {
         }
     }
 }
+/// Source file representation for translation.
+#[derive(::core::clone::Clone, ::core::fmt::Debug, ::serde::Serialize, ::serde::Deserialize)]
+pub struct TranslationShard {
+    /// Relative path within subsystem.
+    pub relative_path: ::std::string::String,
+    /// Source file content.
+    pub source_content: ::std::string::String,
+    /// Source programming language.
+    pub source_language: ::std::string::String,
+    /// Target programming language.
+    pub target_language: ::std::string::String,
+}
+
 
 /// Inference model configuration.
 #[derive(
@@ -305,7 +318,6 @@ impl ::core::default::Default for self::ModernizeStack {
     ::core::clone::Clone,
     ::core::fmt::Debug,
     ::core::cmp::PartialEq,
-    ::core::cmp::Eq,
     ::serde::Serialize,
     ::serde::Deserialize,
     ::schemars::JsonSchema
@@ -330,6 +342,32 @@ pub struct ModernizeInference {
     #[serde(default = "default_user_input_mode")]
     #[builder(into)]
     pub user_input_mode: ::std::string::String,
+    /// Max concurrent worker shards (overrides WERTHAN_MAX_SHARDS env).
+    #[serde(default = "default_max_shards")]
+    pub max_shards: ::core::primitive::u32,
+    /// Inference base URL (overrides WERTHAN_BASE_URL env).
+    #[serde(default)]
+    #[builder(into)]
+    pub base_url: ::std::string::String,
+    /// Model identifier (overrides WERTHAN_MODEL env).
+    #[serde(default)]
+    #[builder(into)]
+    pub model: ::std::string::String,
+    /// Max tokens per inference response.
+    #[serde(default = "default_inference_max_tokens")]
+    pub inference_max_tokens: ::core::primitive::u32,
+    /// Sampling temperature for inference.
+    #[serde(default = "default_inference_temperature")]
+    pub inference_temperature: ::core::primitive::f64,
+    /// Inference HTTP timeout in seconds.
+    #[serde(default = "default_inference_timeout_secs")]
+    pub inference_timeout_secs: ::core::primitive::u64,
+    /// Build command timeout in seconds.
+    #[serde(default = "default_build_timeout_secs")]
+    pub build_timeout_secs: ::core::primitive::u64,
+    /// Test command timeout in seconds.
+    #[serde(default = "default_test_timeout_secs")]
+    pub test_timeout_secs: ::core::primitive::u64,
 }
 
 fn default_max_parallel_shards() -> ::core::primitive::u32 {
@@ -339,15 +377,29 @@ fn default_max_parallel_shards() -> ::core::primitive::u32 {
 fn default_user_input_mode() -> ::std::string::String {
     "wait".to_string()
 }
+fn default_max_shards() -> ::core::primitive::u32 { 2 }
+fn default_inference_max_tokens() -> ::core::primitive::u32 { 4096 }
+fn default_inference_temperature() -> ::core::primitive::f64 { 0.2 }
+fn default_inference_timeout_secs() -> ::core::primitive::u64 { 180 }
+fn default_build_timeout_secs() -> ::core::primitive::u64 { 120 }
+fn default_test_timeout_secs() -> ::core::primitive::u64 { 120 }
 
 impl ::core::default::Default for self::ModernizeInference {
     fn default() -> Self {
         Self {
             ninfer_base_url: { ::std::string::String::new() },
-            deep_model: { ::std::string::String::new() },
-            fast_model: { ::std::string::String::new() },
+            deep_model: { "ashalliant/qwen3.8-27b-abliterated".to_string() },
+            fast_model: { "ashalliant/qwen3.8-27b-abliterated".to_string() },
             max_parallel_shards: { self::default_max_parallel_shards() },
             user_input_mode: { self::default_user_input_mode() },
+            max_shards: { self::default_max_shards() },
+            base_url: { ::std::string::String::new() },
+            model: { "ashalliant/qwen3.8-27b-abliterated".to_string() },
+            inference_max_tokens: { self::default_inference_max_tokens() },
+            inference_temperature: { self::default_inference_temperature() },
+            inference_timeout_secs: { self::default_inference_timeout_secs() },
+            build_timeout_secs: { self::default_build_timeout_secs() },
+            test_timeout_secs: { self::default_test_timeout_secs() },
         }
     }
 }
@@ -391,7 +443,6 @@ impl ::core::default::Default for self::ModernizeVerification {
     ::core::clone::Clone,
     ::core::fmt::Debug,
     ::core::cmp::PartialEq,
-    ::core::cmp::Eq,
     ::serde::Serialize,
     ::serde::Deserialize,
     ::schemars::JsonSchema
