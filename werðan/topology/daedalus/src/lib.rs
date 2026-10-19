@@ -231,12 +231,27 @@ pub async fn execute_fsm(
     let ws_root = ::std::path::Path::new(&config.paths.workspace_root);
     let translated_dir = ws_root.join("translated");
     let modernized_dir = ws_root.join("modernized");
-    let has_code = |p: &::std::path::Path| {
-        p.join("Cargo.toml").exists()
-            || p.join("rust").exists()
-            || p.join("python").exists()
-            || p.join("javascript").exists()
-            || p.join("translated.js").exists()
+    let has_source_with_ext = |dir: &::std::path::Path, ext: &::core::primitive::str| -> ::core::primitive::bool {
+        ::std::fs::read_dir(dir)
+            .map(|entries| {
+                entries.flatten().any(|e| {
+                    let p = e.path();
+                    p.is_file() && p.extension().is_some_and(|actual| actual == ext)
+                })
+            })
+            .unwrap_or(false)
+    };
+    let has_code = |p: &::std::path::Path| -> ::core::primitive::bool {
+        match config.stack.target_language.as_str() {
+            "rust" => p.join("Cargo.toml").exists() || has_source_with_ext(p, "rs"),
+            "javascript" => {
+                p.join("translated.js").exists()
+                    || p.join("package.json").exists()
+                    || has_source_with_ext(p, "js")
+            },
+            "python" => has_source_with_ext(p, "py"),
+            _ => p.join("Cargo.toml").exists() || has_source_with_ext(p, &config.stack.target_language),
+        }
     };
     let target_dir = if translated_dir.exists() && has_code(&translated_dir) {
         translated_dir
