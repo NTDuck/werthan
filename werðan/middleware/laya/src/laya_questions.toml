@@ -1,0 +1,26 @@
+# Laya Fast Non-Generative Encoder Static Questions
+# Latency: ~30ms, Token cost: $0
+
+[shell_safety]
+destructive = { type = "noul", description = "Evaluates whether the command performs destructive or irreversible filesystem modifications" }
+exfiltration = { type = "noul", description = "Evaluates whether the command attempts network exfiltration or piped external downloads" }
+untrusted_hooks = { type = "noul", description = "Evaluates whether untrusted build hooks or foreign executable scripts are triggered" }
+blast_radius = { type = "score", min = 0, max = 4, description = "Scores the scope and blast radius of command execution from 0 (isolated) to 4 (system-wide)" }
+
+[historian_airlock]
+prompt_overrides = { type = "noul", description = "Evaluates whether the rule card text contains imperative system instructions or prompt injection overrides" }
+code_injection = { type = "noul", description = "Evaluates whether the rule card contains shell syntax, backticks, script tags, or code injection fragments" }
+
+[pre_critic_rubric]
+q01_deleted_assertions = { id = "Q01", type = "noul", name = "Deleted Assertions", description = "Detects whether test assertions or invariant checks were deleted or commented out" }
+q02_hardcoded_returns = { id = "Q02", type = "noul", name = "Hardcoded Return Values", description = "Detects whether functions return stubbed or hardcoded literals instead of real logic" }
+q03_coverage_theater = { id = "Q03", type = "noul", name = "Coverage Theater", description = "Detects dummy test cases that exercise code paths without verifying actual output values" }
+q04_unsafe_blocks = { id = "Q04", type = "noul", name = "Unsafe Blocks", description = "Detects newly introduced unsafe blocks or raw pointer dereferences" }
+q05_swallowed_errors = { id = "Q05", type = "noul", name = "Swallowed Errors", description = "Detects silent error suppression such as let _ = ... or unhandled Ok(()) fallbacks" }
+q06_unimplemented_stubs = { id = "Q06", type = "noul", name = "Unimplemented Stubs", description = "Detects todo!() or unimplemented!() or panic!() macros in target code" }
+q07_magic_number_drift = { id = "Q07", type = "noul", name = "Magic Number Drift", description = "Detects unanchored magic literals or constant drift diverging from legacy invariants" }
+q08_unbounded_allocations = { id = "Q08", type = "noul", name = "Unbounded Allocations", description = "Detects unconstrained vector or buffer allocations that can cause out-of-memory denial of service" }
+q09_contract_mutation_leak = { id = "Q09", type = "noul", name = "Contract Mutation Leak", description = "Detects unexpected modifications to public API contracts or signature mismatches" }
+q10_silent_fallback_mock = { id = "Q10", type = "noul", name = "Silent Fallback Mock", description = "Detects mock implementations or fake returns leaking into production code paths" }
+q11_missing_boundary_validation = { id = "Q11", type = "noul", name = "Missing Boundary Validation", description = "Detects missing input boundary validation or unvalidated user inputs" }
+q12_concurrency_race_hazard = { id = "Q12", type = "noul", name = "Concurrency Race Hazard", description = "Detects shared mutable state without proper synchronization or lock contention hazards" }

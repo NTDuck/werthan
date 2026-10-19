@@ -6,11 +6,6 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    omp = {
-      url = "github:can1357/oh-my-pi";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs = inputs: {
@@ -30,8 +25,7 @@
           pkgs.prek
           pkgs.mise
           pkgs.ctx7
-
-          inputs.omp.packages.${system}.omp
+          pkgs.scc
         ];
       };
     });

@@ -364,8 +364,9 @@ fn has_call_args(trees: &[::proc_macro2::TokenTree], idx: ::core::primitive::usi
                     depth -= 1;
                     if depth == 0 {
                         return match trees.get(idx + 4 + offset) {
-                            ::core::option::Option::Some(::proc_macro2::TokenTree::Group(g)) =>
-                                g.delimiter() == ::proc_macro2::Delimiter::Parenthesis,
+                            ::core::option::Option::Some(::proc_macro2::TokenTree::Group(g)) => {
+                                g.delimiter() == ::proc_macro2::Delimiter::Parenthesis
+                            },
                             _ => false,
                         };
                     }

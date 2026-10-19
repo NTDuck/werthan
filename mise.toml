@@ -1,5 +1,7 @@
 [tasks]
-tui = "cargo run -p tui --"
+default = { depends = ["interactive"] }
+daemon = "cargo run -p daemon --"
+interactive = "cargo run -p daemon --"
 check = "cargo check"
 test = "cargo nextest run"
 lint = "cargo fmt && cargo clippy"
