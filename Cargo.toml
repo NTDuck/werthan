@@ -2,17 +2,17 @@
 members = [
     "werðan/.checks/*",
     "werðan/.examples/*",
-    "werðan/protocol",
-    "werðan/harness",
-    "werðan/verify",
-    "werðan/orchestrator",
+    "werðan/infras/core",
+    "werðan/infras/blackboard",
+    "werðan/infras/statechart",
+    "werðan/infras/laya",
+    "werðan/infras/tools/mcp",
+    "werðan/infras/tools/rea",
+    "werðan/topology/operative",
+    "werðan/topology/cluster",
+    "werðan/topology/daedalus",
     "werðan/bins/daemon",
     "werðan/bins/interactive",
-    "werðan/blackboard",
-    "werðan/infras/topology",
-    "werðan/infras/state-machine",
-    "werðan/middleware/laya",
-    "werðan/middleware/tools/REA",
 ]
 exclude = [
     "benchmarks",
@@ -35,42 +35,50 @@ ste100 = { path = "werðan/.checks/ste100" }
 stepdown = { path = "werðan/.checks/stepdown" }
 turbofish = { path = "werðan/.checks/turbofish" }
 
-# Crates in workspace
-protocol = { path = "werðan/protocol" }
-harness = { path = "werðan/harness" }
-orchestrator = { path = "werðan/orchestrator" }
-verify = { path = "werðan/verify" }
-blackboard = { path = "werðan/blackboard" }
-topology = { path = "werðan/infras/topology" }
-state-machine = { path = "werðan/infras/state-machine" }
-laya = { path = "werðan/middleware/laya" }
-jev = { path = "werðan/middleware/laya", package = "laya" }
-rea = { path = "werðan/middleware/tools/REA" }
+# Infras
+protocol = { path = "werðan/infras/core" }
+blackboard = { path = "werðan/infras/blackboard" }
+statechart = { path = "werðan/infras/statechart" }
+laya = { path = "werðan/infras/laya" }
+mcp = { path = "werðan/infras/tools/mcp" }
+rea = { path = "werðan/infras/tools/rea" }
+
+# Topology
+operative = { path = "werðan/topology/operative" }
+cluster = { path = "werðan/topology/cluster" }
+daedalus = { path = "werðan/topology/daedalus" }
+
+# Bins
 daemon = { path = "werðan/bins/daemon" }
 interactive = { path = "werðan/bins/interactive" }
-# Crates that we choose to marry
+
+# External Crates
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
 serde = { version = "1.0", features = ["derive"] }
-bon = "3"
-serde_json = "1.0"
-serde_yaml_ng = "0.10"
+serde_json = { version = "1.0" }
+serde_yaml_ng = { version = "0.10" }
 tokio = { version = "1.40", features = ["full"] }
-schemars = "0.8"
-sha2 = "0.10"
-similar = "2.6"
-quick-xml = "0.36"
+schemars = { version = "0.8" }
+sha2 = { version = "0.10" }
+similar = { version = "2.6" }
+quick-xml = { version = "0.36" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-ratatui = { version = "0.29", features = ["serde"] }
-crossterm = "0.28"
+ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
+crossterm = { version = "0.28" }
 rig-core = { version = "0.9", default-features = false }
+bon = { version = "3.3" }
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
+
 [workspace.lints.rust]
-# See: https://doc.rust-lang.org/rustc/lints/listing/index.html
+missing_docs = "allow"
 
 [workspace.lints.clippy]
-# See: https://rust-lang.github.io/rust-clippy/master/index.html
 missing_safety_doc = "allow"
 let_and_return = "allow"
 too_many_arguments = "allow"
 
 [workspace.metadata.rust-analyzer]
-# See: https://rust-analyzer.github.io/book/diagnostics.html
+diagnostics.disabled = [
+    "unresolved-proc-macro",
+]

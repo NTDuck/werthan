@@ -1,0 +1,36 @@
+[package]
+name = "daedalus"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[build-dependencies]
+flatmods.workspace = true
+pathqual.workspace = true
+plumbing.workspace = true
+ste100.workspace = true
+stepdown.workspace = true
+turbofish.workspace = true
+
+[dependencies]
+bon = { workspace = true }
+protocol = { workspace = true }
+mcp = { workspace = true, features = ["rig"] }
+laya = { workspace = true }
+rea = { workspace = true }
+blackboard = { workspace = true }
+operative = { workspace = true }
+cluster = { workspace = true }
+statechart = { workspace = true }
+rig-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true }
+ratatui = { workspace = true }
+
+[lints]
+workspace = true

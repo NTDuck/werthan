@@ -21,22 +21,22 @@ async fn main() {
     let cli = parse_args(&args);
 
     if cli.is_smoke || cli.is_dry_run {
-        ::orchestrator::smoke::run_smoke_verification().await;
+        ::daedalus::smoke::run_smoke_verification().await;
         return;
     }
 
     if let ::core::option::Option::Some(path) = &cli.benchmark_path {
-        ::orchestrator::run_benchmark(path).await;
+        ::daedalus::run_benchmark(path).await;
         return;
     }
 
     if let ::core::option::Option::Some(path) = &cli.benchmark_all_path {
-        ::orchestrator::run_benchmark_all(path).await;
+        ::daedalus::run_benchmark_all(path).await;
         return;
     }
 
     if let ::core::option::Option::Some(path) = &cli.config_path {
-        ::orchestrator::run_benchmark(path).await;
+        ::daedalus::run_benchmark(path).await;
         return;
     }
 

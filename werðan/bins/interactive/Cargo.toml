@@ -24,10 +24,12 @@ serde_yaml_ng = { workspace = true }
 tokio = { workspace = true }
 protocol = { workspace = true }
 blackboard = { workspace = true }
-topology = { workspace = true }
-state-machine = { workspace = true }
+operative = { workspace = true }
+statechart = { workspace = true }
 laya = { workspace = true }
 rea = { workspace = true }
-harness = { workspace = true }
+mcp = { workspace = true }
+cluster = { workspace = true }
+daedalus = { workspace = true }
 [lints]
 workspace = true

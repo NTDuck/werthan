@@ -24,12 +24,12 @@ pub enum ChatMessage {
     Orchestrator(::std::string::String),
     /// State machine lifecycle transition.
     Transition {
-        from: ::state_machine::ModernizationState,
-        to: ::state_machine::ModernizationState,
+        from: ::statechart::ModernizationState,
+        to: ::statechart::ModernizationState,
     },
     /// Human decision gate prompt.
     GatePrompt {
-        gate: ::state_machine::HumanGate,
+        gate: ::statechart::HumanGate,
         prompt: ::std::string::String,
     },
     /// Status or system notice.
@@ -42,7 +42,7 @@ pub enum ChatMessage {
 #[derive(::core::clone::Clone, ::core::fmt::Debug)]
 pub struct SpecialistCardState {
     /// Associated agent role.
-    pub role: ::topology::AgentRole,
+    pub role: ::operative::AgentRole,
     /// Title banner for card.
     pub title: ::std::string::String,
     /// Telemetry metrics text.
@@ -70,12 +70,12 @@ pub enum UiStreamEvent {
     OrchestratorLine(::std::string::String),
     /// State transition banner.
     StateTransition {
-        from: ::state_machine::ModernizationState,
-        to: ::state_machine::ModernizationState,
+        from: ::statechart::ModernizationState,
+        to: ::statechart::ModernizationState,
     },
     /// Human gate paused for approval.
     GateRequired {
-        gate: ::state_machine::HumanGate,
+        gate: ::statechart::HumanGate,
         prompt: ::std::string::String,
     },
     /// Workflow completed successfully.
@@ -105,9 +105,9 @@ pub struct InteractiveCockpit {
     /// Shared blackboard instance.
     pub blackboard: ::blackboard::Blackboard,
     /// Active state machine state.
-    pub current_state: ::state_machine::ModernizationState,
+    pub current_state: ::statechart::ModernizationState,
     /// Pending human gate.
-    pub pending_gate: ::core::option::Option<::state_machine::HumanGate>,
+    pub pending_gate: ::core::option::Option<::statechart::HumanGate>,
     /// Flag indicating whether workflow is running.
     pub is_running: ::core::primitive::bool,
     /// Stream event sender.
@@ -115,7 +115,7 @@ pub struct InteractiveCockpit {
     /// Stream event receiver.
     pub event_rx: ::tokio::sync::mpsc::UnboundedReceiver<self::UiStreamEvent>,
     /// Channel sender to resolve pending gate decisions.
-    pub gate_tx: ::core::option::Option<::tokio::sync::mpsc::UnboundedSender<::state_machine::GateDecision>>,
+    pub gate_tx: ::core::option::Option<::tokio::sync::mpsc::UnboundedSender<::statechart::GateDecision>>,
 }
 
 /// Start daemon server in interactive terminal.
@@ -522,7 +522,7 @@ impl self::InteractiveCockpit {
 
         let initial_cards = ::std::vec![
             self::SpecialistCardState {
-                role: ::topology::AgentRole::LegacyAnalyst,
+                role: ::operative::AgentRole::LegacyAnalyst,
                 title: " ◈ 1. Legacy Analyst ".to_string(),
                 telemetry: "scc: idle · AST pending".to_string(),
                 status: "Idle".to_string(),
@@ -531,7 +531,7 @@ impl self::InteractiveCockpit {
                 scroll_offset: 0,
             },
             self::SpecialistCardState {
-                role: ::topology::AgentRole::BinaryHistorian,
+                role: ::operative::AgentRole::BinaryHistorian,
                 title: " ◈ 2. Binary Historian / REA ".to_string(),
                 telemetry: "rea: compact · Ghidra ready".to_string(),
                 status: "Idle".to_string(),
@@ -540,7 +540,7 @@ impl self::InteractiveCockpit {
                 scroll_offset: 0,
             },
             self::SpecialistCardState {
-                role: ::topology::AgentRole::BusinessRulesExtractor,
+                role: ::operative::AgentRole::BusinessRulesExtractor,
                 title: " ◈ 3. Rules Extractor ".to_string(),
                 telemetry: "airlock: active · 0 cards".to_string(),
                 status: "Idle".to_string(),
@@ -549,7 +549,7 @@ impl self::InteractiveCockpit {
                 scroll_offset: 0,
             },
             self::SpecialistCardState {
-                role: ::topology::AgentRole::ModuleLead,
+                role: ::operative::AgentRole::ModuleLead,
                 title: " ◈ 4. Module Lead & Synthesis ".to_string(),
                 telemetry: "worktrees: 0 CoW · prewalk".to_string(),
                 status: "Idle".to_string(),
@@ -558,7 +558,7 @@ impl self::InteractiveCockpit {
                 scroll_offset: 0,
             },
             self::SpecialistCardState {
-                role: ::topology::AgentRole::ArchitectureCritic,
+                role: ::operative::AgentRole::ArchitectureCritic,
                 title: " ◈ 5. Adversarial Trio & Security ".to_string(),
                 telemetry: "laya rubric: 12 rules · zero CWE".to_string(),
                 status: "Idle".to_string(),
@@ -577,7 +577,7 @@ impl self::InteractiveCockpit {
             cards: { initial_cards },
             draft_config: { default_config },
             blackboard: { bb },
-            current_state: ::state_machine::ModernizationState::S0Intent,
+            current_state: ::statechart::ModernizationState::S0Intent,
             pending_gate: ::core::option::Option::None,
             is_running: false,
             event_tx: { tx },
@@ -1019,7 +1019,7 @@ impl self::InteractiveCockpit {
         self.messages.push(self::ChatMessage::Notice(start_msg));
         self.is_running = true;
 
-        let (gate_tx, mut gate_rx) = ::tokio::sync::mpsc::unbounded_channel::<::state_machine::GateDecision>();
+        let (gate_tx, mut gate_rx) = ::tokio::sync::mpsc::unbounded_channel::<::statechart::GateDecision>();
         self.gate_tx = ::core::option::Option::Some(gate_tx);
 
         let ui_tx = self.event_tx.clone();
@@ -1027,7 +1027,7 @@ impl self::InteractiveCockpit {
         let bb = self.blackboard.clone();
 
         ::tokio::spawn(async move {
-            let mut runner = ::state_machine::StateMachineRunner::new(cfg, bb.clone(), is_auto);
+            let mut runner = ::statechart::StateMachineRunner::new(cfg, bb.clone(), is_auto);
             let mut sub = bb.subscribe();
 
             let ui_tx_sub = ui_tx.clone();
@@ -1088,7 +1088,7 @@ impl self::InteractiveCockpit {
 
             loop {
                 match runner.step() {
-                    ::core::result::Result::Ok(::state_machine::StepOutcome::Advanced {
+                    ::core::result::Result::Ok(::statechart::StepOutcome::Advanced {
                         from,
                         to,
                     }) => {
@@ -1108,7 +1108,7 @@ impl self::InteractiveCockpit {
                         let dur = ::core::time::Duration::from_millis(50);
                         ::tokio::time::sleep(dur).await;
                     },
-                    ::core::result::Result::Ok(::state_machine::StepOutcome::GateRequired {
+                    ::core::result::Result::Ok(::statechart::StepOutcome::GateRequired {
                         gate,
                         prompt,
                     }) => {
@@ -1126,7 +1126,7 @@ impl self::InteractiveCockpit {
                             break;
                         }
                     },
-                    ::core::result::Result::Ok(::state_machine::StepOutcome::Completed {
+                    ::core::result::Result::Ok(::statechart::StepOutcome::Completed {
                         receipts,
                     }) => {
                         let _ = ui_tx.send(self::UiStreamEvent::WorkflowCompleted {
@@ -1147,7 +1147,7 @@ impl self::InteractiveCockpit {
     fn resolve_gate_approval(&mut self, notes: &::core::primitive::str) {
         if let ::core::option::Option::Some(gate) = self.pending_gate.take() {
             if let ::core::option::Option::Some(tx) = &self.gate_tx {
-                let decision = ::state_machine::GateDecision::Approved {
+                let decision = ::statechart::GateDecision::Approved {
                     approver: "operator".to_string(),
                     notes: { notes.to_string() },
                 };
@@ -1164,7 +1164,7 @@ impl self::InteractiveCockpit {
     fn resolve_gate_rejection(&mut self, reason: &::core::primitive::str) {
         if let ::core::option::Option::Some(gate) = self.pending_gate.take() {
             if let ::core::option::Option::Some(tx) = &self.gate_tx {
-                let decision = ::state_machine::GateDecision::Rejected {
+                let decision = ::statechart::GateDecision::Rejected {
                     reason: { reason.to_string() },
                 };
                 let _ = tx.send(decision);
