@@ -12,7 +12,7 @@ stack:
   target_edition_or_framework: '2024'
   target_build_cmd: cargo check
   target_test_cmd: cargo test
-  legacy_test_harness_cmd: make test
+  legacy_test_harness_cmd: go test ./...
 inference:
   ninfer_base_url: http://127.0.0.1:8092/v1
   deep_model: qwen3.8-27b

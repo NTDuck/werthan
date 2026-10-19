@@ -619,6 +619,7 @@ pub async fn run_benchmark_all(base_dir: &::std::path::Path) {
         let (target_build_cmd, target_test_cmd, legacy_harness_cmd) = match cat.as_str() {
             "skel" => ("node -c translated.js".to_string(), "node translated.js".to_string(), "pytest".to_string()),
             "alphatrans" => ("python3 -m py_compile".to_string(), "pytest".to_string(), "mvn test".to_string()),
+            "oxidizer" => ("cargo check".to_string(), "cargo test".to_string(), "go test ./...".to_string()),
             _ => ("cargo check".to_string(), "cargo test".to_string(), "make test".to_string()),
         };
 
