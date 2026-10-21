@@ -1,4 +1,5 @@
 fn main() {
+    ::envload::load();
     ::flatmods::check();
     ::pathqual::check();
     ::plumbing::check();
