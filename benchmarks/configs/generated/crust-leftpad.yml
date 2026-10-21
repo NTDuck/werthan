@@ -14,7 +14,7 @@ stack:
   target_test_cmd: cargo test
   legacy_test_harness_cmd: make test
 inference:
-  ninfer_base_url: http://127.0.0.1:8092/v1
+  ninfer_base_url: ''
   deep_model: qwen3.8-27b
   fast_model: qwen3.8-27b
   max_parallel_shards: 2

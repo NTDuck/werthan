@@ -16,6 +16,7 @@ operative = { workspace = true }
 laya = { workspace = true }
 rea = { workspace = true }
 protocol = { workspace = true }
+redb = { workspace = true }
 
 [lints]
 workspace = true

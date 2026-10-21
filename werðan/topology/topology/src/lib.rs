@@ -290,6 +290,154 @@ pub async fn execute_fsm(
             let _ = ::std::fs::create_dir_all(parent);
         }
         let _ = ::std::fs::write(&out_path, code);
+
+        // If a test binary is placed under src/bin/, configure it in Cargo.toml so cargo test executes it
+        if config.stack.target_language == "rust" && (out_file_name.starts_with("src/bin/") || out_file_name.starts_with("bin/")) {
+            let manifest_path = modernized_out.join("Cargo.toml");
+            if manifest_path.exists() {
+                if let ::core::result::Result::Ok(content) = ::std::fs::read_to_string(&manifest_path) {
+                    let stem = ::std::path::Path::new(&out_file_name)
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("test_bin");
+                    let bin_entry = ::std::format!("\n[[bin]]\nname = \"{stem}\"\npath = \"{out_file_name}\"\ntest = true\n");
+                    if !content.contains(&::std::format!("name = \"{stem}\"")) {
+                        let mut updated = content;
+                        updated.push_str(&bin_entry);
+                        let _ = ::std::fs::write(&manifest_path, updated);
+                    }
+                }
+            }
+        }
+    }
+    // Self-repair loop (ARIADNE M2/M3 compiler feedback loop, up to 3 rounds)
+    if s6_real_used && config.stack.target_language == "rust" {
+        let manifest_path = modernized_out.join("Cargo.toml");
+        if manifest_path.exists() {
+            for repair_round in 1..=4 {
+                let check_res = ::tokio::process::Command::new("cargo")
+                    .arg("check")
+                    .arg("--manifest-path")
+                    .arg(&manifest_path)
+                    .arg("--all-targets")
+                    .output()
+                    .await;
+
+                let (mut success, mut test_err) = match check_res {
+                    ::core::result::Result::Ok(out) => {
+                        (out.status.success(), ::std::string::String::from_utf8_lossy(&out.stderr).to_string())
+                    },
+                    ::core::result::Result::Err(_) => (true, ::std::string::String::new()),
+                };
+
+                if success {
+                    let test_cmd = ::tokio::process::Command::new("cargo")
+                        .arg("test")
+                        .arg("--manifest-path")
+                        .arg(&manifest_path)
+                        .arg("--all-targets")
+                        .arg("--")
+                        .arg("--nocapture")
+                        .output();
+                    if let ::core::result::Result::Ok(::core::result::Result::Ok(test_out)) = ::tokio::time::timeout(::core::time::Duration::from_secs(15), test_cmd).await {
+                        if !test_out.status.success() {
+                            let combined = ::std::format!(
+                                "{}\n{}",
+                                ::std::string::String::from_utf8_lossy(&test_out.stdout),
+                                ::std::string::String::from_utf8_lossy(&test_out.stderr)
+                            );
+                            success = false;
+                            test_err = combined;
+                            ::std::println!("[FSM] Self-repair round {repair_round}/4: Test failures detected, feeding back to LLM...");
+                        }
+                    }
+                }
+
+                if success {
+                    ::std::println!("[FSM] Self-repair: Clean compilation and 100% test verification achieved on round {repair_round}!");
+                    break;
+                }
+
+                ::std::println!("[FSM] Self-repair round {repair_round}/4: Errors detected, feeding back to LLM...");
+                let max_err_len = 4096;
+                let truncated_err = if test_err.len() > max_err_len {
+                    &test_err[..max_err_len]
+                } else {
+                    &test_err
+                };
+
+                let mut test_context = ::std::string::String::new();
+                let bin_dir = modernized_out.join("src").join("bin");
+                if bin_dir.exists() {
+                    if let ::core::result::Result::Ok(entries) = ::std::fs::read_dir(&bin_dir) {
+                        for entry in entries.flatten() {
+                            let path = entry.path();
+                            if path.extension().is_some_and(|ext| ext == "rs") {
+                                if let ::core::result::Result::Ok(tc) = ::std::fs::read_to_string(&path) {
+                                    let sample = if tc.len() > 4096 { &tc[..4096] } else { &tc };
+                                    test_context.push_str(&::std::format!(
+                                        "\n\nCharacterization test code ({}) calling this library (do NOT modify tests; ensure your library code satisfies them):\n```rust\n{}\n```\n",
+                                        entry.file_name().to_string_lossy(),
+                                        sample
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let mut candidates = ::std::vec::Vec::new();
+                for (rel, _) in &generated {
+                    let out_file_name = if rel.ends_with(".rs") {
+                        rel.clone()
+                    } else {
+                        let p = ::std::path::Path::new(rel);
+                        let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("lib");
+                        p.with_file_name(::std::format!("{stem}.rs")).to_str().unwrap_or(rel).to_string()
+                    };
+                    candidates.push(out_file_name);
+                }
+                if modernized_out.join("src").join("lib.rs").exists() {
+                    candidates.push("src/lib.rs".to_string());
+                }
+
+                let mut repaired_paths = ::std::collections::BTreeSet::new();
+                for rel_candidate in &candidates {
+                    let out_path = modernized_out.join(rel_candidate);
+                    if !out_path.exists() || !repaired_paths.insert(out_path.clone()) {
+                        continue;
+                    }
+
+                    let file_name = ::std::path::Path::new(rel_candidate)
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or(rel_candidate);
+                    if !test_err.contains(file_name) && !test_err.contains(rel_candidate) {
+                        continue;
+                    }
+
+                    let current_code = match ::std::fs::read_to_string(&out_path) {
+                        ::core::result::Result::Ok(c) => c,
+                        ::core::result::Result::Err(_) => continue,
+                    };
+
+                    let repair_prompt = ::std::format!(
+                        "The following Rust crate failed verification with `cargo test --all-targets`:\n\n\
+                         File to repair: {rel_candidate}\n\
+                         Current Code:\n```rust\n{current_code}\n```\n\
+                         {test_context}\n\
+                         Compiler / Test Errors:\n```\n{truncated_err}\n```\n\n\
+                         Please fix ALL errors in {rel_candidate} so that `cargo check --all-targets` and `cargo test --all-targets` pass cleanly with zero errors.\n\
+                         Output ONLY the complete corrected Rust code for {rel_candidate} inside a single ```rust ... ``` code block."
+                    );
+                    let sys = "You are an expert Rust compiler repair engineer. Output ONLY the corrected Rust code inside a single markdown code block.";
+
+                    if let ::core::result::Result::Ok(fixed) = pool.run_repair_inference(sys, &repair_prompt).await {
+                        let _ = ::std::fs::write(&out_path, &fixed);
+                    }
+                }
+            }
+        }
     }
 
     let s6_note = if s6_real_used {
@@ -331,7 +479,7 @@ pub async fn execute_fsm(
     )
     .await;
 
-    let is_approved = outcome.compilation_success && outcome.test_pass_rate >= 50.0;
+    let is_approved = outcome.compilation_success && outcome.status == "PASSED" && outcome.test_pass_rate >= 99.9;
     let gate_status = if is_approved {
         ::protocol::GateStatus::Approved
     } else {
@@ -917,7 +1065,7 @@ pub enum EngineCommand {
 /// Status report telemetry snapshot.
 #[derive(::core::clone::Clone, ::core::fmt::Debug, ::serde::Serialize, ::serde::Deserialize)]
 pub struct StatusReport {
-    pub macro_state: ::statechart::MacroState,
+    pub macro_state: ::statechart::HarelMacroState,
     pub active_modules: ::std::vec::Vec<::std::string::String>,
     pub hardened_count: ::core::primitive::usize,
     pub total_modules: ::core::primitive::usize,
@@ -927,11 +1075,11 @@ pub struct StatusReport {
 /// Event broadcast from Daedalus engine to frontends.
 #[derive(::core::clone::Clone, ::core::fmt::Debug)]
 pub enum EngineEvent {
-    MacroStateTransition { from: ::statechart::MacroState, to: ::statechart::MacroState },
+    MacroStateTransition { from: ::statechart::HarelMacroState, to: ::statechart::HarelMacroState },
     MicroStateTransition {
         module_id: ::std::string::String,
-        from: ::statechart::MicroState,
-        to: ::statechart::MicroState,
+        from: ::statechart::ModuleMicroState,
+        to: ::statechart::ModuleMicroState,
         reward: ::core::primitive::f64,
     },
     OperativeStream(::operative::OperativeStreamChunk),
@@ -979,8 +1127,8 @@ impl self::Engine {
     pub async fn join(&mut self) -> ::core::result::Result<(), ::std::string::String> {
         self.is_running = true;
         let _ = self.telemetry_tx.send(self::EngineEvent::MacroStateTransition {
-            from: ::statechart::MacroState::S1Assess,
-            to: ::statechart::MacroState::S2Map,
+            from: ::statechart::HarelMacroState::S1Assess,
+            to: ::statechart::HarelMacroState::S2Map,
         });
 
         // Execute FSM using migrated ModernizeConfig
@@ -988,8 +1136,8 @@ impl self::Engine {
         let (receipts, _) = self::execute_fsm(&modernize_cfg).await;
 
         let _ = self.telemetry_tx.send(self::EngineEvent::MacroStateTransition {
-            from: ::statechart::MacroState::S4DagTransform,
-            to: ::statechart::MacroState::S5VerifyRelease,
+            from: ::statechart::HarelMacroState::S5IterativeDagTransform,
+            to: ::statechart::HarelMacroState::S6SystemVerifyHarden,
         });
 
         let summary = ::std::format!("Pipeline executed {} human gates successfully.", receipts.len());

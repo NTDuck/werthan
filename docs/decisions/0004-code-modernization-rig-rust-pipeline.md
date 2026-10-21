@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "superseded by 0005-methodology-source-of-truth.md"
 date: 2026-10-19
 decision-makers: ["NTDuck", "omp"]
 consulted: ["werðan architecture team"]
