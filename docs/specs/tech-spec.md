@@ -73,24 +73,32 @@ The codebase is organized as a strict hierarchical Cargo workspace rooted at `we
 ```text
 werðan/
 ├── bins/                           # Execution Frontends
-│   ├── interactive/                # Oh-My-Pi (OMP) Ratatui TUI cockpit (60/40 layout, CSI-2026)
+│   ├── interactive/                # Oh-My-Pi (OMP) Ratatui TUI cockpit (60/40 layout, dynamic stream vector, CSI-2026)
 │   └── daemon/                     # Headless batch CLI runner with dual-sink structured tracing
 │
-├── topology/                       # Orchestration & Multi-Agent Topology Layer
-│   ├── operative/                  # Atomic agent blueprints, ReAct tool execution loops, stream emitters
-│   ├── cluster/                    # Multi-operative ensembles & encapsulated ARIADNE MCTS search nodes
-│   └── topology/                   # Turnkey runtime engine, Kahn's wave scheduler, event bus
+├── libs/                           # Core Libraries & Shared Agent Capabilities
+│   ├── global/                     # Global Orchestration & Macro State Subsystem
+│   │   ├── blackboard/             # Global repository blackboard, state vector, and Tarjan SCC condensation (global-blackboard)
+│   │   ├── engine/                 # Deterministic macro-orchestrator engine & Kahn wave dispatch (global-engine)
+│   │   ├── fsm/                    # State-as-struct Hoverbear typestate macro-statechart (global-fsm)
+│   │   └── agents/
+│   │       └── arbiter/            # Global arbitration and semantic critics (global-arbiter)
+│   ├── shared/
+│   │   └── tools/                  # 12 Standardized OMP Agent Tools (read, write, edit, glob, grep, ast_grep, ast_edit, lsp, bash, eval, debug, github)
+│   └── holon/                      # Multi-Agent Holonic Modernization Subsystem
+│       ├── fsm/                    # State machine execution engines (holon-fsm)
+│       ├── engine/                  # Encapsulated ARIADNE cluster engine (holon-engine)
+│       ├── blackboard/             # Local blackboard persistence (holon-blackboard)
+│       └── agents/                 # Specialized agent holons (holon-strategy, holon-codegen, holon-testgen, holon-patch, holon-evaluator)
 │
-└── infras/                         # Foundational Infrastructure & Domain Capabilities
-    ├── core/                       # Shared protocol schemas, ModernizeConfig, PaneRole, wire events
-    ├── blackboard/                 # Global Blackboard (G) and per-module 4-slice Local Blackboard (B)
-    ├── statechart/                 # Deterministic Harel Statechart (S0..S6) and Micro-FSM (M0..M5)
-    ├── laya/                       # Fast local System-1 model (guardrail, UCB action priors, JEV judge)
-    └── tools/
-        ├── mcp/                    # Filesystem sandbox, tree-sitter/LSP, compiler runner, test harness
-        └── rea/                    # Reverse Engineering Assistant (binary CFG/DFG, ABI recovery)
+└── .checks/                        # In-Tree Build-Time Linters (enforced via build.rs)
+    ├── flatmods/                   # Enforces flat module hierarchies in src/
+    ├── pathqual/                   # Enforces fully-qualified paths; tracks generic params across commas, semicolons, and nested blocks
+    ├── turbofish/                  # Enforces turbofish syntax on generic call expressions
+    ├── stepdown/                   # Enforces caller-first function ordering
+    ├── plumbing/                   # Prohibits nested function calls
+    └── ste100/                     # Enforces ASD-STE100 technical English compliance
 ```
-
 ---
 
 ## 4. Formal Data Layouts & Blackboard Schemas
@@ -118,6 +126,20 @@ $$\Sigma(\mathcal{G}) = \Big\langle S_{\text{macro}}, \; \mathbf{M} = \big[M(v_1
 
 comprising the active macro-state $S_{\text{macro}}$, the vector of per-module micro-states $\mathbf{M}$, the deep-history snapshot map $\Theta_{H^*}$, and the FIFO asynchronous event bus $\mathcal{Q}_{\text{events}}$.
 
+#### 4.1.1 In-Tree Modular Deconstruction (`werðan/libs/global/blackboard`)
+
+In accordance with Single Responsibility and High Cohesion invariants, `global-blackboard` deconstructs $\mathcal{G}$ into six decoupled component modules plus SCC condensation and macro-FSM typestate:
+
+1. **`inventory.rs` ($\mathcal{I}_{\text{inv}}$)**: Holds `RepositoryInventory` (`files: Vec<String>`, `dialect: DialectProfile`, `harness: HarnessConfig`). Implements `new()`, `push()`, `add_file()`, `files()`, `len()`, `is_empty()`, `contains()`, `iter()`, `Deref<Target = [String]>`, and `IntoIterator`.
+2. **`dag.rs` ($G=(V,E)$)**: Holds `CondensedDag` (`vertices: Vec<String>`, `edges: Vec<(String, String)>`). Implements deterministic Kahn topological sorting in `is_acyclic()`, `parents_of()`, and `children_of()`.
+3. **`rules.rs` ($\mathcal{R}_{\text{rules}}$)**: Holds `RuleRegistry` (`rules: BTreeMap<String, Vec<BusinessRuleCard>>`). Implements `insert()`, `get()`, `get_mut()`, `contains()`, `len()`, `is_empty()`, `all_rules()`, `Deref`, and `DerefMut`.
+4. **`contracts.rs` ($\mathcal{C}_{\text{contracts}}$)**: Holds `ContractRegistry` (`contracts: BTreeMap<(String, String), EdgeContract>`). Implements `insert()`, `get()`, `get_mut()`, `contains_edge()`, `contracts_for_child()`, `contracts_from_parent()`, `len()`, `is_empty()`, `Deref`, and `DerefMut`.
+5. **`artifacts.rs` ($\mathcal{A}_{\text{artifacts}}$)**: Holds `ArtifactRegistry` (`artifacts: BTreeMap<String, Option<ModuleArtifact>>`) and `ModuleArtifact` (`target_code`, `test_suite`). Implements `commit()`, `insert()`, `get()`, `is_hardened()`, `all_hardened()`, `len()`, `is_empty()`, `Deref`, and `DerefMut`.
+6. **`state_vector.rs` ($\Sigma(\mathcal{G})$)**: Holds `GlobalStateVector` (`macro_state`, `module_states: BTreeMap<String, ModuleMicroState>`, `deep_history: Option<BTreeMap<String, ModuleMicroState>>`, `event_queue: VecDeque<MacroEvent>`), `ModuleMicroState` (`M0Blocked`..`M5Invalidated`), and `MacroEvent`. Implements `initialize()`, `push_event()`, `pop_event()`, `history_state_of()`, `save_deep_history()`, and `restore_deep_history()`.
+7. **`fsm.rs` (State-as-Struct Hoverbear Typestate Macro-FSM)**: Implements zero-cost typestate markers (`S0IntentPreflight`, `S1Assess`, `S2MapDag`, `S3ExtractRules`, `S4BriefContracts`, `S5IterativeDag`, `S6SystemVerify`, `Terminated`) wrapped in `MacroStateMachine<S> { history: Vec<MacroState>, state: (S,) }`. State transitions are enforced through `From` implementations: forward pipeline progression ($S_0 \to S_1 \to S_2 \to S_3 \to S_4 \to S_5 \to S_6 \to \text{Terminated}$) and Tier C cyclic dependency macro-regression ($S_5 \to S_2$). The dynamic wrapper enum `MacroStatechart` provides `advance()`, `regress_to_s2()`, `regress_to()`, `state()`, and `history()`.
+8. **`scc.rs`**: Tarjan Strongly Connected Component condensation (`tarjan_condense`), collapsing cyclic components into `+`-delimited merged vertices for Tier C re-keying.
+9. **`path_resolver.rs`**: Cross-platform path derivation for blackboard persistence using `dirs`. When `file_path` is not provided, defaults relative to `output_dir` (if specified) or platform standard persistence root (`%AppData%/werðan/{hash}` on Windows, `~/.werðan/{hash}` on Linux/macOS/Unix).
+10. **`lib.rs` (`GlobalBlackboard`)**: Canonical aggregate struct combining `inventory`, `dag`, `rules`, `contracts`, `artifacts`, and `state`, re-exporting all types. Every component struct (`RepositoryInventory`, `CondensedDag`, `RuleRegistry`, `ContractRegistry`, `ArtifactRegistry`, `GlobalStateVector`) and the aggregate `GlobalBlackboard` support the `bon` builder pattern (`::builder()`) with optional `file_path`, `output_dir`, `hash`, and `create_if_missing`, along with `save()` persistence methods.
 ### 4.2 Definition 2: Per-Module 4-Slice Local Blackboard ($\mathcal{B}^{(v_i)}$)
 
 Each active module vertex $v_i \in V$ owns an isolated **Local Blackboard** $\mathcal{B}^{(v_i)}$ invisible to other vertices:
@@ -128,6 +150,8 @@ $$\mathcal{B}^{(v_i)} = \Big( \mathcal{B}_{PM}^{(v_i)}, \; \mathcal{B}_{SH}^{(v_
 2. **Strategy Hypotheses ($\mathcal{B}_{SH}^{(v_i)}$)**: Competing refactoring strategies $h_k$ (e.g. direct structural port vs. state-pattern decomposition) with prior utility estimates $P_{\text{prior}}$ from Laya.
 3. **Counterexamples & Characterization Tests ($\mathcal{B}_{CT}^{(v_i)}$)**: Black-box I/O fixtures, property-based tests, and falsifying test inputs derived from legacy behavior.
 4. **Patch & Fault Records ($\mathcal{B}_{PR}^{(v_i)}$)**: Distilled compiler diagnostics, test failure traces, and root-cause fault localizations indexing failed rollouts.
+
+In-tree, `werðan/libs/holon/blackboard` (`holon-blackboard`) deconstructs $\mathcal{B}^{(v_i)}$ into four cohesive flat modules plus the aggregate crate root: `problem_model.rs` ($\mathcal{B}_{PM}$: `BusinessRuleCard`, `EdgeContract`, `ProblemModelSlice` with `render_prompt_context`), `strategy_hypotheses.rs` ($\mathcal{B}_{SH}$: `StrategyHypothesis`, `StrategyHypothesesSlice`), `characterization_tests.rs` ($\mathcal{B}_{CT}$: `CharacterizationTestsSlice`), and `patch_records.rs` ($\mathcal{B}_{PR}$: `FaultCause`, `FaultRecord`, `PatchRecordsSlice`). The crate root `lib.rs` re-exports every slice type at `::holon_blackboard::*` and composes the four slices as pub fields of `LocalBlackboard` with `is_hydrated` and `reset_transient_records` delegating methods.
 
 ### 4.3 Definition 3: Formal Harel Statechart 7-Tuple ($\mathcal{H}$)
 
@@ -227,6 +251,9 @@ stateDiagram-v2
 - **`M4_Hardened`**: Commits verified target code $c^\star$ and characterization test suite $\mathcal{B}_{CT}^{(v_i)}$ to $\mathcal{A}_{\text{artifacts}}(v_i)$ on $\mathcal{G}$ and emits `ev_ModuleHardened(v_i)`, triggering $\mathcal{O}_{\text{engine}}$ to recompute $\text{ReadySet}(\mathcal{G})$.
 - **`M5_Invalidated` (Warm-Start Regression State)**: Entered when a `M4_Hardened` module receives a validated `ev_ContractConflict` from a downstream child (or when its own parent updates an interface). Deterministically appends $\Delta_{\text{spec}}$ to $\mathcal{B}_{PM}^{(v_i)}$ while preserving the existing MCTS search tree $\mathcal{T}^{(v_i)}$, strategy hypotheses $\mathcal{B}_{SH}^{(v_i)}$, and test suite $\mathcal{B}_{CT}^{(v_i)}$, then transitions back to `M2_ARIADNE_MCTS`.
 
+
+**In-tree implementation** (`werðan/libs/holon/fsm`): the per-region Micro-FSM $\mathcal{M}_{v_i}$ follows the Hoverbear pattern as a pure compile-time typestate machine. `StateMachine<S>` ranges over data-carrying state markers `M0Blocked`..`M5Invalidated`; each marker has an inherent impl exposing consuming transitions (`wake_ready`, `hydration_completed`, `into_hardened`, `into_contract_negotiate`, `conflict_dispatched`, `into_invalidated`, `warm_start_ready`, `emit_cycle_regression`), the `FsmHistory` audit trail, and the `ClusterBroadcastEvent` outbox (`drain_events`). Disallowed transitions are unrepresentable at compile time; the earlier dynamic `ClusterFsm` layer (`MicroStateBehavior` trait, `ClusterFsmContext`, `MicroEvent`, `TransitionEffect`, `FsmError`) was removed, and consumers (the ARIADNE controller, cucumber harnesses, interactive mock) drive the typed machine directly, mapping `EngineTypestateOutcome` onto `fsm::SolverOutcome` per Algorithm 2.
+
 ### 6.2 Topological Wave Dispatch (Kahn's Algorithm)
 
 Upon entering $S_5$, $\mathcal{O}_{\text{engine}}$ executes Kahn's algorithm over $G=(V,E)$ in $\mathcal{G}$ to continuously evaluate the set of unblocked vertices:
@@ -247,10 +274,13 @@ Constants: $C_{\text{exp}} = 1.414$, $\tau = 0.35$, $\gamma = 0.15$.
 
 ### 6.4 Ephemeral Generative Subagents (Strict Read/Write Isolation)
 
-- **$\mathcal{A}_{\text{str}}$ (Strategy Analysis — LLM)**: Invoked when node $u$ lacks unexpanded strategies; reads $\mathcal{B}_{PM}^{(v_i)}$ and writes $K_s$ refactoring hypotheses with prior scores $P_{\text{prior}}$ to $\mathcal{B}_{SH}^{(v_i)}$.
-- **$\mathcal{A}_{\text{gen}}$ (Code Generation — LLM)**: Invoked on uninstantiated strategy $h \in \mathcal{B}_{SH}^{(v_i)}$; synthesizes candidate target code $c'$ conforming to $\mathcal{B}_{PM}^{(v_i)}$.
-- **$\mathcal{A}_{\text{test}}$ (Adversarial Test Generation — LLM)**: Reads $\mathcal{B}_{PM}^{(v_i)}$ and legacy reference behavior. **Strictly read-isolated from candidate code $c'$** to prevent test weakening or cheat fitting. Generates characterization I/O snapshots and property tests into $\mathcal{B}_{CT}^{(v_i)}$.
-- **$\mathcal{A}_{\text{patch}}$ (Surgical Code Repair — LLM)**: Invoked when $c_t$ fails verification ($0 < R(s_t) < 1$); reads $c_t$ and the localized fault record in $\mathcal{B}_{PR}^{(v_i)}$ to emit minimal diff patch $c''$.
+Each generative holon is one workspace crate `werðan/libs/holon/agents/holon-{name}` (package `holon-{name}`) exposing a `Holon{name}Agent` namespace: `builder()` assembles the `::rig::agent::Agent` (role preamble, temperature, max tokens), and an associated domain call drives the prompt on a dedicated blocking thread and parses the domain result. No crate defines its own transport or completion client.
+
+- **$\mathcal{A}_{\text{str}}$ (Strategy Analysis — LLM, `holon-strategy`)**: `HolonStrategyAgent::generate_strategies(&agent, problem_model)`; invoked when node $u$ lacks unexpanded strategies; reads $\mathcal{B}_{PM}^{(v_i)}$ and writes $K_s$ refactoring hypotheses with prior scores $P_{\text{prior}}$ clamped to $[0.10, 0.95]$ to $\mathcal{B}_{SH}^{(v_i)}$; unparsable responses yield an empty plan so the expansion spends itself honestly.
+- **$\mathcal{A}_{\text{gen}}$ (Code Generation — LLM, `holon-codegen`)**: `HolonCodeGenAgent::generate_candidate(&agent, problem_model, hypothesis)`; invoked on uninstantiated strategy $h \in \mathcal{B}_{SH}^{(v_i)}$; synthesizes candidate target code $c'$ conforming to $\mathcal{B}_{PM}^{(v_i)}$.
+- **$\mathcal{A}_{\text{test}}$ (Adversarial Test Generation — LLM, `holon-testgen`)**: `HolonTestGenAgent::generate_characterization_tests(&agent, problem_model)`; reads $\mathcal{B}_{PM}^{(v_i)}$ and legacy reference behavior. **Strictly read-isolated from candidate code $c'$** to prevent test weakening or cheat fitting. Generates characterization I/O snapshots and property tests into $\mathcal{B}_{CT}^{(v_i)}$.
+- **$\mathcal{A}_{\text{patch}}$ (Surgical Code Repair — LLM, `holon-patch`)**: `HolonPatchAgent::repair_code(&agent, candidate, fault, problem_model)`; invoked when $c_t$ fails verification ($0 < R(s_t) < 1$); reads $c_t$ and the localized fault record in $\mathcal{B}_{PR}^{(v_i)}$ to emit minimal diff patch $c''$.
+- **$\mathcal{A}_{\text{eval}}^{\text{distill}}$ (Diagnostic Distiller — LLM, `holon-evaluator`)**: `HolonEvaluatorAgent::{classifier_builder, auditor_builder}` build the classifier and auditor agents; `RigDiagnosticDistiller::new(classifier, auditor)` implements the sync `DiagnosticDistiller` trait over them. Deterministic fallbacks (`DefaultDiagnosticDistiller`) remain the controller default.
 
 ### 6.5 Two-Stage Hybrid Evaluator ($\mathcal{A}_{\text{eval}} = \mathcal{A}_{\text{eval}}^{\text{exec}} \circ \mathcal{A}_{\text{eval}}^{\text{distill}}$)
 
@@ -258,6 +288,10 @@ Constants: $C_{\text{exp}} = 1.414$, $\tau = 0.35$, $\gamma = 0.15$.
 2. **Stage 3b — Diagnostic Distiller & Parity Critic ($\mathcal{A}_{\text{eval}}^{\text{distill}}$, Lightweight LLM)**:
    - *On Failure*: Distills raw compiler/test stack traces into a localized fault record in $\mathcal{B}_{PR}^{(v_i)}$ and classifies fault cause $\kappa \in \{\texttt{INTRINSIC}, \texttt{EXTRINSIC\_CONTRACT}, \texttt{EXTRINSIC\_CYCLE}\}$.
    - *On Pass*: Audits $c'$ against all `Given/When/Then` rule cards in $\mathcal{B}_{PM}^{(v_i)}$ to compute semantic parity score $\text{Score}_{\text{harden}}(c') \in [0, 1]$.
+
+**Real LLM Backend Wiring (honest benchmark mode)**: The generative agents $\mathcal{A}_{\text{gen}}$, $\mathcal{A}_{\text{test}}$, $\mathcal{A}_{\text{patch}}$ and the distiller $\mathcal{A}_{\text{eval}}^{\text{distill}}$ are Rig agents end to end (`Holon{name}Agent` namespaces, `HolonEvaluatorAgent` builders, `RigDiagnosticDistiller`); each holon crate in `werðan/libs/holon/agents/holon-{name}` exposes `Holon{name}Agent::builder()` returning a `::rig::agent::Agent` built over a caller-supplied `::rig::completion::CompletionModel` (per-role preambles, per-crate max tokens: strategy 4096, codegen 16384, testgen 8192, patch 16384, evaluator roles 512) and a namespace call (`generate_strategies`, `generate_candidate`, `generate_characterization_tests`, `repair_code`) that drives the async prompt to completion on a dedicated worker thread and parses the domain result. The former `holon-llm` crate is removed: transport, retries, and response shaping live in rig; per-crate post-processing (fence stripping, suite splitting, hypothesis JSON parsing, fault sentinels) is crate-local. The daemon supplies the `CompletionModel`: `QwenReasoningModel` posts OpenAI-compatible chat completions to the configured endpoint (defaults: base URL `http://127.0.0.1:8092/v1`, model `swift-1.5-qwen3.8-27b`, 32768 max tokens), appends the Qwen `/no_think` soft switch, extracts `message.content` with `message.reasoning_content` fallback, and returns `CompletionError::ProviderError` when no usable answer exists; `CountingCompletionModel` wraps any model with an atomic request counter for honesty auditing. Inference failures surface as `::core::compile_error!` sentinel candidates so the evaluator records a genuine fault record; no silent template fallback exists. Stage 3a gains `CargoHarness`, which writes candidate and characterization files into a real target workspace and derives compilation status and $\text{PassRate}_{\text{char}}$ from genuine `cargo check --all-targets` / `cargo test --all-targets -- --format terse` output with configured timeouts (defaults 120s each). `SubagentPool::builder()` assembles the four generative Rig agents passed in as `Arc<::rig::agent::Agent<M>>` role handles (strategy included; the evaluator stays deterministic with `DefaultDiagnosticDistiller` unless a benchmark opts into `RigDiagnosticDistiller` through `HolonEvaluatorAgent::{classifier,auditor}_builder`), and `ClusterEngine::builder()` / `AriadneSolver::builder()` compose from explicitly constructed components (`config`, `blackboard`, `evaluator`, `agents`, `harness`, `distiller`) so benchmark orchestrators construct controllers with real agents without touching the daemon crate; no factory closures remain.
+
+**In-tree shape (`werðan/libs/holon/agents/holon-evaluator`)**: the evaluator is generic over its two stages — `TwoStageEvaluator<H = DefaultExecutionHarness, D = DefaultDiagnosticDistiller>` with `ExecutionHarness` (Stage 3a) and `DiagnosticDistiller` (Stage 3b) contracts implemented by both the deterministic defaults and the Rig-backed components (`cargo_harness::CargoHarness`, `RigDiagnosticDistiller`). The MCTS controller threads the same parameters: `ClusterEngine<M, H, D>` and `AriadneSolver<M, H, D>` assemble through bon builders over explicitly constructed components (harness, distiller, `SubagentPool` of four `Arc<::rig::agent::Agent<M>>` role agents), so the benchmark orchestrator passes ready-built components without trait-object indirection or factory closures; the engine cucumber world dispatches scenario harnesses through the closed `ScenarioHarness` enum instead of `Box<dyn ExecutionHarness>`.
 
 ### 6.6 Gated Hierarchical Reward Function $R(s_t)$
 
@@ -478,7 +512,7 @@ hitl:
   extrinsic_conflict_escalation: "auto_negotiate" # "auto_negotiate" | "ask_human"
 
 ariadne:
-  mcts_budget_per_module: 24                 # Maximum rollouts (B_max) in state M2
+  engine_budget_per_module: 24                 # Maximum rollouts (B_max) in state M2
   ucb_exploration_c: 1.414                    # Exploration constant for Softmax-UCB
   softmax_temperature: 0.35                  # Softmax temperature for prior sampling
   reward_weights:
@@ -491,13 +525,61 @@ ariadne:
 
 ## 11. Known In-Tree Code Divergence & Reconciliation Roadmap
 
-Per ADR 0005, the following in-tree Rust discrepancies exist relative to the authoritative model in `METHODOLOGY.md`:
+Per ADR 0005, the following in-tree Rust components now implement the authoritative model in `METHODOLOGY.md`. The Tier-1 and Tier-0 divergence items are resolved as follows:
 
-1. **Macro State Machine**:
-   - *Authoritative Model*: 7-phase Harel Statechart ($S_0 \dots S_6$).
-   - *In-Tree Code (`werðan/infras/statechart`)*:
-     - `MacroState`: 5 states (`S1Assess`, `S2Map`, `S3Reimagine`, `S4DagTransform`, `S5VerifyRelease`).
-     - `ModernizationState`: 10 states (`S0Intent` .. `S9Completed`).
-2. **Reconciliation Target**:
-   - Refactor `werðan/infras/statechart` and `werðan/topology` to represent the canonical 7-phase `MacroState` ($S_0 \dots S_6$) and 6-state `MicroState` ($M_0 \dots M_5$) directly.
-   - Deprecate flat `ModernizationState` in favor of hierarchical Harel state representation with orthogonal regions.
+1. **Global Repository Blackboard (Definition 1)**: implemented in `werðan/libs/global/blackboard/src/lib.rs` (`global-blackboard`) deconstructed into six cohesive modules (`inventory.rs`, `dag.rs`, `rules.rs`, `contracts.rs`, `artifacts.rs`, `state_vector.rs`), plus Tarjan SCC condensation (`scc.rs`), cross-platform path resolution (`path_resolver.rs`), and re-exporting macro-statechart typestate from `global-fsm`. Exports `GlobalBlackboard` (inventory $\mathcal{I}_{\text{inv}}$, DAG $G=(V,E)$, rules $\mathcal{R}_{\text{rules}}$, contracts $\mathcal{C}_{\text{contracts}}$, artifacts $\mathcal{A}_{\text{artifacts}}$) with bon builder and disk persistence, and `GlobalStateVector` $\Sigma(\mathcal{G})$ with per-module micro states $\mathbf{M}$ and FIFO event bus $\mathcal{Q}_{\text{events}}$.
+2. **State-as-Struct Macro Statechart**: implemented in `werðan/libs/global/fsm` (`global-fsm`), providing state-as-struct Hoverbear typestate `MacroStatechart` and `MacroState` ($S_0 \dots S_6$, `Terminated`), transition history, and bon builder.
+3. **Global Arbiter & Semantic Critic**: implemented in `werðan/libs/global/agents/arbiter` (`global-arbiter`), exporting `SemanticCritic`, `Arbiter`, `CritiqueVerdict`, `CritiqueRecord`, `DeterministicCritic`, and `DeterministicArbiter` with bon builders.
+4. **Tarjan SCC Condensation**: implemented in `werðan/libs/global/blackboard/src/scc.rs` (`tarjan_condense`), producing deterministic collapsed vertex ids for the Tier C macro-regression re-keying.
+5. **Deterministic Macro-Statechart Engine (Algorithm 1)**: implemented in `werðan/libs/global/engine` (`global-engine`) decomposed into `batches.rs` (`PhaseShard`), `error.rs` (`MacroEngineError`), `guards.rs` (`guard_s0`..`guard_s6`, `structural_guard`), `solver.rs` (`ModuleSolver`, `StubModuleSolver`, `SolverOutcome`), and `lib.rs` (`MacroEngine` with bon builder). Operates over `statechart: MacroStatechart` and `board: GlobalBlackboard` where state configuration $\Sigma(\mathcal{G})$ is inside `self.board.state`. Provides stage-one structural guards routed via `structural_guard` with single `CRITIC_RETRY` re-dispatch, stage-two `SemanticCritic` and `Arbiter` traits with deterministic defaults from `global-arbiter`, Kahn topological wave dispatch in `S5IterativeDag`, Tier B contract-conflict warm-start regression, and Tier C cycle regression with deep history $\Theta_{H^*}$ capture and restore.
+6. **ARIADNE Solver Adapter (Algorithm 2 boundary)**: implemented in `werðan/libs/holon/engine/src/solver.rs` (`holon-engine`, `AriadneSolver`), holding one `ClusterEngine` and `LocalBlackboard` per module vertex and mapping `EngineTypestateOutcome` onto `global_engine::SolverOutcome`. The per-vertex `LocalBlackboard` $\mathcal{B}^{(v_i)}$ is implemented in `werðan/libs/holon/blackboard` (`holon-blackboard`) as four cohesive slice modules: `problem_model.rs` ($\mathcal{B}_{PM}$), `strategy_hypotheses.rs` ($\mathcal{B}_{SH}$), `characterization_tests.rs` ($\mathcal{B}_{CT}$), and `patch_records.rs` ($\mathcal{B}_{PR}$), with the crate root `lib.rs` re-exporting all slice types at `::holon_blackboard::*` and composing them as pub fields of `LocalBlackboard`.
+7. **Interactive Mock Reconciliation**: `bins/interactive` now binds the canonical 7-state `ModernizationState` (`S0IntentPreflight` .. `S6SystemVerify`) with the three canonical HITL gates (`GateOnReimagine` at the S4 to S5 boundary, `GateOnMacroRegression` at the S5 to S2 regression boundary, and `GateOnExtrinsicConflict` for unresolved parent interface conflict escalation), matching the mock in `werðan/bins/interactive/src/mock.rs`. The mock runner follows the state-as-struct Hoverbear pattern: `StateMachineRunner<S>` over phase structs (`RunnerS0IntentPreflight`, `RunnerS1Assess`, `RunnerS4Approved`) with consuming `From` transitions, a `StepOutcome` enum carrying the next phase machine, and no state index counter.
+8. **FSM State Representation Convention** (rule: `.omp/rules/specs.md` §3): all state machines use the state-as-struct Hoverbear pattern with consuming transitions; unit-variant enums (`MicroStateTag`, `MacroState`, `ModuleMicroState`, `ModernizationState`) are serde/UI reflection tags only and never drive control flow through a state index counter. Effect enums (`TransitionEffect`), event enums (`MicroEvent`, `MacroEvent`, `ClusterBroadcastEvent`), and dynamic dispatch wrappers (`ClusterFsm`, `MacroStatechart`) are intentional boundary types, not enum-as-state defects. (The `holon-fsm` dynamic layer has since been removed in favor of the pure typestate machine; `MacroStatechart` remains the global-layer boundary type.)
+
+---
+
+## 12. Shared Agent Tools Architecture (`werðan/libs/shared/tools`)
+
+### 12.1 Purpose & Rig Tool Integration
+The `tools` crate provides 12 self-contained, omp-specification-conforming agent tools exposed as `::rig::tool::Tool` implementations for autonomous modernization agents.
+
+### 12.2 Tool Registry & Interface Specifications
+
+| Module | Exported Symbols | Input Arguments (`Tool::Args`) | Output (`Tool::Output`) | Behavioral Contract & Engine |
+| :--- | :--- | :--- | :--- | :--- |
+| `read` | `ReadTool`, `ReadArgs`, `ReadOutput` | `path: String` | `content: String`, `lines_read: usize` | Asynchronous file content reading with line count derivation. |
+| `write` | `WriteTool`, `WriteArgs`, `WriteOutput` | `path: String`, `content: Option<String>` | `path: String`, `bytes_written: usize` | File writing with automatic parent directory creation via `tokio::fs::create_dir_all`. |
+| `edit` | `EditTool`, `EditArgs`, `EditOutput` | `input: String` | `summary: String` | Hashline surgical patch parser supporting `ReplaceRange` (`N.=M:`), `InsertBefore` (`<N:`), and `InsertAfter` (`>N:`) with order-preserving array splicing. |
+| `glob` | `GlobTool`, `GlobArgs`, `GlobOutput` | `path: Option<String>`, `hidden: Option<bool>`, `gitignore: Option<bool>`, `limit: Option<usize>` | `matches: Vec<String>` | Path discovery using `globset::GlobBuilder` and `ignore::WalkBuilder`. Respects `.gitignore` and `hidden` flags; automatically prunes `.git`, `node_modules`, and `target` directories. Default limit is 100, overridable via `TOOL_GLOB_LIMIT`. |
+| `grep` | `GrepTool`, `GrepArgs`, `GrepOutput`, `GrepMatch` | `pattern: String`, `path: Option<String>`, `case: Option<bool>`, `gitignore: Option<bool>`, `skip: Option<usize>` | `matches: Vec<GrepMatch>` | Regex content search across directory trees powered by `ignore::WalkBuilder` and `regex::RegexBuilder`. Prunes `.git`, `node_modules`, `target`; caps results at 500 matches. |
+| `ast_grep` | `AstGrepTool`, `AstGrepArgs`, `AstGrepOutput`, `AstMatch` | `pat: String`, `path: Option<String>`, `lang: Option<String>`, `skip: Option<usize>` | `matches: Vec<AstMatch>` | AST pattern discovery via `ast-grep-core` (`Pattern::try_new` + `AstGrep` over `ast_lang` tree-sitter grammars: rust, ts, tsx, js, py, json, toml, md; unsupported `lang` errors). Walks files with `ignore::WalkBuilder`, pruning `.git`, `node_modules`, `target`, `.idea`. |
+| `ast_edit` | `AstEditTool`, `AstEditArgs`, `AstEditOutput`, `AstEditOp` | `ops: Vec<AstEditOp>`, `paths: Vec<String>` | `files_modified: Vec<String>`, `edits_applied: usize` | AST structural rewrites via `ast-grep-core` pattern matching with native `replace_by` template substitution. Language support shared via `ast_lang` (rs, ts, tsx, js, py, json, toml, md; others skipped). Byte-range splicing applies non-overlapping replacements. |
+| `lsp` | `LspTool`, `LspArgs`, `LspOutput` | `action: String`, `file: Option<String>`, `line: Option<usize>`, `symbol: Option<String>`, `query: Option<String>`, `new_name: Option<String>`, `apply: Option<bool>`, `timeout: Option<u64>`, `payload: Option<String>` | `status: String`, `result: serde_json::Value` | Language server operations (`status`, `diagnostics`, `definition`, `references`, `hover`, `symbols`, `rename`) backed by workspace file scanning via `ignore::WalkBuilder`. |
+| `bash` | `BashTool`, `BashArgs`, `BashOutput` | `command: String`, `timeout: Option<u64>`, `cwd: Option<String>`, `pty: Option<bool>`, `async_mode: Option<bool>`, `name: Option<String>` | `exit_code: i32`, `stdout: String`, `stderr: String` | Process execution via `tokio::process::Command` under `sh -c` with timeout monitoring (default 60s, overridable via `TOOL_BASH_TIMEOUT_SECS`). |
+| `eval` | `EvalTool`, `EvalArgs`, `EvalOutput` | `language: String`, `code: String`, `timeout: Option<u64>` | `status: String`, `stdout: String`, `stderr: String` | Subprocess execution of `python3` or `node` snippets with exit capture (default 60s, overridable via `TOOL_EVAL_TIMEOUT_SECS`). |
+| `debug` | `DebugTool`, `DebugArgs`, `DebugOutput` | `action: String`, `session_id: Option<String>`, `payload: Option<String>` | `status: String`, `result: serde_json::Value` | DAP debugger adapter status and control inspector. |
+| `github` | `GithubTool`, `GithubArgs`, `GithubOutput` | `op: String`, `query: Option<String>`, `repo: Option<String>`, `limit: Option<usize>` | `status: String`, `data: serde_json::Value` | Headless GitHub CLI (`gh`) runner querying issues, PRs, and repositories. |
+
+### 12.3 Error Propagation & Blanket Trait Implementation
+All 12 tools implement the `DisplayExt` extension trait for error conversion into `::rig::tool::ToolError`:
+
+```rust
+pub(crate) trait DisplayExt: ::core::fmt::Display {
+    fn into_tool_error(&self) -> ::rig::tool::ToolError {
+        let err_str = self.to_string();
+        let io_err = ::std::io::Error::other(err_str);
+        let boxed = ::std::boxed::Box::new(io_err);
+        ::rig::tool::ToolError::ToolCallError(boxed)
+    }
+}
+
+impl<Target: ::core::fmt::Display + ?::core::marker::Sized> self::DisplayExt for Target {}
+```
+
+---
+
+## 13. Headless Benchmark Harness (`werðan/bins/daemon/src/bench_*`)
+
+The daemon binary carries a real benchmark runner (no mock paths). Modules: `bench_config` (migration.yml schema parsing with `serde_yaml_ng`, strict environment-based configuration without in-code fallback literals via `BASE_URL`, `MODEL_ID`, `BENCH_BUILD_TIMEOUT_SECS`, `BENCH_TEST_TIMEOUT_SECS`, `BENCH_INFERENCE_TIMEOUT_SECS`, and `BENCH_RESULTS_DIR`), `bench_harness` (blackboard seeding: inventory walk of `paths.input_legacy_dir` filtered by `stack.source_language`, header-as-parent DAG modeling where headers become pre-hardened parent vertices with edge contracts derived from header contents and directed edges `(header, module)`, plus module source targeting in `build_solver` that directs `CargoHarness` to `src/{stem}.rs` when sibling module files exist or `src/lib.rs` for single-file crates, eliminating destructive inlining), `bench_runner` (engine run over `Box<dyn global_engine::ModuleSolver>` from `build_solver` with campaign timeouts forwarded to `CargoHarness::with_timeouts`, post-run delegation to `bench_validation`, `unimplemented!()` scan, COCOMO-II `effort_pm = 2.4 * kloc^1.05`, `duration_months = 2.5 * effort_pm^0.38` from measured KLOC), `bench_validation` (post-run validation reusing `CargoHarness::run_command` without duplicate subprocess management, parsing cargo test results and pass rates), `bench_rules` (rule-extraction driver with counted `ChatCompletion` adapter; each prompt carries the legacy source, sibling header text, and the target API surface captured from the workspace stubs, so extracted rule cards cite the exact Rust signatures and export obligations the crate must expose), `bench_llm` (reasoning-channel-aware client: every user prompt carries the Qwen `/no_think` soft switch so the 27B backend answers through the `content` channel instead of truncating inside `reasoning_content`; the strict fallback accepts only a fenced code block or a post-`</think` conclusion and otherwise propagates the original error instead of emitting reasoning prose as code), `bench_batch` (`--benchmark-all` sequential iteration over `*.yml` under default `benchmarks/configs/generated` or `BENCH_CONFIGS_DIR`, resume by result-JSON presence in `BENCH_RESULTS_DIR`, aggregate `summary.json`).
+
+Result artifacts land in `benchmarks/results/daemon/<category>-<project>.json` (or custom `BENCH_RESULTS_DIR`) with fields `{campaign_id, wall_time_ms, compilation_success, test_pass_rate, unimplemented_remaining, solver_dispatches, structural_retries, macro_states_visited, error}` and the batch writes `summary.json` with `{total, compilation_rate, mean_test_pass_rate, mean_wall_time_ms, total_wall_time_ms, per_category}`. CLI: `--benchmark <yml>` / `--config <yml>` (single run), `--benchmark-all [dir]` (batch), `--smoke` (GET `/v1/models` reachability check printing the served model id).

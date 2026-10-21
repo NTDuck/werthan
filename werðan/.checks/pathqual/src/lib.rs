@@ -75,13 +75,16 @@ enum Ctx {
 struct Checker<'a> {
     path: &'a ::std::path::Path,
     warnings: &'a mut ::std::vec::Vec<::std::string::String>,
+    generic_params: ::std::collections::HashSet<::std::string::String>,
 }
 
 impl<'a> Checker<'a> {
     fn new(path: &'a ::std::path::Path, warnings: &'a mut ::std::vec::Vec<::std::string::String>) -> Self {
+        let generic_params = ::std::collections::HashSet::new();
         Self {
             path,
             warnings,
+            generic_params,
         }
     }
 
@@ -89,7 +92,7 @@ impl<'a> Checker<'a> {
         let mut idx = 0;
         let mut ctx = self::Ctx::None;
         let mut in_type_decl = false;
-
+        let mut generic_depth: ::core::primitive::usize = 0;
         while idx < trees.len() {
             if let ::core::option::Option::Some(skip) = self.check_attr(&trees[idx..]) {
                 idx += skip;
@@ -109,7 +112,16 @@ impl<'a> Checker<'a> {
                             ctx = self::Ctx::None;
                         }
                     },
-                    ',' => ctx = self::Ctx::None,
+                    ',' => {
+                        // A comma inside an open `<...>` list still belongs to the
+                        // generic declaration (`<H, D>`), so keep registering the
+                        // parameters that follow it; reset only at expression level.
+                        ctx = if generic_depth > 0 {
+                            self::Ctx::Generic
+                        } else {
+                            self::Ctx::None
+                        };
+                    },
                     ':' if !is_part_of_colon2(trees, idx) => ctx = self::Ctx::Type,
                     '-' => {
                         let is_arrow = match trees.get(idx + 1) {
@@ -121,8 +133,16 @@ impl<'a> Checker<'a> {
                             idx += 1;
                         }
                     },
-                    '<' => ctx = self::Ctx::Generic,
-                    '>' if ctx == self::Ctx::Generic => ctx = self::Ctx::None,
+                    '<' => {
+                        generic_depth += 1;
+                        ctx = self::Ctx::Generic;
+                    },
+                    '>' => {
+                        generic_depth = generic_depth.saturating_sub(1);
+                        if generic_depth == 0 {
+                            ctx = self::Ctx::None;
+                        }
+                    },
                     _ => {},
                 },
                 ::proc_macro2::TokenTree::Group(g) => {
@@ -130,6 +150,7 @@ impl<'a> Checker<'a> {
                     self.scan(&inner);
                     if g.delimiter() == ::proc_macro2::Delimiter::Brace {
                         ctx = self::Ctx::None;
+                        self.generic_params.clear();
                     }
                 },
                 ::proc_macro2::TokenTree::Ident(id) => {
@@ -145,7 +166,15 @@ impl<'a> Checker<'a> {
                             ctx = self::Ctx::None;
                         },
                         _ => {
-                            if is_macro(trees, idx, &text) {
+                            if ctx == self::Ctx::Generic {
+                                let has_colon_prev = idx >= 2 && is_colon2(trees, idx - 2);
+                                if !has_colon_prev {
+                                    self.generic_params.insert(text.clone());
+                                }
+                            }
+                            if self.generic_params.contains(&text) {
+                                // Generic parameter in scope, do not flag
+                            } else if is_macro(trees, idx, &text) {
                                 let has_colon_prefix = idx >= 2 && is_colon2(trees, idx - 2);
                                 if !has_colon_prefix {
                                     self.warn(id.span(), &text);
