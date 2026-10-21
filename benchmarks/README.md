@@ -54,23 +54,50 @@ stack:
 
 inference:
   base_url: '' # Defaults to WERTHAN_BASE_URL (http://127.0.0.1:8092/v1)
-  model: ashalliant/qwen3.8-27b-abliterated # Defaults to WERTHAN_MODEL
-  max_parallel_shards: 2
-  max_shards: 2
-  inference_max_tokens: 32768
+  model: swift-1.5-qwen3.8-27b # Defaults to WERTHAN_MODEL
+  max_parallel_shards: 2 # T1; scales to 6 with LoC tier (see table below)
+  max_shards: 2 # T1; scales to 6 with LoC tier
+  inference_max_tokens: 32768 # T1; scales to 49152 with LoC tier
   inference_temperature: 0.2
-  inference_timeout_secs: 600
-  build_timeout_secs: 120
-  test_timeout_secs: 120
+  inference_timeout_secs: 600 # T1; scales to 1800 with LoC tier
+  build_timeout_secs: 120 # T1; scales to 480 with LoC tier
+  test_timeout_secs: 120 # T1; scales to 480 with LoC tier
 
 verification:
-  max_self_heal_retries: 3
+  max_self_heal_retries: 3 # T1; scales to 8 with LoC tier
   require_byte_identical_io: false
 
 # Solver tuning
 ariadne:
   max_rollouts: 16
 ```
+
+### LoC-Tier Inference Scaling
+
+All 118 configs are retuned per legacy codebase size so larger projects get
+longer horizons and more solver effort. LoC counts every source file in
+`paths.input_legacy_dir` (`.py`, `.c`, `.go`, `.java`, `.rs`, `.js`, `.ts`, `.h`).
+
+| Tier | LoC range | Projects | max_rollouts | shards (par/max) | inference_max_tokens | inf t/o (s) | build/test t/o (s) | max_self_heal_retries |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| T1 | <= 500 | 24 | 16 | 2 / 2 | 32768 | 600 | 120 / 120 | 3 |
+| T2 | 501 - 2000 | 61 | 32 | 4 / 4 | 40960 | 900 | 180 / 180 | 4 |
+| T3 | 2001 - 10000 | 28 | 64 | 6 / 6 | 49152 | 1200 | 300 / 300 | 6 |
+| T4 | > 10000 | 5 | 96 | 6 / 6 | 49152 | 1800 | 480 / 480 | 8 |
+
+Tier tuning rationale against the serving stack (ninfer 0.15.0-rtx3090, RTX
+3090 24GB, `total_slots: 6`, context window 65536, ~268 tok/s with draft
+decoding):
+
+- **max_tokens <= 49152 (75% of ctx):** leaves >= 16k tokens for prompt,
+  rule cards, and reasoning traces in the 65k context window.
+- **max_parallel_shards <= 6:** caps concurrent requests at the server's
+  continuous-batching slot count; requesting more than 6 slots is wasted.
+- **max_rollouts scales the MCTS budget per module:** the dominant wall-time
+  driver (`ariadne.max_rollouts` feeds `holon_engine::EngineConfig::max_rollouts`).
+- **inference/build/test timeouts scale with problem size** so big projects
+  do not fail spuriously, and per-project wall time stays under the 2-hour
+  anomaly bound in section 5.
 
 ### Workspace Root Constraint
 - The daemon's `reset_workspace` requires `paths.workspace_root` to start with `benchmarks/outputs/`.
@@ -158,19 +185,19 @@ stack:
   legacy_test_harness_cmd: pytest
 inference:
   base_url: ''
-  model: ashalliant/qwen3.8-27b-abliterated
-  max_parallel_shards: 2
-  max_shards: 2
-  inference_max_tokens: 32768
+  model: swift-1.5-qwen3.8-27b
+  max_parallel_shards: 4
+  max_shards: 4
+  inference_max_tokens: 40960
   inference_temperature: 0.2
-  inference_timeout_secs: 600
-  build_timeout_secs: 120
-  test_timeout_secs: 120
+  inference_timeout_secs: 900
+  build_timeout_secs: 180
+  test_timeout_secs: 180
 verification:
-  max_self_heal_retries: 3
+  max_self_heal_retries: 4
   require_byte_identical_io: false
 ariadne:
-  max_rollouts: 16
+  max_rollouts: 32
 ```
 
 #### 3. Invocation
