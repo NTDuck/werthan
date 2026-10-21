@@ -2,6 +2,35 @@
 //! domain clusters, module worktrees, security taint, and audit trails.
 
 use ::sha2::Digest;
+/// Global Repository Blackboard G and append-only transaction journal (§2 Definition 1).
+pub mod global;
+/// Per-Module 4-Slice Local Blackboard B^(v_i) and compile-time read-isolation traits (§2 Definition 2).
+pub mod local;
+
+pub use self::global::BlackboardJournal;
+pub use self::global::CondensedDAG;
+pub use self::global::GlobalBlackboard;
+pub use self::global::GlobalBlackboardData;
+pub use self::global::HardenedArtifact;
+pub use self::global::InterfaceSpec;
+pub use self::global::InventoryFile;
+pub use self::global::InventoryManifest;
+pub use self::global::JournalDelta;
+pub use self::global::RuleCard;
+pub use self::global::RuleTag;
+
+pub use self::local::CharacterizationTestFixture;
+pub use self::local::CharacterizationTestsSlice;
+pub use self::local::CodeGeneratorView;
+pub use self::local::FaultCause;
+pub use self::local::FaultRecord;
+pub use self::local::LocalBlackboard;
+pub use self::local::PatchRecordsSlice;
+pub use self::local::PatchRepairView;
+pub use self::local::ProblemModelSlice;
+pub use self::local::StrategyHypothesesSlice;
+pub use self::local::StrategyHypothesis;
+pub use self::local::TestGeneratorView;
 
 /// Distinct broadcast events emitted on blackboard mutations.
 #[derive(::core::clone::Clone, ::core::fmt::Debug, ::core::cmp::PartialEq, ::serde::Serialize, ::serde::Deserialize)]

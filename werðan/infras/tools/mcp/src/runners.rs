@@ -77,6 +77,7 @@ pub async fn execute_rust_target_benchmark_with_cmds(
             .arg(&subcmd)
             .arg("--manifest-path")
             .arg(effective_cwd.join("Cargo.toml"))
+            .arg("--all-targets")
             .arg("--message-format=json")
             .output();
         let check_out = match ::tokio::time::timeout(limit, check_cmd).await {
@@ -118,6 +119,7 @@ pub async fn execute_rust_target_benchmark_with_cmds(
             .arg("test")
             .arg("--manifest-path")
             .arg(effective_cwd.join("Cargo.toml"))
+            .arg("--all-targets")
             .arg("--")
             .arg("--nocapture")
             .output();

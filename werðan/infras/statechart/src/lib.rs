@@ -1,5 +1,13 @@
 //! Exogenous state machine implementing deterministic modernization stages S0 through S9.
 
+/// Full Harel Statechart Engine implementing S0..S6, M0..M5, and Kahn Wave Scheduler (§2 Def 3).
+pub mod harel;
+
+pub use self::harel::EventOutcome;
+pub use self::harel::HarelEngine;
+pub use self::harel::HarelEvent;
+pub use self::harel::HarelMacroState;
+pub use self::harel::ModuleMicroState;
 /// Modernization workflow states from S0 to S9.
 #[derive(
     ::core::clone::Clone,
@@ -46,81 +54,6 @@ impl ::core::fmt::Display for self::ModernizationState {
             Self::S7Verify => "S7 VERIFY",
             Self::S8Harden => "S8 HARDEN",
             Self::S9Completed => "S9 COMPLETED",
-        };
-        ::core::write!(f, "{label}")
-    }
-}
-
-/// Tier 1 Macro-Statechart states (S1 to S5).
-#[derive(
-    ::core::clone::Clone,
-    ::core::marker::Copy,
-    ::core::fmt::Debug,
-    ::core::cmp::PartialEq,
-    ::core::cmp::Eq,
-    ::serde::Serialize,
-    ::serde::Deserialize
-)]
-pub enum MacroState {
-    /// S1: Preflight discovery and repository assessment.
-    S1Assess,
-    /// S2: Dependency call-graph mapping and SCC collapsing.
-    S2Map,
-    /// S3: Target architecture reimagining and interface contract seeding.
-    S3Reimagine,
-    /// S4: Iterative topological DAG wave transformation.
-    S4DagTransform,
-    /// S5: System integration, end-to-end verification, and release.
-    S5VerifyRelease,
-}
-
-impl ::core::fmt::Display for self::MacroState {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        let label = match self {
-            Self::S1Assess => "S1: Assess",
-            Self::S2Map => "S2: Map",
-            Self::S3Reimagine => "S3: Reimagine",
-            Self::S4DagTransform => "S4: DAG Transform",
-            Self::S5VerifyRelease => "S5: Verify & Release",
-        };
-        ::core::write!(f, "{label}")
-    }
-}
-
-/// Tier 2 Module Micro-FSM states (M0 to M5).
-#[derive(
-    ::core::clone::Clone,
-    ::core::marker::Copy,
-    ::core::fmt::Debug,
-    ::core::cmp::PartialEq,
-    ::core::cmp::Eq,
-    ::serde::Serialize,
-    ::serde::Deserialize
-)]
-pub enum MicroState {
-    /// M0: Blocked waiting for upstream parent dependencies.
-    M0Blocked,
-    /// M1: Rule and contract extraction via REA.
-    M1RuleExtract,
-    /// M2: Active ARIADNE MCTS search loop.
-    M2AriadneSearch,
-    /// M3: Contract negotiation across module boundaries.
-    M3ContractNegotiation,
-    /// M4: Hardened module reaching full equivalence.
-    M4Hardened,
-    /// M5: Regressed module invalidated by upstream change.
-    M5Regressed,
-}
-
-impl ::core::fmt::Display for self::MicroState {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        let label = match self {
-            Self::M0Blocked => "M0: Blocked",
-            Self::M1RuleExtract => "M1: Rule Extract",
-            Self::M2AriadneSearch => "M2: ARIADNE",
-            Self::M3ContractNegotiation => "M3: Negotiate",
-            Self::M4Hardened => "M4: Hardened",
-            Self::M5Regressed => "M5: Regressed",
         };
         ::core::write!(f, "{label}")
     }

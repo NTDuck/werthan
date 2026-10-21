@@ -21,14 +21,8 @@ impl ::core::default::Default for self::WorkerPool {
 
 impl self::WorkerPool {
     /// Create new pool with concurrency bound.
-    pub fn new(max_concurrency: ::core::primitive::usize, model: &::core::primitive::str) -> Self {
-        let concurrency = if max_concurrency == 0 {
-            1
-        } else if max_concurrency > 2 {
-            2
-        } else {
-            max_concurrency
-        };
+    pub fn new(_max_concurrency: ::core::primitive::usize, model: &::core::primitive::str) -> Self {
+        let concurrency = 1;
         Self {
             max_concurrency: { concurrency },
             model: { model.to_string() },
@@ -152,6 +146,21 @@ impl self::WorkerPool {
         }
         ::core::result::Result::Ok((results, real_count > 0, real_count))
     }
+    /// Execute compiler repair inference loop on failed compilation output.
+    pub async fn run_repair_inference(
+        &self,
+        system: &::core::primitive::str,
+        user: &::core::primitive::str,
+    ) -> ::core::result::Result<::std::string::String, ::std::string::String> {
+        let model = &self.model;
+        if let ::core::option::Option::Some(url) = &self.inference_url {
+            let trimmed = url.trim().trim_end_matches('/');
+            if !trimmed.is_empty() {
+                return self::execute_real_translation_inference(system, user, model, trimmed).await;
+            }
+        }
+        ::core::result::Result::Err(::std::string::String::from("no inference URL configured for repair"))
+    }
 }
 
 async fn run_shard_task(
@@ -205,7 +214,7 @@ async fn execute_real_shard_inference(
     let client = ::reqwest::Client::new();
     let body = ::serde_json::json!({
         "model": model,
-        "max_tokens": 16384,
+        "max_tokens": 2048,
         "messages": [
             {
                 "role": "system",
@@ -241,8 +250,15 @@ async fn execute_real_shard_inference(
     let content_opt = msg_obj
         .and_then(|m| m.get("content"))
         .and_then(|ct| ct.as_str())
-        .filter(|ct| !ct.trim().is_empty());
-
+        .filter(|ct| !ct.trim().is_empty())
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            msg_obj
+                .and_then(|m| m.get("reasoning_content"))
+                .and_then(|rc| rc.as_str())
+                .filter(|rc| !rc.trim().is_empty())
+                .map(|s| s.trim().to_string())
+        });
     match content_opt {
         ::core::option::Option::Some(text) if !text.trim().is_empty() => {
             ::core::result::Result::Ok(text.trim().to_string())
@@ -262,12 +278,22 @@ async fn run_translation_task(
     if let ::core::option::Option::Some(url) = inference_url {
         let trimmed = url.trim().trim_end_matches('/');
         if !trimmed.is_empty() {
-            let prompt = ::std::format!(
-                "Translate this {} file to {}. Output ONLY the complete translated file content, no commentary, no markdown fences.\n\nFile: {}\n\n```\n{}\n```",
-                shard.source_language, shard.target_language, shard.relative_path, shard.source_content
+            let sys = ::std::format!(
+                "You are an expert systems programmer modernizing legacy code into safe, modern, idiomatic {}.\n\
+                 Translate the input into clean, idiomatic, fully compiling {} code.\n\
+                 Rules:\n\
+                 - Use safe, idiomatic data structures (e.g. standard library collections, slices, Result/Option).\n\
+                 - Avoid raw pointers and manual memory allocation unless strictly necessary.\n\
+                 - Use standard numeric types (usize for lengths, capacities, and indices).\n\
+                 - You MUST format your entire code response inside a single markdown code block starting with ```{} and ending with ```.\n\
+                 - Never output explanations or commentary outside markdown blocks.",
+                shard.target_language, shard.target_language, shard.target_language
             );
-            let sys = "You are a code translator. Output only the translated source code.";
-            match self::execute_real_translation_inference(sys, &prompt, model, trimmed).await {
+            let prompt = ::std::format!(
+                "Modernize this {} file into clean, safe, idiomatic {}. Output ONLY valid {} code inside a single ```{} code block.\n\nFile: {}\n\n```\n{}\n```",
+                shard.source_language, shard.target_language, shard.target_language, shard.target_language, shard.relative_path, shard.source_content
+            );
+            match self::execute_real_translation_inference(&sys, &prompt, model, trimmed).await {
                 ::core::result::Result::Ok(code) => return ::core::result::Result::Ok((shard.relative_path.clone(), code, true)),
                 ::core::result::Result::Err(e) => return ::core::result::Result::Err(::std::format!("translation failed for {}: {e}", shard.relative_path)),
             }
@@ -289,8 +315,11 @@ async fn execute_real_translation_inference(
     let client = ::reqwest::Client::new();
     let body = ::serde_json::json!({
         "model": model,
-        "max_tokens": 32768,
+        "max_tokens": 8192,
         "temperature": 0.2,
+        "chat_template_kwargs": {
+            "enable_thinking": false
+        },
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user}
@@ -309,24 +338,28 @@ async fn execute_real_translation_inference(
         ::core::result::Result::Err(e) => return ::core::result::Result::Err(e.to_string()),
     };
     let msg_obj = val.get("choices").and_then(|c| c.get(0)).and_then(|c0| c0.get("message"));
-    let content = match msg_obj
+    let content_opt = msg_obj
         .and_then(|m| m.get("content"))
         .and_then(|ct| ct.as_str())
-        .filter(|ct| !ct.trim().is_empty())
-    {
-        ::core::option::Option::Some(c) => c,
-        ::core::option::Option::None => return ::core::result::Result::Err(::std::string::String::from("no content in completion response")),
-    };
-    let cleaned = content.trim();
-    let unquoted = if cleaned.starts_with("```") {
-        let lines: ::std::vec::Vec<&str> = cleaned.lines().collect();
-        if lines.len() >= 2 && lines.last().is_some_and(|l| l.trim() == "```") {
-            lines[1..lines.len() - 1].join("\n")
+        .map(|ct| ct.trim())
+        .filter(|ct| !ct.is_empty());
+
+    if let ::core::option::Option::Some(text) = content_opt {
+        if let ::core::option::Option::Some(start) = text.find("```") {
+            let after = &text[start + 3..];
+            let code_start = after.find('\n').map(|idx| idx + 1).unwrap_or(0);
+            let code_body = &after[code_start..];
+            if let ::core::option::Option::Some(end) = code_body.find("```") {
+                return ::core::result::Result::Ok(code_body[..end].trim().to_string());
+            } else if !code_body.trim().is_empty() {
+                return ::core::result::Result::Ok(code_body.trim().to_string());
+            } else {
+                return ::core::result::Result::Err(::std::string::String::from("empty markdown code block in content"));
+            }
         } else {
-            cleaned.to_string()
+            return ::core::result::Result::Err(::std::string::String::from("no markdown code block in content"));
         }
-    } else {
-        cleaned.to_string()
-    };
-    ::core::result::Result::Ok(unquoted)
+    }
+
+    ::core::result::Result::Err(::std::string::String::from("no valid content code block in completion response"))
 }

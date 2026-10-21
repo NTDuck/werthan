@@ -2,6 +2,21 @@
 
 /// Magic directive extraction (absorbed keywords crate).
 pub mod directives;
+/// Task Activation Envelope and hydration schemas (§2 Definition 4 in METHODOLOGY.md).
+pub mod envelope;
+/// Deterministic context assembler.
+pub mod context;
+
+pub use self::envelope::ActivationMode;
+pub use self::envelope::AgentRole;
+pub use self::envelope::DirectiveTrace;
+pub use self::envelope::GraphSlice;
+pub use self::envelope::ObligationCandidate;
+pub use self::envelope::ObligationStatus;
+pub use self::envelope::TaskActivationEnvelope;
+pub use self::envelope::ThinkingBudget;
+pub use self::envelope::ToolBindings;
+pub use self::context::ContextAssembler;
 
 /// Pane role in the static modernization terminal layout.
 #[derive(
