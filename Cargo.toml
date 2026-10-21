@@ -37,6 +37,7 @@ plumbing = { path = "werðan/.checks/plumbing" }
 ste100 = { path = "werðan/.checks/ste100" }
 stepdown = { path = "werðan/.checks/stepdown" }
 turbofish = { path = "werðan/.checks/turbofish" }
+envload = { path = "werðan/.checks/envload" }
 
 # Bins
 daemon = { path = "werðan/bins/daemon" }
@@ -47,6 +48,7 @@ global-blackboard = { path = "werðan/libs/global/blackboard" }
 global-engine = { path = "werðan/libs/global/engine" }
 global-fsm = { path = "werðan/libs/global/fsm" }
 global-arbiter = { path = "werðan/libs/global/agents/arbiter" }
+global-workers = { path = "werðan/libs/global/agents/workers" }
 tools = { path = "werðan/libs/shared/tools" }
 configschema = { path = "werðan/libs/shared/configschema" }
 configurator = { path = "werðan/libs/shared/agents/configurator" }

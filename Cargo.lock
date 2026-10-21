@@ -706,6 +706,7 @@ dependencies = [
 name = "configschema"
 version = "0.1.0"
 dependencies = [
+ "envload",
  "flatmods",
  "pathqual",
  "plumbing",
@@ -722,6 +723,7 @@ version = "0.1.0"
 dependencies = [
  "bon",
  "configschema",
+ "envload",
  "flatmods",
  "pathqual",
  "plumbing",
@@ -1030,6 +1032,7 @@ version = "0.1.0"
 dependencies = [
  "bon",
  "configschema",
+ "envload",
  "flatmods",
  "global-blackboard",
  "global-engine",
@@ -1319,6 +1322,10 @@ dependencies = [
  "quote",
  "syn 2.0.119",
 ]
+
+[[package]]
+name = "envload"
+version = "0.1.0"
 
 [[package]]
 name = "equivalent"
@@ -1747,6 +1754,7 @@ name = "global-arbiter"
 version = "0.1.0"
 dependencies = [
  "bon",
+ "envload",
  "flatmods",
  "global-fsm",
  "pathqual",
@@ -1764,6 +1772,7 @@ version = "0.1.0"
 dependencies = [
  "bon",
  "dirs",
+ "envload",
  "flatmods",
  "global-fsm",
  "holon-blackboard",
@@ -1783,7 +1792,10 @@ dependencies = [
  "bon",
  "flatmods",
  "global-arbiter",
+ "global-blackboard",
  "global-fsm",
+ "global-workers",
+ "holon-fsm",
  "pathqual",
  "plumbing",
  "rig-core",
@@ -1801,10 +1813,12 @@ name = "global-engine"
 version = "0.1.0"
 dependencies = [
  "bon",
+ "envload",
  "flatmods",
  "global-arbiter",
  "global-blackboard",
  "global-fsm",
+ "global-workers",
  "holon-blackboard",
  "holon-fsm",
  "pathqual",
@@ -1822,6 +1836,7 @@ name = "global-fsm"
 version = "0.1.0"
 dependencies = [
  "bon",
+ "envload",
  "flatmods",
  "pathqual",
  "plumbing",
@@ -1836,6 +1851,7 @@ dependencies = [
 name = "global-workers"
 version = "0.1.0"
 dependencies = [
+ "envload",
  "flatmods",
  "global-blackboard",
  "global-fsm",
@@ -2043,6 +2059,7 @@ checksum = "242402749acf71e6f32f5857598b7002c4058a4e3c3b22b4c7d51cab9aea754e"
 name = "holon-blackboard"
 version = "0.1.0"
 dependencies = [
+ "envload",
  "flatmods",
  "pathqual",
  "plumbing",
@@ -2057,6 +2074,7 @@ dependencies = [
 name = "holon-codegen"
 version = "0.1.0"
 dependencies = [
+ "envload",
  "flatmods",
  "holon-blackboard",
  "pathqual",
@@ -2077,6 +2095,7 @@ version = "0.1.0"
 dependencies = [
  "bon",
  "cucumber",
+ "envload",
  "flatmods",
  "futures",
  "global-engine",
@@ -2103,6 +2122,7 @@ name = "holon-evaluator"
 version = "0.1.0"
 dependencies = [
  "bon",
+ "envload",
  "flatmods",
  "holon-blackboard",
  "pathqual",
@@ -2122,6 +2142,7 @@ name = "holon-fsm"
 version = "0.1.0"
 dependencies = [
  "cucumber",
+ "envload",
  "flatmods",
  "pathqual",
  "plumbing",
@@ -2137,6 +2158,7 @@ dependencies = [
 name = "holon-patch"
 version = "0.1.0"
 dependencies = [
+ "envload",
  "flatmods",
  "holon-blackboard",
  "pathqual",
@@ -2155,6 +2177,7 @@ dependencies = [
 name = "holon-strategy"
 version = "0.1.0"
 dependencies = [
+ "envload",
  "flatmods",
  "holon-blackboard",
  "pathqual",
@@ -2172,6 +2195,7 @@ dependencies = [
 name = "holon-testgen"
 version = "0.1.0"
 dependencies = [
+ "envload",
  "flatmods",
  "holon-blackboard",
  "pathqual",
@@ -2624,6 +2648,7 @@ dependencies = [
  "configschema",
  "configurator",
  "crossterm",
+ "envload",
  "flatmods",
  "pathqual",
  "plumbing",
@@ -2803,6 +2828,7 @@ checksum = "e037a2e1d8d5fdbd49b16a4ea09d5d6401c1f29eca5ff29d03d3824dba16256a"
 name = "laya-as-a-judge"
 version = "0.1.0"
 dependencies = [
+ "envload",
  "flatmods",
  "pathqual",
  "plumbing",
@@ -2819,6 +2845,7 @@ dependencies = [
 name = "laya-decision-model"
 version = "0.1.0"
 dependencies = [
+ "envload",
  "flatmods",
  "pathqual",
  "plumbing",
@@ -2835,6 +2862,7 @@ dependencies = [
 name = "laya-guardrails"
 version = "0.1.0"
 dependencies = [
+ "envload",
  "flatmods",
  "pathqual",
  "plumbing",
@@ -3113,6 +3141,7 @@ checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 name = "mybin"
 version = "0.1.0"
 dependencies = [
+ "envload",
  "flatmods",
  "pathqual",
  "plumbing",
@@ -3125,6 +3154,7 @@ dependencies = [
 name = "mylib"
 version = "0.1.0"
 dependencies = [
+ "envload",
  "flatmods",
  "pathqual",
  "plumbing",
@@ -5366,6 +5396,7 @@ dependencies = [
  "anyhow",
  "ast-grep-core",
  "cucumber",
+ "envload",
  "flatmods",
  "globset",
  "ignore",
