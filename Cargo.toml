@@ -2,6 +2,7 @@
 members = [
     "werðan/.checks/*",
     "werðan/.examples/*",
+    "werðan/.experiments/*",
     "werðan/infras/core",
     "werðan/infras/blackboard",
     "werðan/infras/statechart",

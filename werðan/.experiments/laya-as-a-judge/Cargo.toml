@@ -1,0 +1,24 @@
+[package]
+name = "laya-as-a-judge"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+sys1 = { version = "0.0.3", default-features = false, features = ["cpu"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[build-dependencies]
+flatmods.workspace = true
+pathqual.workspace = true
+plumbing.workspace = true
+ste100.workspace = true
+stepdown.workspace = true
+turbofish.workspace = true
+
+[lints]
+workspace = true
