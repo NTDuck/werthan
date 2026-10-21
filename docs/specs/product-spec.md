@@ -2,11 +2,19 @@
 
 ## 1. Product Overview
 
-`werðan` is an enterprise-grade, offline-capable code modernization multi-agent system. It transforms legacy codebases (COBOL, PL/SQL, legacy Java/C/C++) into modern, verified, idiomatic target architectures.
+`werðan` is an enterprise-grade, offline-capable code modernization multi-agent system. It transforms legacy codebases (COBOL, PL/SQL, legacy Java/C/C++) into modern, verified, idiomatic target architectures (e.g. safe, idiomatic Rust).
+
+### Architectural Ground Truth
+Per **ADR 0005** (`docs/decisions/0005-methodology-source-of-truth.md`), the product design and execution lifecycle are strictly governed by:
+- **`docs/references/METHODOLOGY.md`**: Authoritative formal architecture (7-phase Harel Statechart, two-tier blackboard, declarative scatter-gather, encapsulated ARIADNE MCTS clusters, and multi-tier regressions).
+- **`docs/references/METHODOLOGY-DRV.md`**: Foundational derivations, design justifications, and paradigm comparisons.
+- **`docs/specs/tech-spec.md`**: Technical specification, data schemas, algorithms, and crate boundaries.
+
+In accordance with architectural governance directives, the system methodology has no arbitrary commercial or brand names; it is formally defined as the **Two-Tier Harel Statechart and Encapsulated ARIADNE Multi-Agent Architecture for Repository-Scale Code Modernization**.
 
 ### Primary Objectives & Operational Invariants
 During every execution run, whether interactive or headless, the system strictly enforces three optimization goals:
-1. **Maximize Compilation Status**: 100% clean compilation of target code drafts ($\mathbb{I}_{\text{compile}} = 1.0$) with zero compiler errors.
+1. **Maximize Compilation Status**: 100% clean compilation of target code drafts ($\mathbb{I}_{\text{compile}} = 1.0$) with zero compiler errors or stub placeholders.
 2. **Maximize Test Pass Rate**: 100% equivalence test pass rate ($\text{PassRate}_{\text{char}} = 1.0$) across characterization test suites extracted from legacy behavior.
 3. **Minimize Wall-Clock Time**: Maximize execution parallelism via topological wave scheduling and warm-started MCTS state caches.
 
@@ -28,50 +36,63 @@ The terminal interface divides the display into a 60% Left Pane and a 40% Right 
 ```text
 +---------------------------------------------+------------------------------+
 | LEFT TOP (w = 60%, h = 50%)                 | RIGHT PANE (w = 40%, h = 100%|
-| [State Machine & DAG Wave Monitor]          | divided by N static entries) |
+| [State Machine & DAG Wave Monitor]          | Dynamic Phase-Conditioned)   |
 |                                             |                              |
-| Tier 1 Macro-Statechart:                    | [1/4] RepoAssessor (h = 25%) |
-|   [✓ S0: Intent] -> [✓ S1: Assess]          | > Scanning build.gradle...   |
-|   -> [✓ S2: Map] -> [✓ S3: Rules]           |------------------------------|
-|   -> [✓ S4: Brief] -> [* S5: DAG Trans.]    | [2/4] DependencyMapper (25%) |
-|   -> [  S6: Verify & Harden]                | > Collapsed 3 SCCs in G...   |
-|                                             |------------------------------|
-| Active Tier 2 Module Micro-FSMs (Wave 2):   | [3/4] TargetArchitect (25%)  |
-|   * v_core   [M4: Hardened] R = 1.00        | > Seeded 14 edge contracts   |
-|   * v_ledger [M2: ARIADNE]  R = 0.72 (U4)   |                              |
-|   * v_api    [M0: Blocked]  wait: v_ledger  |                              |
+| Tier 1 Macro-Statechart (7 Phases):         | [Phase S5: DAG Transform]    |
+|   [✓ S0: Intent] -> [✓ S1: Assess]          | Module: v_ledger (Wave 2)    |
+|   -> [✓ S2: Map] -> [✓ S3: Rules]           | Active Cluster: ARIADNE      |
+|   -> [✓ S4: Brief] -> [* S5: DAG Trans.]    | Sub-windows (w = 40% / 5):   |
+|   -> [  S6: Verify & Harden]                | +----+----+----+----+----+   |
+|                                             | |Str |Gen |Test|Eval|Pat |   |
+| Active Tier 2 Module Micro-FSMs (Wave 2):   | |H2: |fn  |prop|R=  |diff|   |
+|   * v_core   [M4: Hardened] R = 1.00        | |Asyn|tr()|test|0.72|h4  |   |
+|   * v_ledger [M2: ARIADNE]  R = 0.72 (U4)   | +----+----+----+----+----+   |
+|   * v_api    [M0: Blocked]  wait: v_ledger  | > LSP: checking signature... |
+|                                             | > Rollout 4/24 | Temp: 0.35  |
 +---------------------------------------------+------------------------------+
-| LEFT BOTTOM (w = 60%, h = 50%)              | [4/4] Cluster: ARIADNE (25%) |
-| [Macro-Orchestrator Interactive Window]     | (Each sub-pane w = 40% / 5)  |
-|                                             | +-----+-----+-----+-----+----+|
-| Orchestrator: Config written to ./out/cfg.  | |Str  |Gen  |Test |Eval |Pat ||
-| Type `/start @./out/migration.yml` to run.  | |H2:  |fn   |prop |R =  |h   ||
-| +- [ /status (btw) ] ---------------------+ | |Asyn |tr() |test |0.72 |..  ||
-| | Wave 2/5 (42% modules M4_HARDENED).     | | +-----+-----+-----+-----+----+|
-| +-----------------------------------------+ |                              |
-| > /start @out/migration.yml                 |                              |
+| LEFT BOTTOM (w = 60%, h = 50%)              | [Parallel Cluster Slot 2]    |
+| [Macro-Orchestrator Interactive Window]     | Module: v_parser (Wave 2)    |
+|                                             | Active Cluster: ARIADNE      |
+| Orchestrator: Config loaded from ./out/cfg. | +----+----+----+----+----+   |
+| Type `/start @./out/migration.yml` to run.  | |Str |Gen |Test|Eval|Pat |   |
+| +- [ /status (btw) ] ---------------------+ | |H1: |fn  |I/O |R=  |--  |   |
+| | Wave 2/5: 1 Ready, 1 Active, 1 Blocked. | | |Port|p() |snap|1.00|--  |   |
+| | 42% modules hardened (R = 1.0).         | +----+----+----+----+----+   |
+| +-----------------------------------------+ | > Module Hardened! R = 1.00  |
+| > /start @out/migration.yml                 | > Emitting ev_ModuleHardened |
 +---------------------------------------------+------------------------------+
 ```
 
 #### Left Pane (w = 60%)
 * **Top Half (h = 50%) — State Machine & DAG Wave Monitor**:
-  - Displays Tier 1 Macro-Statechart progress ($S_0 \rightarrow S_1 \rightarrow S_2 \rightarrow S_3 \rightarrow S_4 \rightarrow S_5 \rightarrow S_6$) per `docs/references/METHODOLOGY.md`.
-  - Displays real-time status of active Tier 2 Module Micro-FSMs ($M_0..M_5$) across topological execution waves.
-  - Highlights per-module current scalar reward ($R$), UCB rollouts, and dependency wait-states.
+  - Displays Tier 1 Macro-Statechart progress across all 7 canonical phases:
+    $$S_0 \rightarrow S_1 \rightarrow S_2 \rightarrow S_3 \rightarrow S_4 \rightarrow S_5 \rightarrow S_6$$
+  - Renders Two-Stage Hybrid Guard status at phase boundaries:
+    - Stage 1 $g_{\text{struct}}$: Zero-token programmatic check (instant green tick or retry traceback).
+    - Stage 2 $g_{\text{sem}}$: Sharded adversarial LLM critic (`ShardCritic`) audit progress and verdicts (`PASS` / `REJECT`).
+  - Displays real-time status of active Tier 2 Module Micro-FSMs ($M_0 \dots M_5$) across topological execution waves:
+    - Lists active module vertices in $\text{ReadySet}(\mathcal{G})$.
+    - Highlights per-module scalar rewards ($R$), visit counts ($N$), active MCTS strategy hypotheses, and dependency wait-states.
 * **Bottom Half (h = 50%) — Macro-Orchestrator Interactive Window**:
-  - Scrollable chat transcript showing orchestrator prompts, human gate prompts, user messages, notices, and errors.
-  - Dismissible inline `/status` callout blocks.
-  - Command input prompt buffer at the bottom.
+  - Scrollable chat transcript showing orchestrator directives, Human-in-the-Loop (HITL) gate prompts, operator messages, system notices, and error logs.
+  - Dismissible inline `/status` (or `/btw`) callout blocks showing point-in-time progress without interrupting active streaming.
+  - Interactive command input buffer with `@` file autocomplete and `/` slash command popup.
 
-#### Right Pane (w = 40%)
-* Statically allocated into $N$ equal vertical slots ($h = 100\% / N$) for configured agent operatives and clusters.
-* **Single Operative Slot**: Displays role title, telemetry metrics, and continuous streaming logs.
-* **Multi-Operative Cluster Slot (e.g. ARIADNE)**:
-  - Horizontally subdivided into $K$ equal sub-windows ($w = 40\% / K$, e.g. 5 sub-windows for $A_{\text{str}}$, $A_{\text{gen}}$, $A_{\text{test}}$, $A_{\text{eval}}$, $A_{\text{patch}}$, with rule extraction pre-computed globally in $S_3$).
-  - Streams real-time operative sub-tokens simultaneously without blocking parent redraws.
+#### Right Pane (w = 40%) — Dynamic Phase-Conditioned Operatives
+The Right Pane allocates vertical slots dynamically conditioned on the active Macro-State $S_{\text{macro}}$ and configured `PaneRole` channels:
+
+| Active Macro-Phase | Right Pane Display & Dynamic Allocation |
+| :--- | :--- |
+| **$S_0$ Intent & Preflight** | Single operative window for `PreflightProbe`: streams legacy build commands, environment inspections, and baseline test suite executions. |
+| **$S_1$ Assess** | Sharded into $K$ slots for active `ShardAssessor` workers analyzing dialect quirks and tech debt, plus a bottom slot for `AssessmentSynthesizer`. |
+| **$S_2$ Map (DAG)** | Upper slot for static AST/LSP graph building and Tarjan SCC condensation; lower slot for `ImplicitCouplingScanner` and `TopologyCritic`. |
+| **$S_3$ Extract Rules** | Upper slot streaming parallel `RuleMiner` shards extracting `Given/When/Then` cards; lower slot streaming `CrossModuleRuleLinker` and `RuleAuditor`. |
+| **$S_4$ Brief & Contracts** | Upper slot for `MacroArchitect` global idiom definitions; middle slots for parallel `ContractStubber` shards; lower slot for `ArchitectureCritic`. |
+| **$S_5$ Iterative DAG** | Divided equally among active parallel **ARIADNE Clusters** (up to concurrency cap $K_{\max}$). Each cluster slot is horizontally subdivided into 5 sub-windows for its 5 specialized operatives:<br>1. $\mathcal{A}_{\text{str}}$: Modernization strategy hypotheses ($h_k$).<br>2. $\mathcal{A}_{\text{gen}}$: Candidate target code synthesis ($c'$).<br>3. $\mathcal{A}_{\text{test}}$: Adversarial characterization test generation ($\mathcal{B}_{CT}$, strictly read-isolated from candidate code).<br>4. $\mathcal{A}_{\text{eval}}$: Two-Stage Hybrid Evaluator (compiler/test runner + diagnostic distiller).<br>5. $\mathcal{A}_{\text{patch}}$: Surgical code repair diffs ($c''$). |
+| **$S_6$ System Verify** | Upper slot for `IntegrationVerifier` E2E test executions; lower slot for `SecurityAuditor` SAST scans and `ReleaseAuditor` parity signoff. |
 
 #### Terminal Output Synchronization
-* Wraps all frame updates with CSI-2026 sequences (`\x1b[?2026h` and `\x1b[?2026l`) to eliminate visual tearing and flickering on modern terminals.
+* Wraps all frame redraws with CSI-2026 synchronized output sequences (`\x1b[?2026h` and `\x1b[?2026l`) to eliminate visual tearing and flickering across modern terminal emulators.
 
 ---
 
@@ -87,18 +108,31 @@ The terminal interface divides the display into a 60% Left Pane and a 40% Right 
 
 ---
 
-### 3.3 Slash Command Workflow
+### 3.3 Slash Command Workflow & Human Decision Gates
 
 | Command | Behavior |
 | :--- | :--- |
-| `/mkcfg` | Launches conversational configuration wizard (`OrchestratorMode::ConfigWizard`). Asks structured questions one at a time (ask pattern) covering input directory, output directory, target language, toolchains, verification strictness, MCTS budget, and HITL gate preferences. Automatically validates directory paths, computes legacy source file previews, and serializes `{output-dir}/migration.yml`. |
-| `/start @{path}` | Reads and parses the referenced YAML configuration file, validates paths and prerequisites, transitions the macro-orchestrator engine into $S_0$ (Intent & Preflight) followed by $S_1$, and starts streaming live telemetry to the TUI. |
-| `/pause` | Sets a global watch flag that pauses the execution loop cleanly at the next MCTS rollout or wave boundary. In-flight requests settle before parking. |
+| `/mkcfg` | Launches conversational configuration wizard (`OrchestratorMode::ConfigWizard`). Asks structured questions one at a time covering input directory, output directory, target language, toolchains, verification strictness, MCTS budget, and HITL gate preferences. Automatically validates directory paths, computes legacy source file previews, and serializes `{output-dir}/migration.yml`. |
+| `/start @{path}` | Reads and parses the referenced YAML configuration file, validates paths and prerequisites, transitions the macro-orchestrator engine into $S_0$ (Intent & Preflight) followed sequentially by $S_1 \dots S_6$, and starts streaming live telemetry to the TUI. |
+| `/pause` | Sets a global watch flag that pauses the execution loop cleanly at the next MCTS rollout or topological wave boundary. In-flight tool executions settle before parking. |
 | `/unpause` | Resumes the paused execution loop. |
-| `/stop` | Cancels the active engine cancellation token, aborts running background workers, and persists Blackboard checkpoints to disk. |
-| `/status` (or `/btw`) | Spawns an ephemeral, non-blocking read task that snapshots `GlobalBlackboard` and active Micro-FSM metrics without acquiring execution locks or interrupting streaming agents. Renders the response in a dismissible inline callout inside the orchestrator window. |
+| `/stop` | Cancels the active engine cancellation token, cleanly aborts running background workers, and persists Blackboard checkpoints to disk. |
+| `/status` (or `/btw`) | Spawns an ephemeral, non-blocking read task that snapshots $\mathcal{G}$'s state vector $\Sigma(\mathcal{G}) = \langle S_{\text{macro}}, \mathbf{M}, \Theta_{H^*}, \mathcal{Q}_{\text{events}} \rangle$ and active Micro-FSM metrics without acquiring execution locks or interrupting streaming agents. Renders the response in a dismissible inline callout inside the orchestrator window. |
 | `/clear` | Clears the scrollable chat transcript. |
 | `/quit` (or `/q`) | Gracefully stops any active migration, flushes checkpoints, restores terminal state, and exits. |
+
+#### Human-in-the-Loop (HITL) Decision Gates
+When `execution_mode: "hitl"` is configured in `migration.yml`, the engine pauses at critical architectural junctures and prompts the operator through the interactive window:
+1. **Gate on Reimagine (`gate_on_reimagine: true`)**:
+   - Fires at the transition boundary from Phase $S_4$ (`Brief & Reimagine Contracts`) to Phase $S_5$ (`Iterative DAG Transform`).
+   - Presents a summary of extracted domain rules ($\mathcal{R}_{\text{rules}}$) and compiled target interface stubs ($\mathcal{C}_{\text{contracts}}$).
+   - Prompts the user to approve contracts or inject manual amendments before topological code generation begins.
+2. **Gate on Macro-Regression (`gate_on_macro_regression: true`)**:
+   - Fires when an encapsulated ARIADNE cluster discovers an undocumented dependency cycle (Tier C fault: $\kappa = \texttt{EXTRINSIC\_CYCLE}$).
+   - Presents the cycle trace ($E_{\text{cycle}}$) and requests confirmation before $\mathcal{O}_{\text{engine}}$ checkpoints Deep History ($\Theta_{H^*}$) and rolls back $S_5 \to S_2$ for Tarjan SCC condensation.
+3. **Extrinsic Conflict Escalation (`extrinsic_conflict_escalation: "ask_human"`)**:
+   - Fires when an upstream parent interface conflict cannot be resolved automatically via $\mathcal{O}_{\text{arbiter}}$.
+   - Presents the conflicting signatures and requests an operator decision on which module boundary contract to adapt.
 
 ---
 
@@ -110,7 +144,7 @@ werðan-daemon --config <path/to/migration.yml>
 ```
 
 ### 4.2 Behavior & Tracing
-* Operates non-interactively, linking the exact same `topology` engine as `bins/interactive`.
+* Operates non-interactively, linking the exact same `topology` engine and statechart runtime as `bins/interactive`.
 * Dual-sink logging infrastructure:
   - ANSI colored formatted logs directed to `stdout`.
   - Structured JSONL log events directed to `{output_dir}/logs/daemon.jsonl` using daily rolling file appenders.
@@ -120,7 +154,7 @@ werðan-daemon --config <path/to/migration.yml>
 
 ## 5. Migration Configuration Schema (`migration.yml`)
 
-The configuration file generated by `/mkcfg` and accepted by `/start` and `werðan-daemon` adheres to the following specification:
+The configuration file generated by `/mkcfg` and accepted by `/start` and `werðan-daemon` adheres to the canonical schema:
 
 ```yaml
 campaign_id: "modernize-campaign-001"
@@ -129,7 +163,9 @@ execution_mode: "hitl"                        # "hitl" | "full_auto"
 paths:
   input_legacy_dir: "./legacy-source"
   workspace_root: "./modernized-target"
-  off_limits_globs: []
+  off_limits_globs:
+    - "**/.git/**"
+    - "**/target/**"
 
 stack:
   source_language: "cpp14"
@@ -155,6 +191,7 @@ inference:
   inference_timeout_secs: 600
   build_timeout_secs: 120
   test_timeout_secs: 120
+
 verification:
   max_self_heal_retries: 3
   require_byte_identical_io: false
