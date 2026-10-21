@@ -84,7 +84,10 @@ werðan/
 │   │   └── agents/
 │   │       └── arbiter/            # Global arbitration and semantic critics (global-arbiter)
 │   ├── shared/
-│   │   └── tools/                  # 12 Standardized OMP Agent Tools (read, write, edit, glob, grep, ast_grep, ast_edit, lsp, bash, eval, debug, github)
+│   │   ├── configschema/           # Canonical migration.yml schema (CampaignConfig, from/to YAML API)
+│   │   ├── tools/                  # 13 Standardized OMP Agent Tools (read, write, edit, glob, grep, ast_grep, ast_edit, lsp, bash, eval, debug, github, ask)
+│   │   └── agents/
+│   │       └── configurator/       # Interactive campaign configurator agent driving /mkcfg through the ask bridge (configurator)
 │   └── holon/                      # Multi-Agent Holonic Modernization Subsystem
 │       ├── fsm/                    # State machine execution engines (holon-fsm)
 │       ├── engine/                  # Encapsulated ARIADNE cluster engine (holon-engine)
@@ -462,9 +465,9 @@ Below is a rigorous comparative analysis of the Two-Tier Harel Statechart + ARIA
 
 ---
 
-## 10. Migration Configuration Specification (`ModernizeConfig`)
+## 10. Migration Configuration Specification (`CampaignConfig`)
 
-The canonical configuration schema defined in `werðan/infras/core/src/lib.rs` and accepted by frontends:
+The canonical configuration schema defined in the `werðan/libs/shared/configschema` crate as `configschema::CampaignConfig` and accepted by frontends. The per-frontend parse structs were deleted. The daemon re-exports `configschema::CampaignConfig` and the YAML field name `ariadne.max_rollouts` remains accepted as a serde alias of `engine_budget_per_module` for the 118 generated benchmark configs:
 
 ```yaml
 campaign_id: "modernize-campaign-001"
@@ -488,12 +491,7 @@ stack:
   legacy_test_harness_cmd: "ctest"
 
 inference:
-  ninfer_base_url: "http://localhost:8000/v1"
-  deep_model: "ashalliant/qwen3.8-27b-abliterated"
-  fast_model: "ashalliant/qwen3.8-27b-abliterated"
   max_parallel_shards: 2
-  user_input_mode: "wait"                     # "wait" | "immediate"
-  max_shards: 2
   base_url: "http://localhost:8000/v1"
   model: "ashalliant/qwen3.8-27b-abliterated"
   inference_max_tokens: 32768
@@ -535,13 +533,14 @@ Per ADR 0005, the following in-tree Rust components now implement the authoritat
 6. **ARIADNE Solver Adapter (Algorithm 2 boundary)**: implemented in `werðan/libs/holon/engine/src/solver.rs` (`holon-engine`, `AriadneSolver`), holding one `ClusterEngine` and `LocalBlackboard` per module vertex and mapping `EngineTypestateOutcome` onto `global_engine::SolverOutcome`. The per-vertex `LocalBlackboard` $\mathcal{B}^{(v_i)}$ is implemented in `werðan/libs/holon/blackboard` (`holon-blackboard`) as four cohesive slice modules: `problem_model.rs` ($\mathcal{B}_{PM}$), `strategy_hypotheses.rs` ($\mathcal{B}_{SH}$), `characterization_tests.rs` ($\mathcal{B}_{CT}$), and `patch_records.rs` ($\mathcal{B}_{PR}$), with the crate root `lib.rs` re-exporting all slice types at `::holon_blackboard::*` and composing them as pub fields of `LocalBlackboard`.
 7. **Interactive Mock Reconciliation**: `bins/interactive` now binds the canonical 7-state `ModernizationState` (`S0IntentPreflight` .. `S6SystemVerify`) with the three canonical HITL gates (`GateOnReimagine` at the S4 to S5 boundary, `GateOnMacroRegression` at the S5 to S2 regression boundary, and `GateOnExtrinsicConflict` for unresolved parent interface conflict escalation), matching the mock in `werðan/bins/interactive/src/mock.rs`. The mock runner follows the state-as-struct Hoverbear pattern: `StateMachineRunner<S>` over phase structs (`RunnerS0IntentPreflight`, `RunnerS1Assess`, `RunnerS4Approved`) with consuming `From` transitions, a `StepOutcome` enum carrying the next phase machine, and no state index counter.
 8. **FSM State Representation Convention** (rule: `.omp/rules/specs.md` §3): all state machines use the state-as-struct Hoverbear pattern with consuming transitions; unit-variant enums (`MicroStateTag`, `MacroState`, `ModuleMicroState`, `ModernizationState`) are serde/UI reflection tags only and never drive control flow through a state index counter. Effect enums (`TransitionEffect`), event enums (`MicroEvent`, `MacroEvent`, `ClusterBroadcastEvent`), and dynamic dispatch wrappers (`ClusterFsm`, `MacroStatechart`) are intentional boundary types, not enum-as-state defects. (The `holon-fsm` dynamic layer has since been removed in favor of the pure typestate machine; `MacroStatechart` remains the global-layer boundary type.)
+9. **Frontend Schema Unification**: `bins/daemon` and `bins/interactive` both deserialize `migration.yml` into `configschema::CampaignConfig` (crate `werðan/libs/shared/configschema`). The interactive `/init` wizard drives `configurator::ConfiguratorAgent` (crate `werðan/libs/shared/agents/configurator`) and persists the `CampaignConfig` YAML draft via `/save-config`.
 
 ---
 
 ## 12. Shared Agent Tools Architecture (`werðan/libs/shared/tools`)
 
 ### 12.1 Purpose & Rig Tool Integration
-The `tools` crate provides 12 self-contained, omp-specification-conforming agent tools exposed as `::rig::tool::Tool` implementations for autonomous modernization agents.
+The `tools` crate provides 13 self-contained, omp-specification-conforming agent tools exposed as `::rig::tool::Tool` implementations for autonomous modernization agents.
 
 ### 12.2 Tool Registry & Interface Specifications
 
@@ -559,9 +558,10 @@ The `tools` crate provides 12 self-contained, omp-specification-conforming agent
 | `eval` | `EvalTool`, `EvalArgs`, `EvalOutput` | `language: String`, `code: String`, `timeout: Option<u64>` | `status: String`, `stdout: String`, `stderr: String` | Subprocess execution of `python3` or `node` snippets with exit capture (default 60s, overridable via `TOOL_EVAL_TIMEOUT_SECS`). |
 | `debug` | `DebugTool`, `DebugArgs`, `DebugOutput` | `action: String`, `session_id: Option<String>`, `payload: Option<String>` | `status: String`, `result: serde_json::Value` | DAP debugger adapter status and control inspector. |
 | `github` | `GithubTool`, `GithubArgs`, `GithubOutput` | `op: String`, `query: Option<String>`, `repo: Option<String>`, `limit: Option<usize>` | `status: String`, `data: serde_json::Value` | Headless GitHub CLI (`gh`) runner querying issues, PRs, and repositories. |
+| `ask` | `AskTool`, `AskArgs`, `AskOutput`, `AskQuestion`, `AskAnswer` | `questions: Vec<AskQuestion>` | `answers: Vec<AskAnswer>` | Typed question surfacing to the human operator with a process-global canned-answer sink; honest error when no operator answer exists. |
 
 ### 12.3 Error Propagation & Blanket Trait Implementation
-All 12 tools implement the `DisplayExt` extension trait for error conversion into `::rig::tool::ToolError`:
+All 13 tools implement the `DisplayExt` extension trait for error conversion into `::rig::tool::ToolError`:
 
 ```rust
 pub(crate) trait DisplayExt: ::core::fmt::Display {
