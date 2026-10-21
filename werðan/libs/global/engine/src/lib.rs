@@ -16,6 +16,10 @@ pub use self::batches::{PhaseShard, regress_target, semantic_batches};
 pub use self::error::MacroEngineError;
 pub use self::guards::structural_guard;
 pub use self::solver::{ModuleSolver, SolverOutcome, StubModuleSolver};
+pub use ::global_workers::{
+    AssessmentReport, ContextAssembler, DeterministicWorkers, EdgeStub, PhaseWorkOutput,
+    PhaseWorker, RiskMatrix, TaskActivationEnvelope, VerifyVerdict, phase_role_name,
+};
 
 /// Deterministic macro-orchestrator engine implementing Algorithm 1 in METHODOLOGY.md.
 pub struct MacroEngine {
@@ -24,11 +28,13 @@ pub struct MacroEngine {
     solver: ::std::boxed::Box<dyn self::ModuleSolver>,
     critic: ::std::boxed::Box<dyn ::global_arbiter::SemanticCritic>,
     arbiter: ::std::boxed::Box<dyn ::global_arbiter::Arbiter>,
+    workers: ::std::boxed::Box<dyn ::global_workers::PhaseWorker>,
     warm_modes: ::std::collections::BTreeMap<::std::string::String, ::holon_fsm::ActivationMode>,
     regression_scope: ::core::option::Option<::std::vec::Vec<::std::string::String>>,
     step_budget: ::core::primitive::usize,
     steps_used: ::core::primitive::usize,
     solver_dispatches: ::core::primitive::usize,
+    worker_executions: ::core::primitive::usize,
     structural_retries: ::core::primitive::usize,
     transition_log: ::std::vec::Vec<(::std::string::String, ::global_blackboard::ModuleMicroState)>,
 }
@@ -50,6 +56,7 @@ impl self::MacroEngine {
         solver: ::core::option::Option<::std::boxed::Box<dyn self::ModuleSolver>>,
         critic: ::core::option::Option<::std::boxed::Box<dyn ::global_arbiter::SemanticCritic>>,
         arbiter: ::core::option::Option<::std::boxed::Box<dyn ::global_arbiter::Arbiter>>,
+        workers: ::core::option::Option<::std::boxed::Box<dyn ::global_workers::PhaseWorker>>,
         step_budget: ::core::option::Option<::core::primitive::usize>,
     ) -> Self {
         let board = board.unwrap_or_default();
@@ -75,6 +82,13 @@ impl self::MacroEngine {
                 ::std::boxed::Box::new(default_arbiter)
             }
         };
+        let workers = match workers {
+            ::core::option::Option::Some(configured) => configured,
+            ::core::option::Option::None => {
+                let default_workers = ::global_workers::DeterministicWorkers::new();
+                ::std::boxed::Box::new(default_workers)
+            }
+        };
         let step_budget = step_budget.unwrap_or(256);
         Self {
             board,
@@ -82,11 +96,13 @@ impl self::MacroEngine {
             solver,
             critic,
             arbiter,
+            workers,
             warm_modes: ::std::collections::BTreeMap::new(),
             regression_scope: ::core::option::Option::None,
             step_budget,
             steps_used: 0,
             solver_dispatches: 0,
+            worker_executions: 0,
             structural_retries: 0,
             transition_log: ::std::vec::Vec::new(),
         }
@@ -113,6 +129,11 @@ impl self::MacroEngine {
     /// Return total solver dispatch count.
     pub fn solver_dispatches(&self) -> ::core::primitive::usize {
         self.solver_dispatches
+    }
+
+    /// Return total worker execution count across phase shards.
+    pub fn worker_executions(&self) -> ::core::primitive::usize {
+        self.worker_executions
     }
 
     /// Return total structural retry count.
@@ -273,6 +294,27 @@ impl self::MacroEngine {
         if !accepted {
             return ::core::result::Result::Ok(());
         }
+        // Modules caught mid-synthesis by the macro regression park in M5 so the
+        // next wave re-dispatches them instead of deadlocking on M1 occupancy.
+        // The conversion precedes the snapshot so Theta_H* holds parked states.
+        let stalled = self
+            .board
+            .state
+            .module_states
+            .iter()
+            .filter(|(_, state)| {
+                ::core::matches!(
+                    state,
+                    ::global_blackboard::ModuleMicroState::M1ContextHydration
+                        | ::global_blackboard::ModuleMicroState::M2AriadneMcts
+                        | ::global_blackboard::ModuleMicroState::M3ContractNegotiate
+                )
+            })
+            .map(|(vertex, _)| vertex.clone())
+            .collect::<::std::vec::Vec<_>>();
+        for vertex in stalled {
+            self.set_module_state(&vertex, ::global_blackboard::ModuleMicroState::M5Invalidated);
+        }
         // Save deep history Theta_H* before leaving the composite S5 state.
         self.board.state.save_deep_history();
         // Union the reported cycle edges into the DAG before condensation.
@@ -293,174 +335,144 @@ impl self::MacroEngine {
         ::core::result::Result::Ok(())
     }
 
-    /// Re-key rules, contracts, and artifacts onto the condensed DAG.
-    fn apply_condensation(&mut self, condensed: ::global_blackboard::CondensedDag) {
-        let mut new_rules = ::std::collections::BTreeMap::new();
-        let mut new_artifacts = ::std::collections::BTreeMap::new();
-        for vertex in &condensed.vertices {
-            let mut union_rules = ::std::vec::Vec::new();
-            for member in vertex.split('+') {
-                if let ::core::option::Option::Some(member_rules) = self.board.rules.get(member) {
-                    union_rules.extend(member_rules.clone());
-                }
-            }
-            new_rules.insert(vertex.clone(), union_rules);
-            let mut merged_artifact = ::core::option::Option::None;
-            for member in vertex.split('+') {
-                if let ::core::option::Option::Some(::core::option::Option::Some(existing)) =
-                    self.board.artifacts.get(member)
-                {
-                    merged_artifact = ::core::option::Option::Some(existing.clone());
-                }
-            }
-            new_artifacts.insert(vertex.clone(), merged_artifact);
-        }
-        self.board.rules = ::global_blackboard::RuleRegistry::from(new_rules);
-        self.board.artifacts = ::global_blackboard::ArtifactRegistry::from(new_artifacts);
-        // Drop contracts internal to a merged vertex and re-key cross edges.
-        let mut new_contracts = ::std::collections::BTreeMap::new();
-        for (key, contract) in self.board.contracts.contracts.clone() {
-            let owner_parent = self.merged_owner(&condensed, &key.0);
-            let owner_child = self.merged_owner(&condensed, &key.1);
-            let owner_match = owner_parent == owner_child;
-            if owner_match {
-                continue;
-            }
-            let parent = match owner_parent {
-                ::core::option::Option::Some(name) => name,
-                ::core::option::Option::None => key.0.clone(),
-            };
-            let child = match owner_child {
-                ::core::option::Option::Some(name) => name,
-                ::core::option::Option::None => key.1.clone(),
-            };
-            new_contracts.insert((parent, child), contract);
-        }
-        self.board.contracts = ::global_blackboard::ContractRegistry::from(new_contracts);
-        self.board.dag = condensed;
-        // Rebuild module vector: unknown merged vertices park in M0, known states carry over.
-        let mut new_states = ::std::collections::BTreeMap::new();
-        for vertex in &self.board.dag.vertices {
-            let mut carried = ::core::option::Option::None;
-            for member in vertex.split('+') {
-                if let ::core::option::Option::Some(existing) = self.board.state.module_states.get(member) {
-                    carried = ::core::option::Option::Some(*existing);
-                }
-            }
-            let next_state = match carried {
-                ::core::option::Option::Some(existing) => existing,
-                ::core::option::Option::None => ::global_blackboard::ModuleMicroState::M0Blocked,
-            };
-            new_states.insert(vertex.clone(), next_state);
-        }
-        self.board.state.module_states = new_states;
-    }
 
-    /// Return the merged vertex owning a pre-condensation id when one exists.
-    fn merged_owner(&self, condensed: &::global_blackboard::CondensedDag, member: &::core::primitive::str) -> ::core::option::Option<::std::string::String> {
-        for vertex in &condensed.vertices {
-            let parts = vertex.split('+');
-            for part in parts {
-                let member_match = part == member;
-                if member_match {
-                    return ::core::option::Option::Some(vertex.clone());
-                }
-            }
-        }
-        ::core::option::Option::None
-    }
 
-    /// Return the condensed vertices that still require a rework dispatch.
-    fn merged_scope_vertices(&self) -> ::std::vec::Vec<::std::string::String> {
-        let mut scope = ::std::vec::Vec::new();
-        for vertex in &self.board.dag.vertices {
-            let merged = vertex.contains('+');
-            if merged {
-                scope.push(vertex.clone());
-            }
-        }
-        scope
-    }
+
+
+
 
     /// Run one bounded discovery phase with shard dispatch and two-stage guards.
+    /// On a structural guard failure the retry dispatch carries the guard detail
+    /// as the delta directive per the CRITIC_RETRY protocol.
     fn run_discovery_phase(&mut self, phase: ::global_fsm::MacroState) -> ::core::result::Result<(), self::MacroEngineError> {
         let shards = self::batches::partition_shards(&self.board, phase, &self.regression_scope);
         for shard in shards {
-            self.dispatch_worker(shard, ::holon_fsm::ActivationMode::Initial);
+            self.dispatch_phase_worker(shard, ::core::option::Option::None);
         }
         let detail = self::guards::structural_guard(phase, &self.board);
         let guard_failed = detail.is_err();
         if guard_failed {
             // One CRITIC_RETRY re-dispatch round per Algorithm 1 guard protocol.
             self.structural_retries += 1;
+            let delta = detail.err();
             let shards = self::batches::partition_shards(&self.board, phase, &self.regression_scope);
             for shard in shards {
-                self.dispatch_worker(shard, ::holon_fsm::ActivationMode::Initial);
+                self.dispatch_phase_worker(shard, delta.clone());
             }
             let retried = self::guards::structural_guard(phase, &self.board);
-            let guard_ok = ::core::matches!(retried, ::core::result::Result::Ok(()));
-            if guard_ok {
-                // The retry dispatch repaired the board state. Continue to stage two.
-                self.run_stage_two(phase)?;
-                return ::core::result::Result::Ok(());
+            match retried {
+                ::core::result::Result::Ok(()) => {
+                    // The retry dispatch repaired the board state. Continue to stage two.
+                    self.run_stage_two(phase)?;
+                    return ::core::result::Result::Ok(());
+                }
+                ::core::result::Result::Err(failed) => {
+                    return ::core::result::Result::Err(
+                        self::MacroEngineError::StructuralGuardFailure {
+                            phase,
+                            detail: { failed },
+                        },
+                    );
+                }
             }
-            let retried = self::guards::structural_guard(phase, &self.board);
-            let detail_text = match retried {
-                ::core::result::Result::Ok(()) => ::std::string::String::new(),
-                ::core::result::Result::Err(failed) => failed,
-            };
-            return ::core::result::Result::Err(self::MacroEngineError::StructuralGuardFailure {
-                phase,
-                detail: { detail_text },
-            });
         }
         self.run_stage_two(phase)?;
         ::core::result::Result::Ok(())
     }
 
-    /// Dispatch one shard worker and forward emitted regression events.
-    fn dispatch_worker(&mut self, shard: self::batches::PhaseShard, mode: ::holon_fsm::ActivationMode) {
+    /// Dispatch one phase shard worker and commit the typed output to the board.
+    fn dispatch_phase_worker(
+        &mut self,
+        shard: self::batches::PhaseShard,
+        delta_directive: ::core::option::Option<::std::string::String>,
+    ) {
         let subject = match &shard {
             self::batches::PhaseShard::Whole => "repository".to_string(),
             self::batches::PhaseShard::Vertex(vertex) => vertex.clone(),
             self::batches::PhaseShard::Edge(parent_id, child) => ::std::format!("{parent_id}->{child}"),
         };
-        let model = ::holon_blackboard::ProblemModelSlice::new();
-        self.solver_dispatches += 1;
-        let outcome = self.solver.solve(&subject, &model, mode);
-        match outcome {
-            self::solver::SolverOutcome::Hardened { .. } => {
-                // Shard workers acknowledge hardening. Artifact commitment flows only
-                // through ModuleHardened events raised by S5 module dispatch.
+        let phase = self.statechart.state();
+        let role = ::global_workers::phase_role_name(phase);
+        let mode = ::holon_fsm::ActivationMode::Initial;
+        let envelope = ::global_workers::ContextAssembler::hydrate(
+            role,
+            mode,
+            &subject,
+            &self.board,
+            delta_directive,
+        );
+        self.worker_executions += 1;
+        let output = self.workers.execute(phase, &subject, &envelope, &self.board);
+        self.commit_phase_output(phase, output);
+    }
+
+    /// Commit one typed worker output onto the global blackboard.
+    fn commit_phase_output(&mut self, phase: ::global_fsm::MacroState, output: ::global_workers::PhaseWorkOutput) {
+        match (phase, output) {
+            (
+                ::global_fsm::MacroState::S1Assess,
+                ::global_workers::PhaseWorkOutput::Assessment { synthesized, .. },
+            ) => {
+                let _ = synthesized;
             }
-            self::solver::SolverOutcome::ContractConflict {
-                parent_id,
-                delta_spec,
-                proof_trace,
-            } => {
-                let module_id = match shard {
-                    self::batches::PhaseShard::Vertex(vertex) => vertex,
-                    self::batches::PhaseShard::Edge(_, child) => child,
-                    self::batches::PhaseShard::Whole => "repository".to_string(),
-                };
-                let conflict_event = ::global_blackboard::MacroEvent::ContractConflict {
-                    parent_id,
-                    module_id,
-                    delta_spec,
-                    proof_trace,
-                };
-                self.board.state.event_queue.push_back(conflict_event);
+            (
+                ::global_fsm::MacroState::S2MapDag,
+                ::global_workers::PhaseWorkOutput::Coupling { discovered_edges },
+            ) => {
+                for edge_pair in &discovered_edges {
+                    let known = self.board.dag.edges.contains(edge_pair);
+                    if !known {
+                        self.board.dag.edges.push(edge_pair.clone());
+                    }
+                }
             }
-            self::solver::SolverOutcome::CycleFound {
-                cycle_edges,
-                proof_trace,
-            } => {
-                let cycle_event = ::global_blackboard::MacroEvent::CyclicDependencyFound {
-                    cycle_edges,
-                    proof_trace,
-                };
-                self.board.state.event_queue.push_back(cycle_event);
+            (
+                ::global_fsm::MacroState::S3ExtractRules,
+                ::global_workers::PhaseWorkOutput::Rules { cards, .. },
+            ) => {
+                for (vertex, card) in cards {
+                    let mut merged = match self.board.rules.get(&vertex) {
+                        ::core::option::Option::Some(existing) => ::core::clone::Clone::clone(existing),
+                        ::core::option::Option::None => ::std::vec::Vec::new(),
+                    };
+                    merged.push(card);
+                    self.board.rules.insert(vertex, merged);
+                }
             }
+            (
+                ::global_fsm::MacroState::S4BriefContracts,
+                ::global_workers::PhaseWorkOutput::Contracts { idioms, stubs },
+            ) => {
+                let _ = idioms;
+                for stub in stubs {
+                    let parent_id = ::core::clone::Clone::clone(&stub.parent_id);
+                    let child_id = ::core::clone::Clone::clone(&stub.child_id);
+                    let edge_key = (parent_id, child_id);
+                    let absent = !self.board.contracts.contains_edge(&edge_key);
+                    if absent {
+                        self.board.contracts.insert(edge_key, stub.contract);
+                    }
+                }
+            }
+            (
+                ::global_fsm::MacroState::S6SystemVerify,
+                ::global_workers::PhaseWorkOutput::Verification { verdicts, .. },
+            ) => {
+                for verdict in verdicts {
+                    let verdict_green = verdict.tests_pass && verdict.security_findings.is_empty();
+                    let already_hardened = ::core::matches!(
+                        self.board.state.module_states.get(&verdict.module_id),
+                        ::core::option::Option::Some(::global_blackboard::ModuleMicroState::M4Hardened)
+                    );
+                    if verdict_green && !already_hardened {
+                        self.set_module_state(
+                            &verdict.module_id,
+                            ::global_blackboard::ModuleMicroState::M4Hardened,
+                        );
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
@@ -663,13 +675,104 @@ impl self::MacroEngine {
         }
         model
     }
+
     /// Record one module micro-state change in the state vector and audit log.
     fn set_module_state(&mut self, module_id: &::core::primitive::str, next_state: ::global_blackboard::ModuleMicroState) {
         self.board.state.module_states.insert(module_id.to_string(), next_state);
         self.transition_log.push((module_id.to_string(), next_state));
     }
 
+    /// Re-key rules, contracts, and artifacts onto the condensed DAG.
+    fn apply_condensation(&mut self, condensed: ::global_blackboard::CondensedDag) {
+        let mut new_rules = ::std::collections::BTreeMap::new();
+        let mut new_artifacts = ::std::collections::BTreeMap::new();
+        for vertex in &condensed.vertices {
+            let mut union_rules = ::std::vec::Vec::new();
+            for member in vertex.split('+') {
+                if let ::core::option::Option::Some(member_rules) = self.board.rules.get(member) {
+                    union_rules.extend(member_rules.clone());
+                }
+            }
+            new_rules.insert(vertex.clone(), union_rules);
+            let mut merged_artifact = ::core::option::Option::None;
+            for member in vertex.split('+') {
+                if let ::core::option::Option::Some(::core::option::Option::Some(existing)) =
+                    self.board.artifacts.get(member)
+                {
+                    merged_artifact = ::core::option::Option::Some(existing.clone());
+                }
+            }
+            new_artifacts.insert(vertex.clone(), merged_artifact);
+        }
+        self.board.rules = ::global_blackboard::RuleRegistry::from(new_rules);
+        self.board.artifacts = ::global_blackboard::ArtifactRegistry::from(new_artifacts);
+        // Drop contracts internal to a merged vertex and re-key cross edges.
+        let mut new_contracts = ::std::collections::BTreeMap::new();
+        for (key, contract) in self.board.contracts.contracts.clone() {
+            let owner_parent = self.merged_owner(&condensed, &key.0);
+            let owner_child = self.merged_owner(&condensed, &key.1);
+            let owner_match = owner_parent == owner_child;
+            if owner_match {
+                continue;
+            }
+            let parent = match owner_parent {
+                ::core::option::Option::Some(name) => name,
+                ::core::option::Option::None => key.0.clone(),
+            };
+            let child = match owner_child {
+                ::core::option::Option::Some(name) => name,
+                ::core::option::Option::None => key.1.clone(),
+            };
+            new_contracts.insert((parent, child), contract);
+        }
+        self.board.contracts = ::global_blackboard::ContractRegistry::from(new_contracts);
+        self.board.dag = condensed;
+        // Rebuild module vector: unknown merged vertices park in M0, known states carry over.
+        let mut new_states = ::std::collections::BTreeMap::new();
+        for vertex in &self.board.dag.vertices {
+            let mut carried = ::core::option::Option::None;
+            for member in vertex.split('+') {
+                if let ::core::option::Option::Some(existing) = self.board.state.module_states.get(member) {
+                    carried = ::core::option::Option::Some(*existing);
+                }
+            }
+            let next_state = match carried {
+                ::core::option::Option::Some(existing) => existing,
+                ::core::option::Option::None => ::global_blackboard::ModuleMicroState::M0Blocked,
+            };
+            new_states.insert(vertex.clone(), next_state);
+        }
+        self.board.state.module_states = new_states;
+    }
+
+    /// Return the merged vertex owning a pre-condensation id when one exists.
+    fn merged_owner(&self, condensed: &::global_blackboard::CondensedDag, member: &::core::primitive::str) -> ::core::option::Option<::std::string::String> {
+        for vertex in &condensed.vertices {
+            let parts = vertex.split('+');
+            for part in parts {
+                let member_match = part == member;
+                if member_match {
+                    return ::core::option::Option::Some(vertex.clone());
+                }
+            }
+        }
+        ::core::option::Option::None
+    }
+
+    /// Return the condensed vertices that still require a rework dispatch.
+    fn merged_scope_vertices(&self) -> ::std::vec::Vec<::std::string::String> {
+        let mut scope = ::std::vec::Vec::new();
+        for vertex in &self.board.dag.vertices {
+            let merged = vertex.contains('+');
+            if merged {
+                scope.push(vertex.clone());
+            }
+        }
+        scope
+    }
+
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -700,6 +803,69 @@ mod tests {
             ::std::assert_eq!(
                 module_state,
                 ::core::option::Option::Some(&::global_blackboard::ModuleMicroState::M4Hardened)
+            );
+        }
+    }
+
+    /// Counting worker crew delegating to the deterministic defaults.
+    #[derive(::core::fmt::Debug)]
+    struct CountingWorkers {
+        inner: ::global_workers::DeterministicWorkers,
+        executions: ::std::sync::Arc<::std::sync::atomic::AtomicUsize>,
+    }
+
+    impl ::global_workers::PhaseWorker for self::CountingWorkers {
+        fn execute(
+            &self,
+            phase: ::global_fsm::MacroState,
+            shard_subject: &::core::primitive::str,
+            envelope: &::global_workers::TaskActivationEnvelope,
+            board: &::global_blackboard::GlobalBlackboard,
+        ) -> ::global_workers::PhaseWorkOutput {
+            self.executions
+                .fetch_add(1, ::std::sync::atomic::Ordering::SeqCst);
+            self.inner.execute(phase, shard_subject, envelope, board)
+        }
+    }
+
+    #[test]
+    fn test_worker_executions_counter_tracks_dispatches() {
+        let zero = ::std::sync::atomic::AtomicUsize::new(0);
+        let counter = ::std::sync::Arc::new(zero);
+        let inner = ::global_workers::DeterministicWorkers::new();
+        let executions = ::core::clone::Clone::clone(&counter);
+        let workers = CountingWorkers { inner, executions };
+        let crew = ::std::boxed::Box::new(workers);
+        let stub_solver = self::StubModuleSolver::default();
+        let solver = ::std::boxed::Box::new(stub_solver);
+        let mut engine = self::MacroEngine::builder()
+            .solver(solver)
+            .workers(crew)
+            .build();
+        let board = self::chain_board();
+        engine.configure(board);
+        let outcome = engine.run();
+        ::std::assert!(outcome.is_ok());
+        let counted = counter.load(::std::sync::atomic::Ordering::SeqCst);
+        ::std::assert!(counted > 0);
+        ::std::assert_eq!(engine.worker_executions(), counted);
+    }
+
+    #[test]
+    fn test_s4_workers_stub_fill_missing_contracts() {
+        let stub_solver = self::StubModuleSolver::default();
+        let solver = ::std::boxed::Box::new(stub_solver);
+        let mut engine = self::MacroEngine::new(solver);
+        let mut board = self::chain_board();
+        board.contracts = ::global_blackboard::ContractRegistry::new();
+        engine.configure(board);
+        let outcome = engine.run();
+        ::std::assert!(outcome.is_ok());
+        for edge_pair in engine.board().dag.edges.clone() {
+            let contract = engine.board().contracts.get(&edge_pair);
+            ::std::assert!(
+                ::core::matches!(contract, ::core::option::Option::Some(_)),
+                "edge {edge_pair:?} lacks a worker-stubbed contract"
             );
         }
     }
@@ -918,6 +1084,14 @@ mod tests {
     /// Build a deterministic stub solver engine with a three vertex chain.
     /// Vertices a, b, c with edges a to b and b to c. Only c depends on b, b on a.
     fn chain_engine(solver: ::std::boxed::Box<dyn ModuleSolver>) -> self::MacroEngine {
+        let board = self::chain_board();
+        let mut engine = self::MacroEngine::new(solver);
+        engine.configure(board);
+        engine
+    }
+
+    /// Build the three vertex chain board shared by engine tests.
+    fn chain_board() -> ::global_blackboard::GlobalBlackboard {
         let mut board = ::global_blackboard::GlobalBlackboard {
             inventory: ::std::vec!["a".to_string(), "b".to_string(), "c".to_string()].into(),
             ..::core::default::Default::default()
@@ -946,9 +1120,7 @@ mod tests {
                 preconditions: ::std::vec::Vec::new(),
             },
         );
-        let mut engine = self::MacroEngine::new(solver);
-        engine.configure(board);
-        engine
+        board
     }
 
     /// Build a rule card with a cited legacy source line.
