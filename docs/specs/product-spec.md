@@ -30,111 +30,81 @@ The system provides two execution frontends residing hierarchically under `werð
 
 ## 3. Interactive Cockpit Specification (`bins/interactive`)
 
-### 3.1 Visual Layout Geometry (60/40 Split)
 The terminal interface divides the display into a 60% Left Pane and a 40% Right Pane:
 
 ```text
-+---------------------------------------------+------------------------------+
+---------------------------------------------+------------------------------+
 | LEFT TOP (w = 60%, h = 50%)                 | RIGHT PANE (w = 40%, h = 100%|
-| [State Machine & DAG Wave Monitor]          | Dynamic Phase-Conditioned)   |
-|                                             |                              |
-| Tier 1 Macro-Statechart (7 Phases):         | [Phase S5: DAG Transform]    |
-|   [✓ S0: Intent] -> [✓ S1: Assess]          | Module: v_ledger (Wave 2)    |
-|   -> [✓ S2: Map] -> [✓ S3: Rules]           | Active Cluster: ARIADNE      |
-|   -> [✓ S4: Brief] -> [* S5: DAG Trans.]    | Sub-windows (w = 40% / 5):   |
-|   -> [  S6: Verify & Harden]                | +----+----+----+----+----+   |
-|                                             | |Str |Gen |Test|Eval|Pat |   |
-| Active Tier 2 Module Micro-FSMs (Wave 2):   | |H2: |fn  |prop|R=  |diff|   |
-|   * v_core   [M4: Hardened] R = 1.00        | |Asyn|tr()|test|0.72|h4  |   |
-|   * v_ledger [M2: ARIADNE]  R = 0.72 (U4)   | +----+----+----+----+----+   |
-|   * v_api    [M0: Blocked]  wait: v_ledger  | > LSP: checking signature... |
-|                                             | > Rollout 4/24 | Temp: 0.35  |
-+---------------------------------------------+------------------------------+
-| LEFT BOTTOM (w = 60%, h = 50%)              | [Parallel Cluster Slot 2]    |
-| [Macro-Orchestrator Interactive Window]     | Module: v_parser (Wave 2)    |
-|                                             | Active Cluster: ARIADNE      |
-| Orchestrator: Config loaded from ./out/cfg. | +----+----+----+----+----+   |
-| Type `/start @./out/migration.yml` to run.  | |Str |Gen |Test|Eval|Pat |   |
-| +- [ /status (btw) ] ---------------------+ | |H1: |fn  |I/O |R=  |--  |   |
-| | Wave 2/5: 1 Ready, 1 Active, 1 Blocked. | | |Port|p() |snap|1.00|--  |   |
-| | 42% modules hardened (R = 1.0).         | +----+----+----+----+----+   |
-| +-----------------------------------------+ | > Module Hardened! R = 1.00  |
-| > /start @out/migration.yml                 | > Emitting ev_ModuleHardened |
-+---------------------------------------------+------------------------------+
+| [State Machine & DAG Wave Monitor]          | Dynamic Stream Vector)       |
+|                                             | 1-char horizontal margin     |
+| Tier 1 Macro-Statechart (7 Phases):         | +--------------------------+ |
+|   [✓ S0: Intent] -> [✓ S1: Assess]          | | legacy-analyst           | |
+|   -> [✓ S2: Map] -> [✓ S3: Rules]           | | Status: idle             | |
+|   -> [✓ S4: Brief] -> [* S5: DAG Trans.]    | +--------------------------+ |
+|   -> [  S6: Verify & Harden]                | +--------------------------+ |
+|                                             | | binary-historian         | |
+| Active Tier 2 Module Micro-FSMs (Wave 2):   | | Status: idle             | |
+|   * v_core   [M4: Hardened] R = 1.00        | +--------------------------+ |
+|   * v_ledger [M2: ARIADNE]  R = 0.72 (U4)   | +--------------------------+ |
+|   * v_api    [M0: Blocked]  wait: v_ledger  | | architecture-critic      | |
+|                                             | | Status: idle             | |
+---------------------------------------------+ +--------------------------+ |
+| LEFT BOTTOM (w = 60%, h = 50%)              | +--------------------------+ |
+| [Macro-Orchestrator Window + Composer]      | | test-engineer            | |
+| Orchestrator: Config loaded from ./out/cfg. | | Status: idle             | |
+| Type /start @./out/migration.yml to run.    | +--------------------------+ |
+| +- [ /status (btw) ] ---------------------+ | +--------------------------+ |
+| | Wave 2/5: 1 Ready, 1 Active, 1 Blocked. | | | target-coder             | |
+| | 42% modules hardened (R = 1.0).         | | | Status: idle             | |
+| +-----------------------------------------+ | +--------------------------+ |
+| > /start @out/migration.yml                 |                              |
+---------------------------------------------+------------------------------+
 ```
 
 #### Left Pane (w = 60%)
 * **Top Half (h = 50%) — State Machine & DAG Wave Monitor**:
-  - Displays Tier 1 Macro-Statechart progress across all 7 canonical phases:
     $$S_0 \rightarrow S_1 \rightarrow S_2 \rightarrow S_3 \rightarrow S_4 \rightarrow S_5 \rightarrow S_6$$
-  - Renders Two-Stage Hybrid Guard status at phase boundaries:
-    - Stage 1 $g_{\text{struct}}$: Zero-token programmatic check (instant green tick or retry traceback).
-    - Stage 2 $g_{\text{sem}}$: Sharded adversarial LLM critic (`ShardCritic`) audit progress and verdicts (`PASS` / `REJECT`).
-  - Displays real-time status of active Tier 2 Module Micro-FSMs ($M_0 \dots M_5$) across topological execution waves:
-    - Lists active module vertices in $\text{ReadySet}(\mathcal{G})$.
-    - Highlights per-module scalar rewards ($R$), visit counts ($N$), active MCTS strategy hypotheses, and dependency wait-states.
-* **Bottom Half (h = 50%) — Macro-Orchestrator Interactive Window**:
-  - Scrollable chat transcript showing orchestrator directives, Human-in-the-Loop (HITL) gate prompts, operator messages, system notices, and error logs.
-  - Dismissible inline `/status` (or `/btw`) callout blocks showing point-in-time progress without interrupting active streaming.
-  - Interactive command input buffer with `@` file autocomplete and `/` slash command popup.
+* **Bottom Half (h = 50%) — Macro-Orchestrator Window with Merged Prompt Composer**:
 
-#### Right Pane (w = 40%) — Dynamic Phase-Conditioned Operatives
-The Right Pane allocates vertical slots dynamically conditioned on the active Macro-State $S_{\text{macro}}$ and configured `PaneRole` channels:
-
-| Active Macro-Phase | Right Pane Display & Dynamic Allocation |
-| :--- | :--- |
-| **$S_0$ Intent & Preflight** | Single operative window for `PreflightProbe`: streams legacy build commands, environment inspections, and baseline test suite executions. |
-| **$S_1$ Assess** | Sharded into $K$ slots for active `ShardAssessor` workers analyzing dialect quirks and tech debt, plus a bottom slot for `AssessmentSynthesizer`. |
-| **$S_2$ Map (DAG)** | Upper slot for static AST/LSP graph building and Tarjan SCC condensation; lower slot for `ImplicitCouplingScanner` and `TopologyCritic`. |
-| **$S_3$ Extract Rules** | Upper slot streaming parallel `RuleMiner` shards extracting `Given/When/Then` cards; lower slot streaming `CrossModuleRuleLinker` and `RuleAuditor`. |
-| **$S_4$ Brief & Contracts** | Upper slot for `MacroArchitect` global idiom definitions; middle slots for parallel `ContractStubber` shards; lower slot for `ArchitectureCritic`. |
-| **$S_5$ Iterative DAG** | Divided equally among active parallel **ARIADNE Clusters** (up to concurrency cap $K_{\max}$). Each cluster slot is horizontally subdivided into 5 sub-windows for its 5 specialized operatives:<br>1. $\mathcal{A}_{\text{str}}$: Modernization strategy hypotheses ($h_k$).<br>2. $\mathcal{A}_{\text{gen}}$: Candidate target code synthesis ($c'$).<br>3. $\mathcal{A}_{\text{test}}$: Adversarial characterization test generation ($\mathcal{B}_{CT}$, strictly read-isolated from candidate code).<br>4. $\mathcal{A}_{\text{eval}}$: Two-Stage Hybrid Evaluator (compiler/test runner + diagnostic distiller).<br>5. $\mathcal{A}_{\text{patch}}$: Surgical code repair diffs ($c''$). |
-| **$S_6$ System Verify** | Upper slot for `IntegrationVerifier` E2E test executions; lower slot for `SecurityAuditor` SAST scans and `ReleaseAuditor` parity signoff. |
+#### Right Pane (w = 40%) — Dynamic Stream Vector of Specialist Operatives
+* **Dynamic Stream Ingestion**: The right pane accepts an unconstrained vector of streams/DTOs (`Vec<SpecialistCardState>`) rather than hardcoded 5 items. The vertical space is dynamically divided into $N$ equal vertical slots:
+  $$\text{Slot Height} = \left\lfloor \frac{\text{Total Height}}{N} \right\rfloor$$
+* **Window Margins**: Each specialist window in the right panel applies a 1-character horizontal margin (`Margin { horizontal: 1, vertical: 0 }`), preventing text truncation against terminal edges and separating stacked windows cleanly.
+* **Naming Convention**: Agent titles and stream identifiers are strictly lowercased, hyphenated (e.g. `legacy-analyst`, `binary-historian`, `architecture-critic`, `test-engineer`, `target-coder`), and omit numbering.
 
 #### Terminal Output Synchronization
-* Wraps all frame redraws with CSI-2026 synchronized output sequences (`\x1b[?2026h` and `\x1b[?2026l`) to eliminate visual tearing and flickering across modern terminal emulators.
+* Wraps all frame redraws with CSI-2026 synchronized output sequences (`\x1b[?2026h` and `\x1b[?2026l`) to eliminate visual tearing across modern terminal emulators.
 
----
 
 ### 3.2 Oh-My-Pi (OMP) User Experience & Keystroke Interceptor
 
-1. **`@` File Autocomplete Dropdown**:
-   - Keystroke interceptor detects `@` token prefix within the input buffer.
-   - Pops up a floating list widget above the cursor backed by fast directory walking and `nucleo` fuzzy matching.
-   - Pressing `Enter` or `Tab` selects the highlighted file and inserts `@path/to/file` into the prompt.
-2. **`/` Slash Command Menu**:
-   - Detects leading `/` at column 0 of the input line.
-   - Pops up an autocomplete overlay listing available commands and descriptions.
+1. **`@` Mentions Autocomplete Dropdown**:
+2. **`/` Slash Command Menu Dropdown**:
+3. **Esc Key & Exit Semantics**:
 
----
 
 ### 3.3 Slash Command Workflow & Human Decision Gates
 
 | Command | Behavior |
 | :--- | :--- |
-| `/mkcfg` | Launches conversational configuration wizard (`OrchestratorMode::ConfigWizard`). Asks structured questions one at a time covering input directory, output directory, target language, toolchains, verification strictness, MCTS budget, and HITL gate preferences. Automatically validates directory paths, computes legacy source file previews, and serializes `{output-dir}/migration.yml`. |
-| `/start @{path}` | Reads and parses the referenced YAML configuration file, validates paths and prerequisites, transitions the macro-orchestrator engine into $S_0$ (Intent & Preflight) followed sequentially by $S_1 \dots S_6$, and starts streaming live telemetry to the TUI. |
-| `/pause` | Sets a global watch flag that pauses the execution loop cleanly at the next MCTS rollout or topological wave boundary. In-flight tool executions settle before parking. |
-| `/unpause` | Resumes the paused execution loop. |
-| `/stop` | Cancels the active engine cancellation token, cleanly aborts running background workers, and persists Blackboard checkpoints to disk. |
-| `/status` (or `/btw`) | Spawns an ephemeral, non-blocking read task that snapshots $\mathcal{G}$'s state vector $\Sigma(\mathcal{G}) = \langle S_{\text{macro}}, \mathbf{M}, \Theta_{H^*}, \mathcal{Q}_{\text{events}} \rangle$ and active Micro-FSM metrics without acquiring execution locks or interrupting streaming agents. Renders the response in a dismissible inline callout inside the orchestrator window. |
+| `/mkcfg` | Launches conversational configuration wizard (`OrchestratorMode::ConfigWizard`). |
+| `/start @{path}` | Reads and parses the referenced YAML configuration file, transitions into $S_0$, and starts streaming. |
+| `/pause` | Pauses execution loop cleanly at rollout or topological wave boundary. |
+| `/unpause` | Resumes paused execution loop. |
+| `/stop` | Cancels execution token, cleanly halts background tasks, and flushes checkpoints. |
+| `/status` (or `/btw`) | Spawns non-blocking snapshot task rendering point-in-time progress inside the orchestrator window. |
+| `/approve` | Resolves pending Human-in-the-Loop decision gate with approval notes. |
+| `/reject` | Resolves pending Human-in-the-Loop decision gate with rejection reason. |
 | `/clear` | Clears the scrollable chat transcript. |
-| `/quit` (or `/q`) | Gracefully stops any active migration, flushes checkpoints, restores terminal state, and exits. |
+| `/quit` (or `/exit`) | Gracefully stops execution, flushes checkpoints, restores terminal state, and terminates. |
 
 #### Human-in-the-Loop (HITL) Decision Gates
 When `execution_mode: "hitl"` is configured in `migration.yml`, the engine pauses at critical architectural junctures and prompts the operator through the interactive window:
-1. **Gate on Reimagine (`gate_on_reimagine: true`)**:
-   - Fires at the transition boundary from Phase $S_4$ (`Brief & Reimagine Contracts`) to Phase $S_5$ (`Iterative DAG Transform`).
-   - Presents a summary of extracted domain rules ($\mathcal{R}_{\text{rules}}$) and compiled target interface stubs ($\mathcal{C}_{\text{contracts}}$).
-   - Prompts the user to approve contracts or inject manual amendments before topological code generation begins.
-2. **Gate on Macro-Regression (`gate_on_macro_regression: true`)**:
-   - Fires when an encapsulated ARIADNE cluster discovers an undocumented dependency cycle (Tier C fault: $\kappa = \texttt{EXTRINSIC\_CYCLE}$).
-   - Presents the cycle trace ($E_{\text{cycle}}$) and requests confirmation before $\mathcal{O}_{\text{engine}}$ checkpoints Deep History ($\Theta_{H^*}$) and rolls back $S_5 \to S_2$ for Tarjan SCC condensation.
-3. **Extrinsic Conflict Escalation (`extrinsic_conflict_escalation: "ask_human"`)**:
-   - Fires when an upstream parent interface conflict cannot be resolved automatically via $\mathcal{O}_{\text{arbiter}}$.
-   - Presents the conflicting signatures and requests an operator decision on which module boundary contract to adapt.
+1. **Gate on Reimagine (`gate_on_reimagine: true`)**: Fires at the transition boundary from Phase $S_4$ to $S_5$.
+2. **Gate on Macro-Regression (`gate_on_macro_regression: true`)**: Fires when an encapsulated ARIADNE cluster discovers an undocumented dependency cycle.
+3. **Extrinsic Conflict Escalation (`extrinsic_conflict_escalation: "ask_human"`)**: Fires when an upstream parent interface conflict cannot be resolved automatically.
 
----
+The interactive workflow runner implements these phases with the state-as-struct Hoverbear pattern: each run phase is one struct, transitions consume the machine and yield the next phase at compile time, and Hitl mode parks the machine on the gate until `/approve` or `/reject` resolves it.
 
 ## 4. Headless Daemon CLI Specification (`bins/daemon`)
 
@@ -149,6 +119,35 @@ werðan-daemon --config <path/to/migration.yml>
   - ANSI colored formatted logs directed to `stdout`.
   - Structured JSONL log events directed to `{output_dir}/logs/daemon.jsonl` using daily rolling file appenders.
 * Signal Handling: Listens for `SIGINT` (Ctrl+C); on capture, cleanly issues `EngineCommand::Stop`, flushes all Blackboard checkpoints, and exits with code 0.
+
+### 4.3 Benchmark Modes
+* `--benchmark <migration.yml>` (alias `--config`): run one real modernization campaign over the configured legacy source, then validate the target workspace with `cargo check` and `cargo test` under configured timeouts, and write a per-project result JSON to `benchmarks/results/daemon/` (overridable via `BENCH_RESULTS_DIR`).
+* `--benchmark-all [dir]`: iterate every `*.yml` under `dir` (default `benchmarks/configs/generated`, overridable via `BENCH_CONFIGS_DIR`) sequentially, skip projects whose result JSON already exists (resume), and write the aggregate `summary.json`.
+* `--smoke`: verify the inference endpoint is reachable via `GET /v1/models` and print the served model id. No mock output exists anywhere in the benchmark paths.
+
+### 4.4 Environment Variable Configuration
+The daemon, agent harnesses, tools, and LLM clients load configuration strictly from the environment with zero in-code fallback literals. Default values are centrally configured in `.env` (loaded by `dotenvy::dotenv()` at daemon startup) and documented in `.env.example`. The `.cargo/config.toml` `[env]` table retains only `PKG_CONFIG_PATH` for build-time cargo env propagation to build scripts:
+* `BASE_URL`: Endpoint base URL for OpenAI-compatible chat completions (`http://127.0.0.1:8092/v1`).
+* `MODEL_ID`: Default model identifier (`swift-1.5-qwen3.8-27b`).
+* `BENCH_CONFIGS_DIR`: Default directory searched by `--benchmark-all` (`benchmarks/configs/generated`).
+* `BENCH_RESULTS_DIR`: Directory where benchmark JSON results and `summary.json` are written (`benchmarks/results/daemon`).
+* `BENCH_BUILD_TIMEOUT_SECS`: Timeout for cargo check in seconds (`120`).
+* `BENCH_TEST_TIMEOUT_SECS`: Timeout for cargo test in seconds (`120`).
+* `BENCH_INFERENCE_TIMEOUT_SECS`: Timeout for LLM inference requests in seconds (`600`).
+* `EVALUATOR_BUILD_TIMEOUT_SECS`: Standalone CargoHarness build timeout in seconds (`120`).
+* `EVALUATOR_TEST_TIMEOUT_SECS`: Standalone CargoHarness test timeout in seconds (`120`).
+* `TOOL_BASH_TIMEOUT_SECS`: Timeout for `BashTool` execution in seconds (`60`).
+* `TOOL_EVAL_TIMEOUT_SECS`: Timeout for `EvalTool` snippet execution in seconds (`60`).
+* `TOOL_GLOB_LIMIT`: Maximum matches returned by `GlobTool` (`100`).
+* `LLM_MAX_TOKENS`: Upper bound on completion tokens for daemon inference requests (`32768`).
+* `LLM_TEMPERATURE`: Sampling temperature for daemon inference requests (`0.2`).
+* `LLM_TIMEOUT_SECS`: Request timeout for daemon inference requests (`600`).
+
+The campaign harness guarantees honest execution end to end:
+* Before the engine starts, the target workspace stub layout is normalized: sibling stub module files are inlined into `src/lib.rs` and removed from disk, so the `unimplemented!()` count and every compiled artifact live in the single file the evaluation harness replaces.
+* DAG vertices are implementation source files only. Header and test-tree files never become modules, and extracted rule cards carry the exact Rust API surface (captured from the pristine stubs) plus sibling header declarations so code generation targets the real required interface.
+* The inference client appends the Qwen `/no_think` soft switch to every user prompt. A failed exchange never degrades to reasoning prose; the original error propagates instead.
+* A run whose engine completes but issued zero inference requests is recorded as dishonest and fails the campaign.
 
 ---
 
@@ -202,11 +201,59 @@ hitl:
   extrinsic_conflict_escalation: "auto_negotiate" # "auto_negotiate" | "ask_human"
 
 ariadne:
-  mcts_budget_per_module: 24                 # Maximum rollouts (B_max) in state M2
+  engine_budget_per_module: 24                 # Maximum rollouts (B_max) in state M2
   ucb_exploration_c: 1.414                    # Exploration constant for Softmax-UCB
   softmax_temperature: 0.35                  # Softmax temperature for prior sampling
   reward_weights:
     compile: 0.20                             # w_comp weight for clean compilation
     characterization_parity: 0.60             # w_char weight for equivalence test pass rate
     hardening_score: 0.20                     # w_hard weight for semantic rule adherence
+  llm_backend:                                # Generative agent inference backend (daemon QwenReasoningModel completion source)
+    base_url: "http://127.0.0.1:8092/v1"      # Local ninfer OpenAI-compatible server
+    model: "swift-1.5-qwen3.8-27b"
+    max_tokens: 32768
+    temperature: 0.2
+    timeout_secs: 600
+  cargo_harness:                              # Stage 3a real-workspace harness timeouts
+    build_timeout_secs: 120
+    test_timeout_secs: 120
 ```
+
+---
+
+## 6. Standardized Shared Agent Tools Suite (`werðan/libs/shared/tools`)
+
+The system provides 12 standardized, omp-conforming agent tools exposed as `::rig::tool::Tool` implementations under `werðan/libs/shared/tools/`:
+
+| Tool | Rig Tool ID | Purpose & Behavioral Contract | Engine & Pruning Rules |
+| :--- | :--- | :--- | :--- |
+| **Read** | `read` | Reads whole or sliced source files with exact line counts. | Standard asynchronous filesystem I/O. |
+| **Write** | `write` | Creates files or overwrites existing files; automatically creates missing parent directories. | `tokio::fs::create_dir_all` + atomic payload write. |
+| **Edit** | `edit` | Applies surgical hashline patches (`[PATH#TAG]`, `PUT N.=M:`, `PUT <N:`, `PUT >N:`). | Hashline patch parser with order preservation and splice application. |
+| **Glob** | `glob` | Discovers filesystem paths matching glob patterns, honoring `.gitignore` and `hidden` flags. | `globset::GlobBuilder` + `ignore::WalkBuilder`. Automatically prunes `.git`, `node_modules`, and `target` unless explicitly scoped. |
+| **Grep** | `grep` | Searches regular expression patterns across files with line numbers and pagination `skip`. | `ignore::WalkBuilder` + `regex::RegexBuilder`. Automatically prunes `.git`, `node_modules`, and `target`. Caps matches at 500 entries per call. |
+| **AST Grep** | `ast_grep` | Searches structural code syntax patterns across files with AST metavariables (`$VAR`, `$$$VAR`). | `ast-grep-core` pattern matching over tree-sitter grammars (rust, ts, tsx, js, py, json, toml, md) + `ignore::WalkBuilder` file discovery. |
+| **AST Edit** | `ast_edit` | Performs structural AST syntax rewrites across files using metavariable template substitution. | `ast-grep-core` pattern matching with native `replace_by` replacement and per-file language inference from `ast_lang` (rs, ts, tsx, js, py, json, toml, md) + byte-range splice rewrites + `ignore::WalkBuilder` file collection. |
+| **LSP** | `lsp` | Interacts with Language Server Protocol actions: `status`, `diagnostics`, `definition`, `references`, `hover`, `symbols`, `rename`. | Language server dispatch with workspace file analysis powered by `ignore::WalkBuilder`. |
+| **Bash** | `bash` | Executes shell commands in child processes with configurable timeouts, capturing exit codes, stdout, and stderr. | `tokio::process::Command` under POSIX shell runner. |
+| **Eval** | `eval` | Dynamically executes Python (`python3`) or JavaScript (`node`) code snippets in isolated subprocesses. | Cross-runtime process execution harness. |
+| **Debug** | `debug` | Interacts with Debug Adapter Protocol (DAP) sessions and adapter status. | Structured JSON DAP state inspector. |
+| **GitHub** | `github` | Queries GitHub repository issues, pull requests, releases, and repository metadata via GitHub CLI (`gh`). | Headless `gh` CLI runner with JSON serialization. |
+
+### Tool Error Handling Model
+All tools standardize error propagation through the `DisplayExt` blanket trait (`impl<Target: ::core::fmt::Display + ?::core::marker::Sized> DisplayExt for Target`), converting any displayable error into `::rig::tool::ToolError::ToolCallError`.
+
+---
+
+## 7. Global Orchestration Subsystem (`werðan/libs/global/*`)
+
+Repository-level state and the top-level macro-statechart execution are organized into dedicated global crates under `werðan/libs/global/`:
+
+* **`werðan/libs/global/blackboard` (`global-blackboard`)**: Global repository blackboard $\mathcal{G}$ and state vector $\Sigma(\mathcal{G})$ per METHODOLOGY.md Definition 1. Deconstructed into six cohesive modules (`inventory.rs`, `dag.rs`, `rules.rs`, `contracts.rs`, `artifacts.rs`, `state_vector.rs`), plus Tarjan strongly connected component condensation (`scc.rs`), cross-platform path resolution (`path_resolver.rs`), and re-exporting macro-statechart typestate from `global-fsm`. Manages the file inventory $\mathcal{I}_{\text{inv}}$ (`RepositoryInventory`), condensed dependency DAG $G = (V, E)$ (`CondensedDag`), business rule cards $\mathcal{R}_{\text{rules}}$ (`RuleRegistry`), interface contracts $\mathcal{C}_{\text{contracts}}$ (`ContractRegistry`), hardened module artifacts $\mathcal{A}_{\text{artifacts}}$ (`ArtifactRegistry`), and global state vector $\Sigma(\mathcal{G})$ (`GlobalStateVector`). Every component and the aggregate `GlobalBlackboard` support the `bon` builder pattern (`::builder()`) with optional `file_path`, `output_dir`, `hash`, and `create_if_missing`, resolving default storage to platform data dirs (`AppData/werðan/{hash}` on Windows, `~/.werðan/{hash}` on Linux/Unix).
+* **`werðan/libs/global/fsm` (`global-fsm`)**: State-as-struct Hoverbear typestate macro-statechart (`MacroStatechart`) advancing across seven canonical macro states ($S_0 \dots S_6$, `Terminated`) with deep history recording, regression target navigation, and bon builder.
+* **`werðan/libs/global/agents/arbiter` (`global-arbiter`)**: Global arbitration and semantic critics implementing Algorithm 1 stage-two validation. Exports `SemanticCritic`, `Arbiter`, `CritiqueVerdict`, `CritiqueRecord`, `DeterministicCritic`, and `DeterministicArbiter` with bon builders.
+* **`werðan/libs/global/engine` (`global-engine`)**: Deterministic macro-statechart engine implementing Algorithm 1. Modularized into `batches.rs`, `error.rs`, `guards.rs`, `solver.rs`, and `lib.rs` with bon builder (`MacroEngine::builder()`). Operates over `statechart: MacroStatechart` and `board: GlobalBlackboard` where state configuration $\Sigma(\mathcal{G})$ is held inside `board.state`. Coordinates phase loop progression, stage-one structural guards (`guard_s0`..`guard_s6`), stage-two semantic critic batch audits, Kahn topological wave dispatch in $S_5$, Tier B contract conflict handling, and Tier C cyclic dependency macro-regression ($S_5 \to S_2$) with deep history $\Theta_{H^*}$ preservation and restore.
+* **`werðan/libs/holon/blackboard` (`holon-blackboard`)**: Per-module 4-slice local blackboard $\mathcal{B}^{(v_i)}$ per METHODOLOGY.md Definition 2, one instance per DAG vertex inside each ARIADNE MCTS sub-holon. Deconstructed into four cohesive slice modules: `problem_model.rs` ($\mathcal{B}_{PM}$: `BusinessRuleCard`, `EdgeContract`, `ProblemModelSlice` with `render_prompt_context`), `strategy_hypotheses.rs` ($\mathcal{B}_{SH}$: `StrategyHypothesis`, `StrategyHypothesesSlice`), `characterization_tests.rs` ($\mathcal{B}_{CT}$: `CharacterizationTestsSlice`), and `patch_records.rs` ($\mathcal{B}_{PR}$: `FaultCause`, `FaultRecord`, `PatchRecordsSlice`). The crate root `lib.rs` re-exports every slice type at `::holon_blackboard::*` and composes the four slices as pub fields of `LocalBlackboard` with `is_hydrated` and `reset_transient_records`.
+* **`werðan/libs/holon/fsm` (`holon-fsm`)**: Per-module six-micro-state machine ($M_0$..$M_5$) for each ARIADNE cluster region $R(v_i)$, following the Hoverbear pattern as a pure compile-time typestate machine: `StateMachine<S>` over state markers `M0Blocked`, `M1ContextHydration`, `M2AriadneMcts`, `M3ContractNegotiate`, `M4Hardened`, `M5Invalidated`. Each state marker carries its own data (e.g. `M3ContractNegotiate.blocker_delta`, `M4Hardened.target_code`/`test_suite`/`reward`, `M5Invalidated.delta_spec`), and per-state inherent impls expose consuming transitions (`wake_ready`, `hydration_completed`, `into_hardened`, `into_contract_negotiate`, `conflict_dispatched`, `into_invalidated`, `warm_start_ready`, `emit_cycle_regression`) plus reflection predicates (`state_tag`, `is_blocked`, `is_hardened`, `is_active`, `history`, `drain_events`, `activation_mode`). Disallowed transitions are unrepresentable at compile time (no dynamic `transition` API); a warm-start regression path returns `M2AriadneMcts` with `ActivationMode::WarmStartRegression`. The former dynamic `ClusterFsm` wrapper, its `MicroStateBehavior` trait, `ClusterFsmContext`, `MicroEvent`, `TransitionEffect`, and `FsmError` types were removed: consumers drive the typed machine directly and the ARIADNE controller maps typed outcomes per Algorithm 2.
+* **`werðan/libs/holon/engine` (`holon-engine`)**: Encapsulated ARIADNE cluster MCTS search, rollout controller, and macro-engine solver adapter (`ClusterEngine`, `AriadneSolver`) with bon builders. `ClusterEngine::solve` consumes the module's `StateMachine<M2AriadneMcts>` directly (compile-time typestate entry, no dynamic FSM), advancing it through `M3ContractNegotiate`/`M4Hardened` and returning `EngineTypestateOutcome` variants that carry the post-transition machine (`Hardened(M4)`, `ContractConflict(M3)`, `CycleFound{machine, cycle_edges, proof_trace}`, `BudgetExhausted{machine, best_candidate, best_reward, blocker_trace}`).
+
