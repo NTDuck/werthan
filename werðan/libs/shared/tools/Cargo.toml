@@ -34,6 +34,7 @@ tree-sitter-toml-ng = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 [dev-dependencies]
 cucumber = "0.21.1"
+serial_test = "3"
 
 [[test]]
 name = "cucumber"

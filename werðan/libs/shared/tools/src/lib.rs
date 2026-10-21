@@ -2,6 +2,7 @@
 
 mod ast_edit;
 mod ast_grep;
+mod ask;
 mod ast_lang;
 mod bash;
 mod debug;
@@ -16,6 +17,7 @@ mod write;
 
 pub use self::ast_edit::{AstEditArgs, AstEditOp, AstEditOutput, AstEditTool};
 pub use self::ast_grep::{AstGrepArgs, AstGrepOutput, AstGrepTool, AstMatch};
+pub use self::ask::{AskAnswer, AskArgs, AskOutput, AskQuestion, AskTool, clear_canned_answers, push_canned_answers};
 pub use self::bash::{BashArgs, BashOutput, BashTool};
 pub use self::debug::{DebugArgs, DebugOutput, DebugTool};
 pub use self::edit::{EditArgs, EditOutput, EditTool};

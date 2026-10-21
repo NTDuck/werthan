@@ -338,3 +338,119 @@ async fn test_github_and_debug_and_eval_tools() {
     let eval_ok = eval_res.is_ok();
     ::std::assert!(eval_ok);
 }
+
+/// The three ask tests share the process-global canned-answer sink, so they
+/// run serially to prevent parallel clear calls from wiping answers.
+#[::serial_test::serial]
+#[::tokio::test]
+async fn test_ask_tool_returns_preloaded_answers() {
+    use ::rig::tool::Tool;
+
+    ::tools::clear_canned_answers();
+    let id = ::std::string::String::from("q_one");
+    let value = ::std::string::String::from("yes");
+    let answer_one = ::tools::AskAnswer { id, value };
+    let id = ::std::string::String::from("q_two");
+    let value = ::std::string::String::from("no");
+    let answer_two = ::tools::AskAnswer { id, value };
+    let mut canned = ::std::vec::Vec::new();
+    canned.push(answer_one);
+    canned.push(answer_two);
+    ::tools::push_canned_answers(canned);
+
+    let id = ::std::string::String::from("q_one");
+    let question = ::std::string::String::from("Proceed?");
+    let mut options = ::std::vec::Vec::new();
+    let yes = ::std::string::String::from("yes");
+    let no = ::std::string::String::from("no");
+    options.push(yes);
+    options.push(no);
+    let options = ::core::option::Option::Some(options);
+    let recommended = ::core::option::Option::Some(0);
+    let first = ::tools::AskQuestion { id, question, options, recommended };
+
+    let id = ::std::string::String::from("q_two");
+    let question = ::std::string::String::from("Rollback?");
+    let mut options = ::std::vec::Vec::new();
+    let preferred = ::std::string::String::from("no");
+    let alternate = ::std::string::String::from("yes");
+    options.push(preferred);
+    options.push(alternate);
+    let options = ::core::option::Option::Some(options);
+    let recommended = ::core::option::Option::None;
+    let second = ::tools::AskQuestion { id, question, options, recommended };
+
+    let mut questions = ::std::vec::Vec::new();
+    questions.push(first);
+    questions.push(second);
+    let ask_args = ::tools::AskArgs { questions };
+
+    let ask_tool = ::tools::AskTool;
+    let ask_res = ask_tool.call(ask_args).await;
+    ::std::assert!(ask_res.is_ok());
+
+    let ask_out = ask_res.unwrap();
+    ::std::assert_eq!(ask_out.answers.len(), 2);
+    ::std::assert_eq!(ask_out.answers[0].id, "q_one");
+    ::std::assert_eq!(ask_out.answers[0].value, "yes");
+    ::std::assert_eq!(ask_out.answers[1].id, "q_two");
+    ::std::assert_eq!(ask_out.answers[1].value, "no");
+
+    ::tools::clear_canned_answers();
+}
+
+#[::serial_test::serial]
+#[::tokio::test]
+async fn test_ask_tool_missing_answer_errors() {
+    use ::rig::tool::Tool;
+
+    ::tools::clear_canned_answers();
+    let id = ::std::string::String::from("unanswered");
+    let question = ::std::string::String::from("Anyone there?");
+    let options = ::core::option::Option::None;
+    let recommended = ::core::option::Option::None;
+    let pending = ::tools::AskQuestion { id, question, options, recommended };
+
+    let mut questions = ::std::vec::Vec::new();
+    questions.push(pending);
+    let ask_args = ::tools::AskArgs { questions };
+
+    let ask_tool = ::tools::AskTool;
+    let ask_res = ask_tool.call(ask_args).await;
+    ::std::assert!(ask_res.is_err());
+}
+
+#[::serial_test::serial]
+#[::tokio::test]
+async fn test_ask_tool_free_text_answer_without_options() {
+    use ::rig::tool::Tool;
+
+    ::tools::clear_canned_answers();
+    let id = ::std::string::String::from("q_free");
+    let value = ::std::string::String::from("some free text");
+    let answer = ::tools::AskAnswer { id, value };
+    let mut canned = ::std::vec::Vec::new();
+    canned.push(answer);
+    ::tools::push_canned_answers(canned);
+
+    let id = ::std::string::String::from("q_free");
+    let question = ::std::string::String::from("Describe the issue.");
+    let options = ::core::option::Option::None;
+    let recommended = ::core::option::Option::None;
+    let free_text = ::tools::AskQuestion { id, question, options, recommended };
+
+    let mut questions = ::std::vec::Vec::new();
+    questions.push(free_text);
+    let ask_args = ::tools::AskArgs { questions };
+
+    let ask_tool = ::tools::AskTool;
+    let ask_res = ask_tool.call(ask_args).await;
+    ::std::assert!(ask_res.is_ok());
+
+    let ask_out = ask_res.unwrap();
+    ::std::assert_eq!(ask_out.answers.len(), 1);
+    ::std::assert_eq!(ask_out.answers[0].id, "q_free");
+    ::std::assert_eq!(ask_out.answers[0].value, "some free text");
+
+    ::tools::clear_canned_answers();
+}
