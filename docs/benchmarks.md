@@ -4,7 +4,7 @@ Date: 2026-10-17
 Harness: `werðan` Code Modernization Multi-Agent System (MAS)  
 Dataset: `ReCodeAgent` (Intelligent-CAT-Lab/ReCodeAgent)  
 Target Language: Rust (Edition 2024)  
-Inference Engine: `ninfer` / Qwen 2.5 / 3.x Series  
+Inference Engine: `ninfer` / OpenAI-compatible endpoint (`swift-1.5-qwen3.8-27b`)  
 
 ---
 

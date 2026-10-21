@@ -145,6 +145,7 @@ fn run_campaign_blocking(
         test_pass_rate: { validation.test_pass_rate },
         unimplemented_remaining,
         solver_dispatches: { solver_dispatches },
+        worker_executions: { engine.worker_executions() },
         structural_retries: { engine.structural_retries() },
         macro_states_visited: { state_vector.module_states.len() },
         total_lines: { metrics.total_lines },
@@ -178,6 +179,8 @@ pub struct BenchResult {
     pub unimplemented_remaining: ::core::primitive::usize,
     /// Solver dispatch count reported by the engine.
     pub solver_dispatches: ::core::primitive::usize,
+    /// Phase-shard worker execution count reported by the engine.
+    pub worker_executions: ::core::primitive::usize,
     /// Structural guard retry count reported by the engine.
     pub structural_retries: ::core::primitive::usize,
     /// Number of per-module micro states visited by the engine.
@@ -298,6 +301,7 @@ fn failed_result(campaign_id: &::core::primitive::str, reason: &::core::primitiv
         test_pass_rate: 0.0,
         unimplemented_remaining: 0,
         solver_dispatches: 0,
+        worker_executions: 0,
         structural_retries: 0,
         macro_states_visited: 0,
         total_lines: 0,
@@ -320,22 +324,16 @@ fn build_solver(
     workspace_root: ::std::path::PathBuf,
 ) -> ::std::boxed::Box<dyn ::global_engine::ModuleSolver> {
     let inference = &bench_config.inference;
-    let qwen_config = super::bench_llm::QwenConfig::from_inference(inference);
-    ::tracing::info!(
-        "campaign {}: LLM backend {} model {}",
-        bench_config.campaign_id,
-        qwen_config.base_url,
-        qwen_config.model
-    );
+    let compat_model = super::bench_llm::OpenAiCompatModel::from_inference(inference);
+    ::tracing::info!("campaign {}: LLM backend configured", bench_config.campaign_id);
     let mut mcts_config = ::holon_engine::EngineConfig::default();
     let rollout_budget = bench_config.ariadne.engine_budget_per_module;
     let rollout_nonzero = rollout_budget > 0;
     if rollout_nonzero {
         mcts_config.max_rollouts = rollout_budget;
     }
-    let qwen_model = super::bench_llm::QwenReasoningModel::new(qwen_config);
     let counting_model =
-        super::bench_llm::CountingCompletionModel::new(qwen_model, request_count.clone());
+        super::bench_llm::CountingCompletionModel::new(compat_model, request_count.clone());
     let base_temperature = inference.inference_temperature;
     let closure_root = workspace_root.clone();
     let build_timeout_secs = bench_config.inference.build_timeout_secs;
@@ -386,10 +384,10 @@ fn build_solver(
         .build();
 
     let solver = ::holon_engine::solver::AriadneSolver::<
-        super::bench_llm::CountingCompletionModel<super::bench_llm::QwenReasoningModel>,
+        super::bench_llm::CountingCompletionModel<super::bench_llm::OpenAiCompatModel>,
         ::holon_evaluator::cargo_harness::CargoHarness,
         ::holon_evaluator::RigDiagnosticDistiller<
-            super::bench_llm::CountingCompletionModel<super::bench_llm::QwenReasoningModel>,
+            super::bench_llm::CountingCompletionModel<super::bench_llm::OpenAiCompatModel>,
         >,
     >::builder()
     .config(mcts_config)
