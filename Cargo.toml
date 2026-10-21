@@ -77,7 +77,6 @@ redb = { version = "4.4.0", default-features = false, features = ["std"] }
 regex = { version = "1.13" }
 anyhow = { version = "1.0" }
 globset = { version = "0.4" }
-dotenvy = { version = "0.15" }
 ignore = { version = "0.4" }
 ast-grep-core = { version = "0.39", default-features = false, features = ["tree-sitter"] }
 tree-sitter = { version = "0.25" }

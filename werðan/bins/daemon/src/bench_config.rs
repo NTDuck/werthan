@@ -3,8 +3,7 @@
 
 /// Default directory holding per-project result JSON files.
 pub fn result_dir_default() -> ::std::path::PathBuf {
-    self::ensure_env();
-    let env_val = ::std::env::var("BENCH_RESULTS_DIR").expect("BENCH_RESULTS_DIR must be set in environment");
+    let env_val = ::core::env!("BENCH_RESULTS_DIR");
     ::std::path::PathBuf::from(env_val)
 }
 
@@ -16,51 +15,38 @@ pub fn repo_root() -> ::std::path::PathBuf {
 
 /// Read the inference base URL from the environment.
 pub fn default_base_url() -> ::std::string::String {
-    self::ensure_env();
-    ::std::env::var("BASE_URL").expect("BASE_URL must be set in environment")
+    ::core::env!("BASE_URL").to_string()
 }
 
 /// Read the default model identifier from the environment.
 pub fn default_model_id() -> ::core::option::Option<::std::string::String> {
-    self::ensure_env();
-    match ::std::env::var("MODEL_ID") {
-        ::core::result::Result::Ok(value) if !value.is_empty() => {
-            ::core::option::Option::Some(value)
-        },
-        _ => ::core::option::Option::None,
+    let value = ::core::env!("MODEL_ID");
+    if value.is_empty() {
+        ::core::option::Option::None
+    } else {
+        ::core::option::Option::Some(value.to_string())
     }
 }
 
 /// Schema default for the cargo check timeout in seconds.
 fn default_build_timeout() -> ::core::primitive::u64 {
-    self::ensure_env();
-    ::std::env::var("BENCH_BUILD_TIMEOUT_SECS")
-        .expect("BENCH_BUILD_TIMEOUT_SECS must be set in environment")
+    ::core::env!("BENCH_BUILD_TIMEOUT_SECS")
         .parse::<::core::primitive::u64>()
         .expect("BENCH_BUILD_TIMEOUT_SECS must be a valid u64")
 }
 
 /// Schema default for the cargo test timeout in seconds.
 fn default_test_timeout() -> ::core::primitive::u64 {
-    self::ensure_env();
-    ::std::env::var("BENCH_TEST_TIMEOUT_SECS")
-        .expect("BENCH_TEST_TIMEOUT_SECS must be set in environment")
+    ::core::env!("BENCH_TEST_TIMEOUT_SECS")
         .parse::<::core::primitive::u64>()
         .expect("BENCH_TEST_TIMEOUT_SECS must be a valid u64")
 }
 
 /// Schema default for the inference request timeout in seconds.
 fn default_inference_timeout() -> ::core::primitive::u64 {
-    self::ensure_env();
-    ::std::env::var("BENCH_INFERENCE_TIMEOUT_SECS")
-        .expect("BENCH_INFERENCE_TIMEOUT_SECS must be set in environment")
+    ::core::env!("BENCH_INFERENCE_TIMEOUT_SECS")
         .parse::<::core::primitive::u64>()
         .expect("BENCH_INFERENCE_TIMEOUT_SECS must be a valid u64")
-}
-
-/// Load variables from repository .env into process environment.
-fn ensure_env() {
-    let _ = ::dotenvy::dotenv();
 }
 
 /// Path section of the campaign configuration.

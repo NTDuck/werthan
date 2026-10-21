@@ -27,7 +27,6 @@ struct CliArgs {
 
 #[::tokio::main]
 async fn main() {
-    let _ = ::dotenvy::dotenv();
     let args = ::std::env::args().collect::<::std::vec::Vec<::std::string::String>>();
     let cli = parse_args(&args);
 
@@ -73,9 +72,7 @@ fn parse_args(args: &[::std::string::String]) -> self::CliArgs {
                 benchmark_path = ::core::option::Option::Some(path_buf);
             },
             "--benchmark-all" => {
-                let env_path = ::std::env::var("BENCH_CONFIGS_DIR")
-                    .expect("BENCH_CONFIGS_DIR must be set in environment");
-                let default_path = ::std::path::PathBuf::from(env_path);
+                let default_path = ::std::path::PathBuf::from(::core::env!("BENCH_CONFIGS_DIR"));
                 if idx + 1 < args.len() && !args[idx + 1].starts_with("--") {
                     idx += 1;
                     let target_str = &args[idx];
