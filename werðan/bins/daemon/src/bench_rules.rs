@@ -25,7 +25,7 @@ pub struct RuleExtractionReport {
 /// exchange requesting strict JSON rule cards. Unparsable or failed
 /// exchanges leave that vertex empty rather than inventing rules.
 pub fn extract_rules_for_board(
-    bench_config: &super::bench_config::BenchConfig,
+    bench_config: &super::bench_config::CampaignConfig,
     entries: &[super::bench_harness::InventoryEntry],
     request_counter: &::std::sync::Arc<::std::sync::atomic::AtomicU64>,
     api_surface_text: &::core::primitive::str,

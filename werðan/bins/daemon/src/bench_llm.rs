@@ -21,7 +21,8 @@ pub struct QwenConfig {
 
 impl self::QwenConfig {
     /// Collect the backend configuration from the bench inference settings.
-    pub fn from_inference(inference: &super::bench_config::InferenceConfig) -> Self {
+    pub fn from_inference(inference: &::configschema::InferenceSection) -> Self {
+        use super::bench_config::InferenceExt;
         let base_url_value = inference.effective_base_url();
         let model_value = inference
             .effective_model()
@@ -381,13 +382,6 @@ impl<M: ::rig::completion::CompletionModel> self::CountingCompletionModel<M> {
             inner: { inner },
             request_counter,
         }
-    }
-
-    #[allow(dead_code)]
-    /// Read the current request count for the honesty gate.
-    pub fn request_count(&self) -> ::core::primitive::u64 {
-        self.request_counter
-            .load(::std::sync::atomic::Ordering::SeqCst)
     }
 }
 

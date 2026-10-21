@@ -12,7 +12,7 @@ pub struct WorkspaceValidation {
 
 /// Run cargo check and cargo test in the target workspace and parse outcomes.
 pub fn validate_workspace(
-    bench_config: &super::bench_config::BenchConfig,
+    bench_config: &super::bench_config::CampaignConfig,
     workspace_root: &::std::path::Path,
 ) -> self::WorkspaceValidation {
     let build_timeout = bench_config.inference.build_timeout_secs;

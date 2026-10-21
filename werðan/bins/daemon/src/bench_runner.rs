@@ -4,7 +4,7 @@
 
 
 pub async fn run_campaign(
-    bench_config: &super::bench_config::BenchConfig,
+    bench_config: &super::bench_config::CampaignConfig,
 ) -> self::BenchResult {
     let (result_sender, result_receiver) = ::std::sync::mpsc::channel();
     let thread_config = bench_config.clone();
@@ -31,7 +31,7 @@ pub async fn run_campaign(
 /// Execute one full campaign synchronously: workspace reset, LLM-backed engine
 /// run, and post-run cargo validation. Called from a dedicated OS thread.
 fn run_campaign_blocking(
-    bench_config: &super::bench_config::BenchConfig,
+    bench_config: &super::bench_config::CampaignConfig,
 ) -> self::BenchResult {
     let campaign_started = ::std::time::Instant::now();
     let campaign_id = bench_config.campaign_id.clone();
@@ -195,7 +195,7 @@ pub struct BenchResult {
 }
 
 /// Return the repo-rooted target workspace path.
-fn workspace_root_of(bench_config: &super::bench_config::BenchConfig) -> ::std::path::PathBuf {
+fn workspace_root_of(bench_config: &super::bench_config::CampaignConfig) -> ::std::path::PathBuf {
     super::bench_config::repo_root().join(&bench_config.paths.workspace_root)
 }
 
@@ -205,7 +205,7 @@ fn workspace_root_of(bench_config: &super::bench_config::BenchConfig) -> ::std::
 /// mirrors the generated `benchmarks/outputs/<category>/<project>/<lang>` roots, so the
 /// mapped dataset path replaces the `benchmarks/outputs/` prefix of the workspace root.
 fn reset_workspace(
-    _bench_config: &super::bench_config::BenchConfig,
+    _bench_config: &super::bench_config::CampaignConfig,
     workspace_root: &::std::path::Path,
 ) -> ::core::option::Option<::std::string::String> {
     let repo_root = super::bench_config::repo_root();
@@ -315,7 +315,7 @@ fn failed_result(campaign_id: &::core::primitive::str, reason: &::core::primitiv
 /// controller gets an LLM subagent pool and a real CargoHarness evaluator
 /// that compiles and tests candidates in the target workspace.
 fn build_solver(
-    bench_config: &super::bench_config::BenchConfig,
+    bench_config: &super::bench_config::CampaignConfig,
     request_count: ::std::sync::Arc<::std::sync::atomic::AtomicU64>,
     workspace_root: ::std::path::PathBuf,
 ) -> ::std::boxed::Box<dyn ::global_engine::ModuleSolver> {
@@ -328,9 +328,10 @@ fn build_solver(
         qwen_config.model
     );
     let mut mcts_config = ::holon_engine::EngineConfig::default();
-    let rollout_override = bench_config.ariadne.max_rollouts;
-    if let ::core::option::Option::Some(max_rollouts) = rollout_override {
-        mcts_config.max_rollouts = max_rollouts;
+    let rollout_budget = bench_config.ariadne.engine_budget_per_module;
+    let rollout_nonzero = rollout_budget > 0;
+    if rollout_nonzero {
+        mcts_config.max_rollouts = rollout_budget;
     }
     let qwen_model = super::bench_llm::QwenReasoningModel::new(qwen_config);
     let counting_model =
@@ -407,11 +408,11 @@ mod tests {
     #[ignore]
     async fn honest_smoke_crust_vec() {
         let repo_root = super::super::bench_config::repo_root();
-        let config_path = repo_root.join("benchmarks/configs/generated/crust-vec.yml");
+        let config_path = repo_root.join("benchmarks/assets/configs/ReCodeAgent/crust/vec.yml");
         let load_res = super::super::bench_config::load_bench_config(&config_path);
         let mut bench_config = load_res.expect("crust-vec config loads");
         let _ = ::tracing_subscriber::fmt().try_init();
-        bench_config.ariadne.max_rollouts = ::core::option::Option::Some(1);
+        bench_config.ariadne.engine_budget_per_module = 1;
         bench_config.verification.max_self_heal_retries = 0;
         bench_config.inference.inference_max_tokens = 4096;
         bench_config.inference.inference_timeout_secs = 120;
