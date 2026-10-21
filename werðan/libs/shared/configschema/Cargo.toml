@@ -1,0 +1,22 @@
+[package]
+name = "configschema"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Canonical migration.yml configuration schema shared by all werðan frontends"
+
+[build-dependencies]
+flatmods.workspace = true
+pathqual.workspace = true
+plumbing.workspace = true
+ste100.workspace = true
+stepdown.workspace = true
+turbofish.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_yaml_ng = { workspace = true }
+[lints]
+workspace = true
