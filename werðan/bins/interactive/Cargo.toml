@@ -16,11 +16,15 @@ turbofish.workspace = true
 
 [dependencies]
 bon = { workspace = true }
+configschema = { workspace = true }
+configurator = { workspace = true }
 crossterm = { workspace = true }
 ratatui = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
 tokio = { workspace = true }
+tools = { workspace = true }
+
 [lints]
 workspace = true
