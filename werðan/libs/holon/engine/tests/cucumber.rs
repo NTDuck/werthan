@@ -470,7 +470,7 @@ fn build_controller(
         .harness(harness)
         .distiller(distiller)
         .build();
-    let fake_model = self::FakeAriadneModel::default();
+    let fake_model = self::FakeAriadneModel;
     let strategy_agent = ::holon_strategy::HolonStrategyAgent::builder()
         .model(fake_model.clone())
         .temperature(0.2)
