@@ -15,16 +15,16 @@ stack:
   legacy_test_harness_cmd: pytest
 inference:
   base_url: ''
-  model: ashalliant/qwen3.8-27b-abliterated
-  max_parallel_shards: 2
-  max_shards: 2
-  inference_max_tokens: 32768
+  model: swift-1.5-qwen3.8-27b
+  max_parallel_shards: 4
+  max_shards: 4
+  inference_max_tokens: 40960
   inference_temperature: 0.2
-  inference_timeout_secs: 600
-  build_timeout_secs: 120
-  test_timeout_secs: 120
+  inference_timeout_secs: 900
+  build_timeout_secs: 180
+  test_timeout_secs: 180
 verification:
-  max_self_heal_retries: 3
+  max_self_heal_retries: 4
   require_byte_identical_io: false
 ariadne:
-  max_rollouts: 16
+  max_rollouts: 32
