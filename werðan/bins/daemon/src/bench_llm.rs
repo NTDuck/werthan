@@ -1,136 +1,133 @@
 //! Rig completion-model layer for honest benchmark runs.
-//! The 27B reasoning backend spends its token budget in `reasoning_content`
-//! and may return an empty `content` field. The Qwen model unwraps the
-//! reasoning channel, extracts the answer block, and keeps the error when
-//! nothing usable remains.
+//! The transport targets any OpenAI-compatible chat-completions endpoint
+//! through the stock rig OpenAI provider. Reasoning-heavy backends bury the
+//! answer behind reasoning traces. The adapter reduces every response to
+//! its most usable answer text and keeps the error when nothing usable
+//! remains.
 
-/// Configuration for the Qwen chat-completions backend.
+/// Sampling and budget defaults for calls that the caller leaves unset.
 #[derive(::core::clone::Clone, ::core::fmt::Debug)]
-pub struct QwenConfig {
-    /// Base URL of the OpenAI-compatible inference server.
-    pub base_url: ::std::string::String,
-    /// Model identifier requested on every completion call.
-    pub model: ::std::string::String,
-    /// Whole-request timeout in seconds.
-    pub timeout_secs: ::core::primitive::u64,
+pub struct CompletionDefaults {
     /// Completion token budget per request when the caller sets none.
     pub max_tokens: ::core::primitive::u32,
-    /// Sampling temperature added when the caller sets none.
+    /// Sampling temperature applied when the caller sets none.
     pub temperature: ::core::primitive::f64,
 }
 
-impl self::QwenConfig {
-    /// Collect the backend configuration from the bench inference settings.
+impl self::CompletionDefaults {
+    /// Collect the sampling defaults from the bench inference settings.
     pub fn from_inference(inference: &::configschema::InferenceSection) -> Self {
-        use super::bench_config::InferenceExt;
-        let base_url_value = inference.effective_base_url();
-        let model_value = inference
-            .effective_model()
-            .unwrap_or_default();
         Self {
-            base_url: { base_url_value },
-            model: { model_value },
-            timeout_secs: { inference.inference_timeout_secs },
             max_tokens: { inference.inference_max_tokens },
             temperature: { inference.inference_temperature },
         }
     }
 }
 
-/// OpenAI-compatible completion model backed by blocking reqwest HTTP.
+/// Completion model over the stock rig OpenAI provider.
+///
+/// The rig client exposes no timeout knob, so the adapter re-imposes the
+/// configured inference timeout around every inner exchange. The provider
+/// never serializes `max_tokens`, so the adapter injects it through
+/// `additional_params`.
 #[derive(::core::clone::Clone)]
-pub struct QwenReasoningModel {
-    /// Backend configuration reused for every exchange.
-    config: self::QwenConfig,
-    /// Blocking HTTP client that runs each chat-completions exchange.
-    http: ::reqwest::blocking::Client,
+pub struct OpenAiCompatModel {
+    /// Stock rig completion model that reaches the inference endpoint.
+    inner: ::rig::providers::openai::CompletionModel,
+    /// Whole-request timeout in seconds.
+    timeout_secs: ::core::primitive::u64,
+    /// Sampling and budget defaults reused for every exchange.
+    defaults: self::CompletionDefaults,
 }
 
-impl ::core::fmt::Debug for self::QwenReasoningModel {
+impl ::core::fmt::Debug for self::OpenAiCompatModel {
     fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         formatter
-            .debug_struct("QwenReasoningModel")
-            .field("config", &self.config)
+            .debug_struct("OpenAiCompatModel")
+            .field("timeout_secs", &self.timeout_secs)
+            .field("defaults", &self.defaults)
             .finish()
     }
 }
 
-impl self::QwenReasoningModel {
-    /// Construct the model from explicit configuration.
-    pub fn new(config: self::QwenConfig) -> Self {
-        let request_timeout = ::std::time::Duration::from_secs(config.timeout_secs);
-        let built = ::reqwest::blocking::Client::builder()
-            .timeout(request_timeout)
-            .build();
-        let http = built.expect("blocking http client construction succeeds");
-        Self { config, http }
+impl self::OpenAiCompatModel {
+    /// Construct the model from the bench inference settings.
+    ///
+    /// The local inference server ignores the Bearer header, so the compiled
+    /// empty API key stays correct.
+    pub fn from_inference(inference: &::configschema::InferenceSection) -> Self {
+        use super::bench_config::InferenceExt;
+        let base_url_value = inference.effective_base_url();
+        let model_value = inference
+            .effective_model()
+            .unwrap_or_default();
+        let api_key = ::core::env!("INFERENCE_API_KEY");
+        let client = ::rig::providers::openai::Client::from_url(api_key, &base_url_value);
+        let inner = client.completion_model(&model_value);
+        Self {
+            timeout_secs: { inference.inference_timeout_secs },
+            defaults: self::CompletionDefaults::from_inference(inference),
+            inner: { inner },
+        }
     }
 }
 
-impl ::rig::completion::CompletionModel for self::QwenReasoningModel {
-    type Response = ::serde_json::Value;
+impl ::rig::completion::CompletionModel for self::OpenAiCompatModel {
+    type Response = ::rig::providers::openai::CompletionResponse;
 
-    /// Run one chat-completions exchange for the request.
+    /// Run one completion exchange with the configured defaults and timeout.
     ///
-    /// The HTTP call inside this future is blocking reqwest.
-    /// We keep it in the async body on purpose.
-    /// The daemon drives futures on a dedicated runtime per call.
-    /// Blocking here matches the previous always-blocking client.
-    /// The body never spawns threads of its own.
+    /// The inner provider future runs async-native, so the adapter needs no
+    /// thread bridge. The timeout wrap requires a tokio reactor with the
+    /// time driver enabled at the call site.
     fn completion(
         &self,
         request: ::rig::completion::CompletionRequest,
     ) -> impl ::core::future::Future<
         Output = ::core::result::Result<
-            ::rig::completion::CompletionResponse<::serde_json::Value>,
+            ::rig::completion::CompletionResponse<Self::Response>,
             ::rig::completion::CompletionError,
         >,
     > + ::core::marker::Send {
-        let prompt_text = self::prompt_text_of(&request);
-        let preamble_clone = request.preamble.clone();
-        let preamble_text = preamble_clone.unwrap_or_default();
-        let request_temperature = request.temperature.unwrap_or(self.config.temperature);
-        let request_max_tokens = request
+        let mut effective_request = request;
+        let effective_temperature = effective_request
+            .temperature
+            .unwrap_or(self.defaults.temperature);
+        effective_request.temperature = ::core::option::Option::Some(effective_temperature);
+        let effective_max_tokens = effective_request
             .max_tokens
-            .unwrap_or(self.config.max_tokens as ::core::primitive::u64);
-        let max_tokens = request_max_tokens as ::core::primitive::u32;
-        let http = self.http.clone();
-        let config = self.config.clone();
+            .unwrap_or(self.defaults.max_tokens as ::core::primitive::u64);
+        let existing_params = effective_request.additional_params.take();
+        let merged_params = self::merged_additional_params(
+            effective_max_tokens,
+            existing_params,
+        );
+        effective_request.additional_params =
+            ::core::option::Option::Some(merged_params);
+        let timeout_secs = self.timeout_secs;
+        let inner_future = self.inner.completion(effective_request);
         let exchange_future = async move {
-            let (sender, receiver) = ::std::sync::mpsc::channel();
-            let handle_res = ::std::thread::Builder::new()
-                .name("qwen-exchange".to_string())
-                .spawn(move || {
-                    let exchange_res = self::blocking_exchange(
-                        &http,
-                        &config,
-                        &preamble_text,
-                        &prompt_text,
-                        max_tokens,
-                        request_temperature,
-                    );
-                    let _ = sender.send(exchange_res);
-                });
-            if let ::core::result::Result::Err(spawn_err) = handle_res {
-                return ::core::result::Result::Err(
-                    ::rig::completion::CompletionError::ResponseError(spawn_err.to_string()),
-                );
-            }
-            let response_json_res = match receiver.recv() {
-                ::core::result::Result::Ok(res) => res,
-                ::core::result::Result::Err(recv_err) => {
+            let request_timeout = ::std::time::Duration::from_secs(timeout_secs);
+            let timeout_result =
+                ::tokio::time::timeout(request_timeout, inner_future).await;
+            let inner_result = match timeout_result {
+                ::core::result::Result::Ok(inner_result) => inner_result,
+                ::core::result::Result::Err(_elapsed) => {
                     return ::core::result::Result::Err(
-                        ::rig::completion::CompletionError::ResponseError(recv_err.to_string()),
+                        ::rig::completion::CompletionError::ProviderError(::std::format!(
+                            "inference timeout after {timeout_secs} seconds"
+                        )),
                     );
-                }
-            };
-            let response_json = match response_json_res {
-                ::core::result::Result::Ok(value) => value,
-                ::core::result::Result::Err(exchange_error) => {
-                    return ::core::result::Result::Err(exchange_error);
                 },
             };
-            let answer_text = self::usable_answer_of(&response_json);
+            let inner_response = match inner_result {
+                ::core::result::Result::Ok(response) => response,
+                ::core::result::Result::Err(completion_error) => {
+                    return ::core::result::Result::Err(completion_error);
+                },
+            };
+            let raw_text = self::assistant_text_of(&inner_response.choice);
+            let answer_text = self::usable_answer(&raw_text);
             let answer_present = !answer_text.is_empty();
             if !answer_present {
                 return ::core::result::Result::Err(
@@ -145,175 +142,104 @@ impl ::rig::completion::CompletionModel for self::QwenReasoningModel {
             let choice = ::rig::OneOrMany::one(answer_content);
             ::core::result::Result::Ok(::rig::completion::CompletionResponse {
                 choice: { choice },
-                raw_response: { response_json },
+                raw_response: { inner_response.raw_response },
             })
         };
         exchange_future
     }
 }
 
-/// Extract the user prompt text from one completion request.
-fn prompt_text_of(
-    request: &::rig::completion::CompletionRequest,
-) -> ::std::string::String {
-    match &request.prompt {
-        ::rig::message::Message::User { content } => content
-            .iter()
-            .find_map(|item| match item {
-                ::rig::message::UserContent::Text(text) => {
-                    ::core::option::Option::Some(text.text.clone())
-                },
-                _ => ::core::option::Option::None,
-            })
-            .unwrap_or_default(),
-        _ => ::std::string::String::new(),
+/// Completion model wrapper that counts real backend calls for honesty auditing.
+#[derive(::core::clone::Clone)]
+pub struct CountingCompletionModel<M: ::rig::completion::CompletionModel> {
+    /// Wrapped completion model that reaches the real backend.
+    inner: M,
+    /// Number of completion invocations issued to the backend.
+    request_counter: ::std::sync::Arc<::std::sync::atomic::AtomicU64>,
+}
+
+impl<M: ::rig::completion::CompletionModel> ::core::fmt::Debug
+    for self::CountingCompletionModel<M>
+{
+    fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        formatter
+            .debug_struct("CountingCompletionModel")
+            .field("request_counter", &self.request_counter)
+            .finish()
     }
 }
 
-/// Post one blocking chat-completions exchange and return the raw JSON body.
-fn blocking_exchange(
-    http: &::reqwest::blocking::Client,
-    config: &self::QwenConfig,
-    system_prompt: &::core::primitive::str,
-    user_prompt: &::core::primitive::str,
-    max_tokens: ::core::primitive::u32,
-    temperature: ::core::primitive::f64,
-) -> ::core::result::Result<
-    ::serde_json::Value,
-    ::rig::completion::CompletionError,
-> {
-    let switched_prompt = ::std::format!("{user_prompt}\n/no_think");
-    let base_trimmed = config.base_url.trim_end_matches('/');
-    let chat_url = ::std::format!("{}/chat/completions", base_trimmed);
-    let request_payload = self::request_payload_of(
-        config,
-        system_prompt,
-        &switched_prompt,
-        max_tokens,
-        temperature,
-    );
-    ::tracing::info!("blocking_exchange: sending POST to {}", chat_url);
-    let http_response_res = http
-        .post(chat_url)
-        .json(&request_payload)
-        .send();
-    let http_response = match http_response_res {
-        ::core::result::Result::Ok(value) => value,
-        ::core::result::Result::Err(send_error) => {
-            return ::core::result::Result::Err(
-                ::rig::completion::CompletionError::ProviderError(::std::format!(
-                    "transport failure: {send_error}"
-                )),
-            );
-        },
-    };
-    let response_status = http_response.status();
-    let status_ok = response_status.is_success();
-    ::tracing::info!("blocking_exchange: received status {}", response_status);
-    if !status_ok {
-        let body_excerpt = http_response.text().unwrap_or_default();
-        return ::core::result::Result::Err(
-            ::rig::completion::CompletionError::ProviderError(::std::format!(
-                "backend status {}: {body_excerpt}",
-                response_status.as_u16()
-            )),
-        );
+impl<M: ::rig::completion::CompletionModel> self::CountingCompletionModel<M> {
+    /// Wrap one completion model with a shared request counter.
+    pub fn new(
+        inner: M,
+        request_counter: ::std::sync::Arc<::std::sync::atomic::AtomicU64>,
+    ) -> Self {
+        Self {
+            inner: { inner },
+            request_counter,
+        }
     }
-    let parse_res = http_response.json::<::serde_json::Value>();
-    let response_json = match parse_res {
-        ::core::result::Result::Ok(value) => value,
-        ::core::result::Result::Err(parse_error) => {
-            return ::core::result::Result::Err(
-                ::rig::completion::CompletionError::ProviderError(::std::format!(
-                    "malformed response: {parse_error}"
-                )),
-            );
-        },
-    };
-    ::core::result::Result::Ok(response_json)
 }
 
-/// Assemble the chat-completions JSON request body.
-fn request_payload_of(
-    config: &self::QwenConfig,
-    system_prompt: &::core::primitive::str,
-    user_prompt: &::core::primitive::str,
-    max_tokens: ::core::primitive::u32,
-    temperature: ::core::primitive::f64,
+impl<M: ::rig::completion::CompletionModel> ::rig::completion::CompletionModel
+    for self::CountingCompletionModel<M>
+{
+    type Response = <M as ::rig::completion::CompletionModel>::Response;
+
+    fn completion(
+        &self,
+        request: ::rig::completion::CompletionRequest,
+    ) -> impl ::core::future::Future<
+        Output = ::core::result::Result<
+            ::rig::completion::CompletionResponse<Self::Response>,
+            ::rig::completion::CompletionError,
+        >,
+    > + ::core::marker::Send {
+        let inner_future = self.inner.completion(request);
+        let counting_future = async move {
+            self.request_counter
+                .fetch_add(1, ::std::sync::atomic::Ordering::SeqCst);
+            inner_future.await
+        };
+        counting_future
+    }
+}
+
+/// Build the injected additional parameters for one completion request.
+///
+/// Existing provider parameters win over the injected token budget.
+fn merged_additional_params(
+    max_tokens: ::core::primitive::u64,
+    existing_params: ::core::option::Option<::serde_json::Value>,
 ) -> ::serde_json::Value {
-    let system_message = self::message_object("system", system_prompt);
-    let user_message = self::message_object("user", user_prompt);
-    let pair_messages = ::std::vec![
-        ::serde_json::Value::Object(system_message),
-        ::serde_json::Value::Object(user_message),
-    ];
-    let model_json = ::serde_json::Value::String(config.model.clone());
-    let messages_json = ::serde_json::Value::Array(pair_messages);
-    let max_tokens_number = ::serde_json::Number::from(max_tokens);
-    let zero_number = ::serde_json::Number::from(0);
-    let temperature_number =
-        ::serde_json::Number::from_f64(temperature).unwrap_or(zero_number);
-    let max_tokens_json = ::serde_json::Value::Number(max_tokens_number);
-    let temperature_json = ::serde_json::Value::Number(temperature_number);
-    let mut request_payload = ::serde_json::Map::new();
-    request_payload.insert("model".to_string(), model_json);
-    request_payload.insert("messages".to_string(), messages_json);
-    request_payload.insert("max_tokens".to_string(), max_tokens_json);
-    request_payload.insert("temperature".to_string(), temperature_json);
-    ::serde_json::Value::Object(request_payload)
-}
-
-/// Build one chat message JSON object.
-fn message_object(
-    role: &::core::primitive::str,
-    content: &::core::primitive::str,
-) -> ::serde_json::Map<::std::string::String, ::serde_json::Value> {
-    let role_json = ::serde_json::Value::String(role.to_string());
-    let content_json = ::serde_json::Value::String(content.to_string());
-    let mut message = ::serde_json::Map::new();
-    message.insert("role".to_string(), role_json);
-    message.insert("content".to_string(), content_json);
-    message
-}
-
-/// Reduce one chat-completions response to its most usable answer text.
-///
-/// Empty output means nothing usable remained. The caller keeps the error
-/// instead of corrupting the target workspace.
-fn usable_answer_of(response_json: &::serde_json::Value) -> ::std::string::String {
-    let assistant_text = self::assistant_text_of(response_json);
-    let reduced = self::usable_answer(&assistant_text);
-    reduced
-}
-
-/// Extract the assistant text from one chat-completions JSON response.
-///
-/// The content channel answers first. An empty content channel switches to
-/// the reasoning channel, because the 27B reasoning backend may spend the
-/// whole token budget inside `reasoning_content`.
-fn assistant_text_of(response_json: &::serde_json::Value) -> ::std::string::String {
-    let message_json = response_json
-        .get("choices")
-        .and_then(|choices_value| choices_value.get(0))
-        .and_then(|first_choice| first_choice.get("message"));
-    let message_present = message_json.is_some();
-    if !message_present {
-        return ::std::string::String::new();
+    let mut params = ::serde_json::Map::new();
+    let max_tokens_json = ::serde_json::Value::from(max_tokens);
+    params.insert("max_tokens".to_string(), max_tokens_json);
+    if let ::core::option::Option::Some(::serde_json::Value::Object(existing)) = existing_params {
+        for (key, value) in existing {
+            params.insert(key, value);
+        }
     }
-    let message_value = message_json.expect("assistant message checked above");
-    let content_value = message_value
-        .get("content")
-        .and_then(|content_field| content_field.as_str())
-        .unwrap_or("");
-    let content_present = !content_value.trim().is_empty();
-    if content_present {
-        return content_value.to_string();
-    }
-    message_value
-        .get("reasoning_content")
-        .and_then(|reasoning_field| reasoning_field.as_str())
-        .unwrap_or("")
-        .to_string()
+    ::serde_json::Value::Object(params)
+}
+
+/// Extract the text content from one completion choice.
+///
+/// The helper skips tool-call content. An empty result means the response
+/// carried no text channel at all.
+fn assistant_text_of(
+    choice: &::rig::OneOrMany<::rig::message::AssistantContent>,
+) -> ::std::string::String {
+    choice
+        .iter()
+        .find_map(|item| match item {
+            ::rig::message::AssistantContent::Text(text) => {
+                ::core::option::Option::Some(text.text.clone())
+            },
+            _ => ::core::option::Option::None,
+        })
+        .unwrap_or_default()
 }
 
 /// Reduce a reasoning-dominant response to its most usable answer text.
@@ -361,52 +287,6 @@ fn extract_code(response_text: &::core::primitive::str) -> ::std::string::String
         ::core::option::Option::None => remainder,
     };
     code_body.trim().to_string()
-}
-
-/// Completion model wrapper that counts real backend calls for honesty auditing.
-#[derive(::core::clone::Clone, ::core::fmt::Debug)]
-pub struct CountingCompletionModel<M: ::rig::completion::CompletionModel> {
-    /// Wrapped completion model that reaches the real backend.
-    inner: M,
-    /// Number of completion invocations issued to the backend.
-    request_counter: ::std::sync::Arc<::std::sync::atomic::AtomicU64>,
-}
-
-impl<M: ::rig::completion::CompletionModel> self::CountingCompletionModel<M> {
-    /// Wrap one completion model with a shared request counter.
-    pub fn new(
-        inner: M,
-        request_counter: ::std::sync::Arc<::std::sync::atomic::AtomicU64>,
-    ) -> Self {
-        Self {
-            inner: { inner },
-            request_counter,
-        }
-    }
-}
-
-impl<M: ::rig::completion::CompletionModel> ::rig::completion::CompletionModel
-    for self::CountingCompletionModel<M>
-{
-    type Response = <M as ::rig::completion::CompletionModel>::Response;
-
-    fn completion(
-        &self,
-        request: ::rig::completion::CompletionRequest,
-    ) -> impl ::core::future::Future<
-        Output = ::core::result::Result<
-            ::rig::completion::CompletionResponse<Self::Response>,
-            ::rig::completion::CompletionError,
-        >,
-    > + ::core::marker::Send {
-        let inner_future = self.inner.completion(request);
-        let counting_future = async move {
-            self.request_counter
-                .fetch_add(1, ::std::sync::atomic::Ordering::SeqCst);
-            inner_future.await
-        };
-        counting_future
-    }
 }
 
 #[cfg(test)]

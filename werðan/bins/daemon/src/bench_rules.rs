@@ -32,10 +32,9 @@ pub fn extract_rules_for_board(
 ) -> self::RuleExtractionReport {
     let mut report = self::RuleExtractionReport::default();
     let inference = &bench_config.inference;
-    let qwen_config = super::bench_llm::QwenConfig::from_inference(inference);
-    let qwen_model = super::bench_llm::QwenReasoningModel::new(qwen_config);
+    let compat_model = super::bench_llm::OpenAiCompatModel::from_inference(inference);
     let counting_model =
-        super::bench_llm::CountingCompletionModel::new(qwen_model, request_counter.clone());
+        super::bench_llm::CountingCompletionModel::new(compat_model, request_counter.clone());
     let request_temperature = inference.inference_temperature;
     let request_max_tokens = inference.inference_max_tokens as ::core::primitive::u64;
     let runtime_res = ::tokio::runtime::Builder::new_current_thread()
@@ -216,7 +215,9 @@ fn user_message_of(prompt_text: &::core::primitive::str) -> ::rig::message::Mess
 
 /// Extract the first text content item from one completion response choice.
 fn choice_text_of(
-    response: &::rig::completion::CompletionResponse<::serde_json::Value>,
+    response: &::rig::completion::CompletionResponse<
+        ::rig::providers::openai::CompletionResponse,
+    >,
 ) -> ::std::string::String {
     response
         .choice
