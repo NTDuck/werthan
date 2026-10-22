@@ -15,13 +15,28 @@ stepdown.workspace = true
 turbofish.workspace = true
 
 [dependencies]
+reqwest = { workspace = true }
 bon = { workspace = true }
-topology = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-protocol = { workspace = true }
 interactive = { workspace = true }
 tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+ignore = { workspace = true }
+holon-blackboard = { workspace = true }
+global-blackboard = { workspace = true }
+global-engine = { workspace = true }
+holon-fsm = { workspace = true }
+holon-engine = { workspace = true }
+rig-core = { workspace = true }
+holon-evaluator = { workspace = true }
+holon-strategy = { workspace = true }
+holon-codegen = { workspace = true }
+holon-testgen = { workspace = true }
+holon-patch = { workspace = true }
+dotenvy = { workspace = true }
 
 [lints]
 workspace = true

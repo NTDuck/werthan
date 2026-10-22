@@ -30,3 +30,5 @@ inference:
 verification:
   max_self_heal_retries: 3
   require_byte_identical_io: false
+ariadne:
+  max_rollouts: 16

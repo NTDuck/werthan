@@ -3,17 +3,17 @@ members = [
     "werðan/.checks/*",
     "werðan/.examples/*",
     "werðan/.experiments/*",
-    "werðan/infras/core",
-    "werðan/infras/blackboard",
-    "werðan/infras/statechart",
-    "werðan/infras/laya",
-    "werðan/infras/tools/mcp",
-    "werðan/infras/tools/rea",
-    "werðan/topology/operative",
-    "werðan/topology/cluster",
-    "werðan/topology/topology",
     "werðan/bins/daemon",
     "werðan/bins/interactive",
+    "werðan/libs/global/blackboard",
+    "werðan/libs/global/engine",
+    "werðan/libs/global/fsm",
+    "werðan/libs/global/agents/*",
+    "werðan/libs/shared/tools",
+    "werðan/libs/holon/fsm",
+    "werðan/libs/holon/engine",
+    "werðan/libs/holon/blackboard",
+    "werðan/libs/holon/agents/*",
 ]
 exclude = [
     "benchmarks",
@@ -36,24 +36,26 @@ ste100 = { path = "werðan/.checks/ste100" }
 stepdown = { path = "werðan/.checks/stepdown" }
 turbofish = { path = "werðan/.checks/turbofish" }
 
-# Infras
-protocol = { path = "werðan/infras/core" }
-blackboard = { path = "werðan/infras/blackboard" }
-statechart = { path = "werðan/infras/statechart" }
-laya = { path = "werðan/infras/laya" }
-mcp = { path = "werðan/infras/tools/mcp" }
-rea = { path = "werðan/infras/tools/rea" }
-
-# Topology
-operative = { path = "werðan/topology/operative" }
-cluster = { path = "werðan/topology/cluster" }
-topology = { path = "werðan/topology/topology" }
-
 # Bins
 daemon = { path = "werðan/bins/daemon" }
 interactive = { path = "werðan/bins/interactive" }
 
+# Libs
+global-blackboard = { path = "werðan/libs/global/blackboard" }
+global-engine = { path = "werðan/libs/global/engine" }
+global-fsm = { path = "werðan/libs/global/fsm" }
+global-arbiter = { path = "werðan/libs/global/agents/arbiter" }
+tools = { path = "werðan/libs/shared/tools" }
+holon-fsm = { path = "werðan/libs/holon/fsm" }
+holon-engine = { path = "werðan/libs/holon/engine" }
+holon-blackboard = { path = "werðan/libs/holon/blackboard" }
+holon-strategy = { path = "werðan/libs/holon/agents/holon-strategy" }
+holon-codegen = { path = "werðan/libs/holon/agents/holon-codegen" }
+holon-testgen = { path = "werðan/libs/holon/agents/holon-testgen" }
+holon-patch = { path = "werðan/libs/holon/agents/holon-patch" }
+holon-evaluator = { path = "werðan/libs/holon/agents/holon-evaluator" }
 # External Crates
+futures = { version = "0.3" }
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
@@ -63,14 +65,29 @@ schemars = { version = "0.8" }
 sha2 = { version = "0.10" }
 similar = { version = "2.6" }
 quick-xml = { version = "0.36" }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
 ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
 crossterm = { version = "0.28" }
 rig-core = { version = "0.9", default-features = false }
 bon = { version = "3.3" }
+dirs = { version = "6.0" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
 redb = { version = "4.4.0", default-features = false, features = ["std"] }
+regex = { version = "1.13" }
+anyhow = { version = "1.0" }
+globset = { version = "0.4" }
+dotenvy = { version = "0.15" }
+ignore = { version = "0.4" }
+ast-grep-core = { version = "0.39", default-features = false, features = ["tree-sitter"] }
+tree-sitter = { version = "0.25" }
+tree-sitter-javascript = { version = "0.25" }
+tree-sitter-json = { version = "0.24" }
+tree-sitter-md = { version = "0.5" }
+tree-sitter-python = { version = "0.25" }
+tree-sitter-rust = { version = "0.24" }
+tree-sitter-toml-ng = { version = "0.7" }
+tree-sitter-typescript = { version = "0.23" }
 
 [workspace.lints.rust]
 missing_docs = "allow"
