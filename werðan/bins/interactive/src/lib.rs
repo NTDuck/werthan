@@ -1,5 +1,7 @@
 //! Terminal user interface layout, event loop, and interactive cockpit.
 
+use ::configurator::AskBridge;
+
 /// Mock module replacing invalidated infras and topology crates.
 pub mod mock;
 
@@ -39,6 +41,103 @@ pub enum ChatMessage {
     Notice(::std::string::String),
     /// Error notice.
     Error(::std::string::String),
+}
+
+/// Ask bridge surfacing configurator questions to the cockpit transcript.
+///
+/// Contract: `ask` pushes one Notice message per question into the owned
+/// buffer `emitted`, and the caller drains `emitted` into
+/// `InteractiveCockpit::messages`. The caller preloads the `canned`
+/// answer queue before calling `ask`. When no canned answer exists for a
+/// question id, the bridge returns the recommended option when present,
+/// else an empty string. An empty string leaves the wizard default in
+/// place, because `apply_answer` ignores empty values.
+pub struct TuiAskBridge {
+    /// Question messages formatted for the cockpit transcript.
+    pub emitted: ::std::vec::Vec<self::ChatMessage>,
+    /// Preloaded answers keyed by question id.
+    pub canned: ::std::vec::Vec<(::std::string::String, ::std::string::String)>,
+}
+
+impl self::TuiAskBridge {
+    /// Create empty bridge without canned answers.
+    pub fn new() -> Self {
+        Self {
+            emitted: ::std::vec::Vec::new(),
+            canned: ::std::vec::Vec::new(),
+        }
+    }
+}
+
+impl ::core::default::Default for self::TuiAskBridge {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ::configurator::AskBridge for self::TuiAskBridge {
+    fn ask(
+        &mut self,
+        questions: ::std::vec::Vec<::configurator::ConfigQuestion>,
+    ) -> ::std::vec::Vec<::configurator::ConfigAnswer> {
+        questions
+            .into_iter()
+            .map(|question| -> ::configurator::ConfigAnswer {
+                self.emit_question(&question);
+                let canned_res = self
+                    .canned
+                    .iter()
+                    .find(|(canned_id, _)| canned_id == &question.id);
+                let value = match canned_res {
+                    ::core::option::Option::Some((_, canned_value)) => canned_value.clone(),
+                    ::core::option::Option::None => match question.recommended {
+                        ::core::option::Option::Some(idx) => question
+                            .options
+                            .get(idx)
+                            .cloned()
+                            .unwrap_or_default(),
+                        ::core::option::Option::None => ::std::string::String::new(),
+                    },
+                };
+                let answer_id = { question.id.clone() };
+                ::configurator::ConfigAnswer {
+                    id: { answer_id },
+                    value,
+                }
+            })
+            .collect()
+    }
+}
+
+impl self::TuiAskBridge {
+    /// Push one formatted question onto the transcript buffer.
+    fn emit_question(
+        &mut self,
+        question: &::configurator::ConfigQuestion,
+    ) {
+        let options_text = question
+            .options
+            .iter()
+            .map(|option| -> ::std::string::String { ::std::format!("(a) {option}") })
+            .collect::<::std::vec::Vec<::std::string::String>>()
+            .join(" ");
+        let recommended_text = match question.recommended {
+            ::core::option::Option::Some(idx) => question
+                .options
+                .get(idx)
+                .map(|opt| -> ::std::string::String { ::std::format!(" [recommended: {opt}]") })
+                .unwrap_or_default(),
+            ::core::option::Option::None => ::std::string::String::new(),
+        };
+        let text = ::std::format!(
+            "Question [{}]: {}{} {}",
+            question.id,
+            question.question,
+            recommended_text,
+            options_text
+        );
+        self.emitted.push(self::ChatMessage::Notice(text));
+    }
 }
 
 /// Completion dropdown category.
@@ -146,6 +245,8 @@ pub struct InteractiveCockpit {
     pub cards: ::std::vec::Vec<self::SpecialistCardState>,
     /// Active draft configuration.
     pub draft_config: self::mock::ModernizeConfig,
+    /// Active configurator wizard agent when a wizard session started.
+    pub wizard: ::core::option::Option<::configurator::ConfiguratorAgent>,
     /// Shared blackboard instance.
     pub blackboard: self::mock::Blackboard,
     /// Active state machine state.
@@ -670,6 +771,83 @@ pub fn resolve_dropdown_items(
     }
 }
 
+/// Parse user reply text into wizard answer pairs.
+///
+/// Accepts `<id> = <value>` and `set <id> to <value>` forms. The value
+/// spans everything after the separator so multi-word commands parse.
+fn parse_answer_pairs(text: &::core::primitive::str) -> ::std::vec::Vec<(::std::string::String, ::std::string::String)> {
+    let trimmed = text.trim();
+    let set_suffix_res = trimmed
+        .strip_prefix("set ")
+        .and_then(|rest| rest.split_once(" to "));
+    if let ::core::option::Option::Some((id, value)) = set_suffix_res {
+        let id_text = id.trim().trim_matches('"').trim_matches('\'').to_string();
+        let value_text = value.trim().trim_matches('"').trim_matches('\'').to_string();
+        return ::std::vec![(id_text, value_text)];
+    }
+    let eq_res = trimmed.split_once('=');
+    match eq_res {
+        ::core::option::Option::Some((id, value)) => {
+            let id_text = id.trim().to_string();
+            let value_text = value.trim().trim_matches('"').trim_matches('\'').to_string();
+            if id_text.is_empty() || value_text.is_empty() {
+                return ::std::vec::Vec::new();
+            }
+            ::std::vec![(id_text, value_text)]
+        },
+        ::core::option::Option::None => ::std::vec::Vec::new(),
+    }
+}
+
+/// Map legacy `/init` key aliases onto canonical wizard question ids.
+fn normalize_answer_key(
+    key: &::core::primitive::str,
+    value: &::core::primitive::str,
+) -> (::std::string::String, ::std::string::String) {
+    let canonical = match key {
+        "input" | "legacy" => "input_legacy_dir",
+        "output" | "workspace" => "workspace_root",
+        "lang" | "source_lang" => "source_language",
+        "target" | "target_lang" => "target_language",
+        "id" | "campaign" => "campaign_id",
+        "mode" => "execution_mode",
+        _ => key,
+    };
+    let mode_value = if key == "mode" && value == "auto" {
+        "full_auto"
+    } else {
+        value
+    };
+    (canonical.to_string(), mode_value.to_string())
+}
+
+/// Map canonical campaign configuration onto the mock runner schema.
+fn campaign_to_mock(cfg: &::configschema::CampaignConfig) -> self::mock::ModernizeConfig {
+    let input_dir = cfg.paths.input_legacy_dir.to_string_lossy().to_string();
+    let workspace_dir = cfg.paths.workspace_root.to_string_lossy().to_string();
+    let source_language = { cfg.stack.source_language.clone() };
+    let target_language = { cfg.stack.target_language.clone() };
+    let campaign_id = { cfg.campaign_id.clone() };
+    let execution_mode = match cfg.execution_mode {
+        ::configschema::ExecutionMode::Hitl => self::mock::ExecutionMode::Hitl,
+        ::configschema::ExecutionMode::FullAuto => self::mock::ExecutionMode::FullAuto,
+    };
+    let paths = self::mock::ModernizePaths {
+        input_legacy_dir: { input_dir },
+        workspace_root: { workspace_dir },
+    };
+    let stack = self::mock::ModernizeStack {
+        source_language,
+        target_language,
+    };
+    self::mock::ModernizeConfig {
+        campaign_id,
+        execution_mode,
+        paths,
+        stack,
+    }
+}
+
 /// Return catalog of supported interactive slash commands.
 pub fn available_slash_commands() -> ::std::vec::Vec<self::DropdownItem> {
     ::std::vec![
@@ -898,6 +1076,7 @@ impl self::InteractiveCockpit {
             messages: ::std::vec::Vec::new(),
             cards: { streams },
             draft_config: { default_config },
+            wizard: ::core::option::Option::None,
             blackboard: { bb },
             current_state: self::mock::ModernizationState::S0IntentPreflight,
             pending_gate: ::core::option::Option::None,
@@ -1086,7 +1265,9 @@ impl self::InteractiveCockpit {
         match command {
             "/help" => {
                 self.messages.push(self::ChatMessage::Notice("Available Slash Commands.".to_string()));
-                self.messages.push(self::ChatMessage::Notice("  /init [args]: Draft configuration.".to_string()));
+                self.messages.push(self::ChatMessage::Notice(
+                    "  /init: Run the configuration wizard (no args) or set fields (key=value args).".to_string(),
+                ));
                 self.messages
                     .push(self::ChatMessage::Notice("  /save-config [path]: Save draft config to YAML.".to_string()));
                 self.messages
@@ -1131,12 +1312,21 @@ impl self::InteractiveCockpit {
             "/start" => {
                 let is_auto = parts.contains(&"--auto");
                 let is_hitl = parts.contains(&"--hitl");
+                let wizard_mode = self
+                    .wizard
+                    .as_ref()
+                    .map(|agent| -> self::mock::ExecutionMode {
+                        match agent.draft.execution_mode {
+                            ::configschema::ExecutionMode::FullAuto => self::mock::ExecutionMode::FullAuto,
+                            ::configschema::ExecutionMode::Hitl => self::mock::ExecutionMode::Hitl,
+                        }
+                    });
                 let mode = if is_auto {
                     self::mock::ExecutionMode::FullAuto
                 } else if is_hitl {
                     self::mock::ExecutionMode::Hitl
                 } else {
-                    self.draft_config.execution_mode
+                    wizard_mode.unwrap_or(self.draft_config.execution_mode)
                 };
                 self.start_modernization(mode);
             },
@@ -1253,44 +1443,87 @@ impl self::InteractiveCockpit {
         }
     }
 
-    /// Process `/init` arguments to update draft configuration.
+    /// Process `/init` arguments to drive the configurator wizard.
     fn handle_init_command(&mut self, args: &[&::core::primitive::str]) {
+        let mut agent = ::configurator::ConfiguratorAgent::builder().build();
         for arg in args {
             if let ::core::option::Option::Some((k, v)) = arg.split_once('=') {
-                match k {
-                    "input" | "legacy" => self.draft_config.paths.input_legacy_dir = v.to_string(),
-                    "output" | "workspace" => self.draft_config.paths.workspace_root = v.to_string(),
-                    "lang" | "source_lang" => self.draft_config.stack.source_language = v.to_string(),
-                    "target" | "target_lang" => self.draft_config.stack.target_language = v.to_string(),
-                    "id" | "campaign" => self.draft_config.campaign_id = v.to_string(),
-                    "mode" => {
-                        if v == "auto" {
-                            self.draft_config.execution_mode = self::mock::ExecutionMode::FullAuto;
-                        } else {
-                            self.draft_config.execution_mode = self::mock::ExecutionMode::Hitl;
-                        }
-                    },
-                    _ => {},
-                }
+                let (id, value) = self::normalize_answer_key(k, v);
+                agent.apply_answer(&id, &value);
             }
         }
 
-        self.messages
-            .push(self::ChatMessage::Orchestrator("I prepared the modernization configuration draft:".to_string()));
+        if args.is_empty() {
+            let script = agent.question_script();
+            let mut bridge = self::TuiAskBridge::new();
+            let answers = bridge.ask(script);
+            for msg in bridge.emitted {
+                self.messages.push(msg);
+            }
+            for answer in answers {
+                agent.apply_answer(&answer.id, &answer.value);
+            }
+            self.messages.push(self::ChatMessage::Orchestrator(
+                "Wizard complete. Reply with `<id> = <value>` to adjust any field.".to_string(),
+            ));
+        } else {
+            self.messages.push(self::ChatMessage::Orchestrator(
+                "I prepared the modernization configuration draft:".to_string(),
+            ));
+        }
 
-        let yaml_str = ::serde_yaml_ng::to_string(&self.draft_config).unwrap_or_default();
-        for line in yaml_str.lines() {
+        self.wizard = ::core::option::Option::Some(agent);
+        let draft_yaml = self
+            .wizard
+            .as_ref()
+            .map(|agent| -> ::std::string::String { agent.draft.to_yaml_text() })
+            .unwrap_or_default();
+        for line in draft_yaml.lines() {
             let indented = ::std::format!("  {line}");
             self.messages.push(self::ChatMessage::Orchestrator(indented));
         }
 
         self.messages.push(self::ChatMessage::Orchestrator(
-            "Type adjustments (e.g. `set input to <path>`), or `/save-config`, then `/start`.".to_string(),
+            "Type adjustments (e.g. `campaign_id = my-campaign`), or `/save-config`, then `/start`.".to_string(),
         ));
     }
 
-    /// Converse with agent to update draft configuration.
+    /// Converse with agent to update the wizard draft configuration.
     fn converse_with_agent(&mut self, text: &::core::primitive::str) {
+        if self.wizard.is_none() {
+            self.converse_legacy_keywords(text);
+            return;
+        }
+        let pairs = self::parse_answer_pairs(text);
+        if pairs.is_empty() {
+            self.converse_without_wizard(text);
+            return;
+        }
+        let draft_yaml = {
+            let agent_res = self.wizard.as_mut();
+            let agent = match agent_res {
+                ::core::option::Option::Some(agent) => agent,
+                ::core::option::Option::None => return,
+            };
+            for (id, value) in pairs {
+                agent.apply_answer(&id, &value);
+            }
+            agent.draft.to_yaml_text()
+        };
+        self.messages.push(self::ChatMessage::Orchestrator(
+            "Updated wizard draft configuration:".to_string(),
+        ));
+        for line in draft_yaml.lines() {
+            let indented = ::std::format!("  {line}");
+            self.messages.push(self::ChatMessage::Orchestrator(indented));
+        }
+        self.messages.push(self::ChatMessage::Orchestrator(
+            "Type /save-config to save to disk, or /start to start.".to_string(),
+        ));
+    }
+
+    /// Apply legacy keyword parsing onto the mock draft configuration.
+    fn converse_legacy_keywords(&mut self, text: &::core::primitive::str) {
         let lower = text.to_lowercase();
         let mut modified = false;
 
@@ -1342,35 +1575,45 @@ impl self::InteractiveCockpit {
                 "Type /save-config to save to disk, or /start to start.".to_string(),
             ));
         } else {
-            let reply = ::std::format!(
-                "Understood: \"{text}\". Tracking campaign `{}` (target: {}). Type /init to edit parameters or /start to start.",
-                self.draft_config.campaign_id,
-                self.draft_config.stack.target_language
-            );
-            self.messages.push(self::ChatMessage::Orchestrator(reply));
+            self.converse_without_wizard(text);
         }
+    }
+
+    /// Reply without an active wizard draft.
+    fn converse_without_wizard(&mut self, text: &::core::primitive::str) {
+        let reply = ::std::format!(
+            "Understood: \"{text}\". Tracking campaign `{}` (target: {}). Type /init to edit parameters or /start to start.",
+            self.draft_config.campaign_id,
+            self.draft_config.stack.target_language
+        );
+        self.messages.push(self::ChatMessage::Orchestrator(reply));
     }
 
     /// Save configuration draft to file path.
     fn save_config_to_path(&mut self, path: &::core::primitive::str) {
-        let yaml_res = ::serde_yaml_ng::to_string(&self.draft_config);
-        match yaml_res {
-            ::core::result::Result::Ok(content) => {
-                let write_res = ::std::fs::write(path, content);
-                match write_res {
-                    ::core::result::Result::Ok(_) => {
-                        let success_msg =
-                            ::std::format!("✔ Saved configuration to `{path}`. You may now run `/start`.");
-                        self.messages.push(self::ChatMessage::Notice(success_msg));
-                    },
+        let content = match &self.wizard {
+            ::core::option::Option::Some(agent) => agent.draft.to_yaml_text(),
+            ::core::option::Option::None => {
+                let yaml_res = ::serde_yaml_ng::to_string(&self.draft_config);
+                match yaml_res {
+                    ::core::result::Result::Ok(yaml) => yaml,
                     ::core::result::Result::Err(err) => {
-                        let err_msg = ::std::format!("Failed to write `{path}`: {err}");
+                        let err_msg = ::std::format!("Failed to serialize YAML: {err}");
                         self.messages.push(self::ChatMessage::Error(err_msg));
+                        return;
                     },
                 }
             },
+        };
+        let write_res = ::std::fs::write(path, content);
+        match write_res {
+            ::core::result::Result::Ok(_) => {
+                let success_msg =
+                    ::std::format!("✔ Saved configuration to `{path}`. You may now run `/start`.");
+                self.messages.push(self::ChatMessage::Notice(success_msg));
+            },
             ::core::result::Result::Err(err) => {
-                let err_msg = ::std::format!("Failed to serialize YAML: {err}");
+                let err_msg = ::std::format!("Failed to write `{path}`: {err}");
                 self.messages.push(self::ChatMessage::Error(err_msg));
             },
         }
@@ -1407,6 +1650,10 @@ impl self::InteractiveCockpit {
 
     /// Start modernization workflow with given execution mode.
     fn start_modernization(&mut self, mode: self::mock::ExecutionMode) {
+        if let ::core::option::Option::Some(agent) = &self.wizard {
+            let synced = self::campaign_to_mock(&agent.draft);
+            self.draft_config = synced;
+        }
         if self.is_running {
             self.messages.push(self::ChatMessage::Error("Modernization workflow is already running.".to_string()));
             return;
@@ -1429,7 +1676,7 @@ impl self::InteractiveCockpit {
         let bb = self.blackboard.clone();
 
         ::tokio::spawn(async move {
-            let runner = self::mock::StateMachineRunner::new(cfg, bb.clone());
+            let runner = self::mock::StateMachineRunner::new(cfg);
             let mut sub = bb.subscribe();
 
             let ui_tx_sub = ui_tx.clone();

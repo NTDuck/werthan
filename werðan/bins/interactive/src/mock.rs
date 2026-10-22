@@ -305,9 +305,6 @@ pub struct RunnerS4Approved;
 struct RunnerContext {
     /// Active modernization configuration.
     config: self::ModernizeConfig,
-    /// Shared blackboard instance retained for future phase observers.
-    #[allow(dead_code)]
-    blackboard: self::Blackboard,
 }
 
 /// Mock state machine runner executing modernization campaign lifecycle.
@@ -324,10 +321,9 @@ pub struct StateMachineRunner<S> {
 
 impl self::StateMachineRunner<self::RunnerS0IntentPreflight> {
     /// Create new state machine runner mock parked in the intent preflight phase.
-    pub fn new(config: self::ModernizeConfig, blackboard: self::Blackboard) -> Self {
+    pub fn new(config: self::ModernizeConfig) -> Self {
         let context = self::RunnerContext {
             config: { config },
-            blackboard: { blackboard },
         };
         Self {
             context: { context },
