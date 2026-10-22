@@ -1,0 +1,30 @@
+campaign_id: crust-btree-map-bench
+execution_mode: full_auto
+paths:
+  input_legacy_dir: benchmarks/assets/ReCodeAgent/data/tool_projects/crust/btree-map/c
+  workspace_root: benchmarks/outputs/crust/btree-map/rust
+  off_limits_globs: []
+stack:
+  source_language: c
+  binary_artifacts: []
+  use_ghidra_rea: false
+  target_language: rust
+  target_edition_or_framework: '2024'
+  target_build_cmd: cargo check
+  target_test_cmd: cargo test
+  legacy_test_harness_cmd: make test
+inference:
+  base_url: ''
+  model: ashalliant/qwen3.8-27b-abliterated
+  max_parallel_shards: 2
+  max_shards: 2
+  inference_max_tokens: 32768
+  inference_temperature: 0.2
+  inference_timeout_secs: 600
+  build_timeout_secs: 120
+  test_timeout_secs: 120
+verification:
+  max_self_heal_retries: 3
+  require_byte_identical_io: false
+ariadne:
+  max_rollouts: 16
