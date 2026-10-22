@@ -126,7 +126,7 @@ werðan-daemon --config <path/to/migration.yml>
 * `--smoke`: verify the inference endpoint is reachable via `GET /v1/models` and print the served model id. No mock output exists anywhere in the benchmark paths.
 
 ### 4.4 Environment Variable Configuration
-The daemon, agent harnesses, tools, and LLM clients load configuration strictly from the environment with zero in-code fallback literals. Default values are centrally configured in `.env` (loaded by `dotenvy::dotenv()` at daemon startup) and documented in `.env.example`. The `.cargo/config.toml` `[env]` table retains only `PKG_CONFIG_PATH` for build-time cargo env propagation to build scripts:
+The daemon, agent harnesses, tools, and LLM clients load configuration strictly from the environment with zero in-code fallback literals. Default values are centrally configured in `.env` and documented in `.env.example`. The daemon's `build.rs` ingests `.env` at compile time and emits `cargo:rustc-env=KEY=VALUE` (with `cargo:rerun-if-changed=.env`), exposing variables via `env!("KEY")` macros with zero runtime dotenv overhead:
 * `BASE_URL`: Endpoint base URL for OpenAI-compatible chat completions (`http://127.0.0.1:8092/v1`).
 * `MODEL_ID`: Default model identifier (`swift-1.5-qwen3.8-27b`).
 * `BENCH_CONFIGS_DIR`: Default directory searched by `--benchmark-all` (`benchmarks/configs/generated`).
