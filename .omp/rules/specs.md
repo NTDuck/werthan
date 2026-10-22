@@ -5,13 +5,13 @@ alwaysApply: true
 
 # Specifications Synchronization (Specs)
 
-Maintain and continuously synchronize product specifications (`docs/specs/product-spec.md`) and technical specifications (`docs/specs/tech-spec.md`) with code changes on the fly. Code and specs must remain in lockstep at all times.
+Maintain and continuously synchronize product specifications (`docs/specs/product.md`, `docs/specs/product-config.md`) and technical specifications (`docs/specs/tech-spec.md` plus the `docs/specs/tech-spec/` domain files) with code changes on the fly. Code and specs must remain in lockstep at all times. `docs/specs/INDEX.md` is the entry pointer and defines the file routing.
 
 ## 1. Specification Files & Authority
 
-- **Product Specification** (`docs/specs/product-spec.md`): Authoritative document for user-facing behavior, capabilities, TUI layout/keystrokes, commands, workflows, tools, and functional requirements.
-- **Technical Specification** (`docs/specs/tech-spec.md`): Authoritative document for architectural decisions, workspace hierarchy, crate layouts, module contracts, interfaces, data schemas, algorithms, and system invariants.
-- **Architectural Decision Records** (`docs/decisions/`): Architectural decisions follow MADR (Markdown Architectural Decision Records) referencing `references/madr/template/adr-template.md`.
+- **Product Specification** (`docs/specs/product.md`, `docs/specs/product-config.md`): Authoritative document for user-facing behavior, capabilities, TUI layout/keystrokes, commands, workflows, tools, and functional requirements (`product.md`), plus operator-facing configuration, environment variables, CLI invocation, and artifact layouts (`product-config.md`).
+- **Technical Specification** (`docs/specs/tech-spec.md` entry + `docs/specs/tech-spec/` domain files): Authoritative document for architectural decisions, workspace hierarchy, crate layouts, module contracts, interfaces, data schemas, algorithms, and system invariants. `docs/specs/INDEX.md` routes between them and maps `ADR-XXXX` tags.
+- **Architectural Decision Records** (`docs/decisions/`): Architectural decisions follow MADR (Markdown Architectural Decision Records) referencing `references/madr/template/adr-template.md`. The ledger is append-only.
 
 ## 2. Inviolable Synchronization Invariants
 
@@ -19,7 +19,7 @@ Maintain and continuously synchronize product specifications (`docs/specs/produc
 - **Spec First or Lockstep**: Never postpone specification updates to follow-up work or future PRs. If code changes, specifications must change alongside it immediately.
 - **Truth Discipline**: Code that contradicts specification or specification that contradicts code is a defect.
 - **Completeness**: When adding or refactoring modules, libraries, or tools (e.g. `werðan/libs/shared/tools/`), both specifications must document their existence, interface contracts, error models, and integration points.
-- **Pre-Yield Verification**: Before yielding completion of any task, check `git status` or diff against `docs/specs/` to verify that both `docs/specs/product-spec.md` and `docs/specs/tech-spec.md` accurately reflect the actual implementation state.
+- **Pre-Yield Verification**: Before yielding completion of any task, check `git status` or diff against `docs/specs/` to verify that the specs routed through `docs/specs/INDEX.md` accurately reflect the actual implementation state.
 
 ## 3. FSM State Representation Convention
 
