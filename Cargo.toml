@@ -10,6 +10,8 @@ members = [
     "werðan/libs/global/fsm",
     "werðan/libs/global/agents/*",
     "werðan/libs/shared/tools",
+    "werðan/libs/shared/configschema",
+    "werðan/libs/shared/agents/*",
     "werðan/libs/holon/fsm",
     "werðan/libs/holon/engine",
     "werðan/libs/holon/blackboard",
@@ -46,6 +48,8 @@ global-engine = { path = "werðan/libs/global/engine" }
 global-fsm = { path = "werðan/libs/global/fsm" }
 global-arbiter = { path = "werðan/libs/global/agents/arbiter" }
 tools = { path = "werðan/libs/shared/tools" }
+configschema = { path = "werðan/libs/shared/configschema" }
+configurator = { path = "werðan/libs/shared/agents/configurator" }
 holon-fsm = { path = "werðan/libs/holon/fsm" }
 holon-engine = { path = "werðan/libs/holon/engine" }
 holon-blackboard = { path = "werðan/libs/holon/blackboard" }

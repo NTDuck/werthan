@@ -703,6 +703,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "configschema"
+version = "0.1.0"
+dependencies = [
+ "flatmods",
+ "pathqual",
+ "plumbing",
+ "serde",
+ "serde_yaml_ng",
+ "ste100",
+ "stepdown",
+ "turbofish",
+]
+
+[[package]]
+name = "configurator"
+version = "0.1.0"
+dependencies = [
+ "bon",
+ "configschema",
+ "flatmods",
+ "pathqual",
+ "plumbing",
+ "rig-core",
+ "serde_json",
+ "ste100",
+ "stepdown",
+ "tokio",
+ "tools",
+ "turbofish",
+]
+
+[[package]]
 name = "console"
 version = "0.15.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -997,6 +1029,7 @@ name = "daemon"
 version = "0.1.0"
 dependencies = [
  "bon",
+ "configschema",
  "flatmods",
  "global-blackboard",
  "global-engine",
@@ -1744,6 +1777,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "global-critics"
+version = "0.1.0"
+dependencies = [
+ "bon",
+ "flatmods",
+ "global-arbiter",
+ "global-fsm",
+ "pathqual",
+ "plumbing",
+ "rig-core",
+ "serde",
+ "serde_json",
+ "ste100",
+ "stepdown",
+ "tokio",
+ "tracing",
+ "turbofish",
+]
+
+[[package]]
 name = "global-engine"
 version = "0.1.0"
 dependencies = [
@@ -1774,6 +1827,22 @@ dependencies = [
  "plumbing",
  "serde",
  "serde_json",
+ "ste100",
+ "stepdown",
+ "turbofish",
+]
+
+[[package]]
+name = "global-workers"
+version = "0.1.0"
+dependencies = [
+ "flatmods",
+ "global-blackboard",
+ "global-fsm",
+ "holon-blackboard",
+ "holon-fsm",
+ "pathqual",
+ "plumbing",
  "ste100",
  "stepdown",
  "turbofish",
@@ -2552,6 +2621,8 @@ name = "interactive"
 version = "0.1.0"
 dependencies = [
  "bon",
+ "configschema",
+ "configurator",
  "crossterm",
  "flatmods",
  "pathqual",
@@ -2563,6 +2634,7 @@ dependencies = [
  "ste100",
  "stepdown",
  "tokio",
+ "tools",
  "turbofish",
 ]
 
@@ -2961,9 +3033,9 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "memmap2"
-version = "0.9.11"
+version = "0.9.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1219ed1b7f229ee7104d281dd01d6802fe28bb6e95d292942c4daacdeb798c0"
+checksum = "6b0ca1155a9ecc25aa12e8313a119f32edf0255fea2f44839c4ac0a12b2ac157"
 dependencies = [
  "libc",
  "stable_deref_trait",
@@ -3555,9 +3627,9 @@ dependencies = [
 
 [[package]]
 name = "ptr_hash"
-version = "2.1.2"
+version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b22cf1be774892680e056d3387db0dcaa4fd46964b270671ef661e127186b969"
+checksum = "b63ee8dbcb6f9b59d61bd20c10e1e95357e4ec44868e6fa51cfe1cefa3419afc"
 dependencies = [
  "bitvec",
  "colored",
@@ -3569,7 +3641,6 @@ dependencies = [
  "prefetch-index",
  "rand 0.10.3",
  "rand_chacha 0.10.0",
- "rayon",
  "rdst",
  "tempfile",
  "xxhash-rust",
@@ -3828,7 +3899,6 @@ dependencies = [
  "block-pseudorand",
  "criterion",
  "partition",
- "rayon",
  "tikv-jemallocator",
  "voracious_radix_sort",
 ]
@@ -4474,6 +4544,31 @@ dependencies = [
  "ryu",
  "serde",
  "unsafe-libyaml",
+]
+
+[[package]]
+name = "serial_test"
+version = "3.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "699f4197115b8a7e7ff19c9a315a4bd6fffec26cc4626ef45ecaea389e081c6d"
+dependencies = [
+ "futures-executor",
+ "futures-util",
+ "log",
+ "once_cell",
+ "parking_lot",
+ "serial_test_derive",
+]
+
+[[package]]
+name = "serial_test_derive"
+version = "3.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94e153fc76e1c6a068703d6d29c508a0b15c061c4b7e43da59cc097bc342673c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -5280,6 +5375,7 @@ dependencies = [
  "rig-core",
  "serde",
  "serde_json",
+ "serial_test",
  "ste100",
  "stepdown",
  "tokio",
