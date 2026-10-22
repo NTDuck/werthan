@@ -373,6 +373,7 @@ pub fn count_unimplemented(workspace_root: &::std::path::Path) -> ::core::primit
 /// keeps compiling. Every compiled artifact lands in the one file the harness
 /// replaces. Returns the inlined module names. Test-only today. The campaign
 /// pipeline wires this in when the workspace-overwrite path lands.
+#[cfg(test)]
 pub fn normalize_workspace_layout(workspace_root: &::std::path::Path) -> ::std::vec::Vec<::std::string::String> {
     let lib_path = workspace_root.join("src/lib.rs");
     let read_res = ::std::fs::read_to_string(&lib_path);
