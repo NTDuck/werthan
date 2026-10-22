@@ -84,10 +84,11 @@ async fn execute_eval(args: &self::EvalArgs) -> ::core::result::Result<self::Eva
     cmd.kill_on_drop(true);
 
     let timeout_secs = args.timeout.unwrap_or_else(|| {
-        ::std::env::var("TOOL_EVAL_TIMEOUT_SECS")
-            .expect("TOOL_EVAL_TIMEOUT_SECS must be set in environment")
+        let env_val = ::core::env!("TOOL_EVAL_TIMEOUT_SECS");
+        let parsed = env_val
             .parse::<::core::primitive::u64>()
-            .expect("TOOL_EVAL_TIMEOUT_SECS must be a valid u64")
+            .expect("TOOL_EVAL_TIMEOUT_SECS must be a valid u64");
+        parsed
     });
     let duration = ::tokio::time::Duration::from_secs(timeout_secs);
     let output_future = cmd.output();

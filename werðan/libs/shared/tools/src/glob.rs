@@ -73,10 +73,11 @@ fn execute_glob(args: self::GlobArgs) -> ::core::result::Result<self::GlobOutput
     let include_hidden = args.hidden.unwrap_or(false);
     let respect_gitignore = args.gitignore.unwrap_or(true);
     let limit = args.limit.unwrap_or_else(|| {
-        ::std::env::var("TOOL_GLOB_LIMIT")
-            .expect("TOOL_GLOB_LIMIT must be set in environment")
+        let env_val = ::core::env!("TOOL_GLOB_LIMIT");
+        let parsed = env_val
             .parse::<::core::primitive::usize>()
-            .expect("TOOL_GLOB_LIMIT must be a valid usize")
+            .expect("TOOL_GLOB_LIMIT must be a valid usize");
+        parsed
     });
 
     let (base_dir, glob_pattern) = self::resolve_search_spec(&input_path);
