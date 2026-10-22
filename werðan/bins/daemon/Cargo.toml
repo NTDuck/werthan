@@ -36,6 +36,7 @@ holon-strategy = { workspace = true }
 holon-codegen = { workspace = true }
 holon-testgen = { workspace = true }
 holon-patch = { workspace = true }
+configschema = { workspace = true }
 
 [lints]
 workspace = true

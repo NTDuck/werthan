@@ -40,7 +40,7 @@ pub struct SeedOutput {
 
 /// Seed the full GlobalBlackboard from the campaign configuration.
 pub fn seed_board(
-    bench_config: &super::bench_config::BenchConfig,
+    bench_config: &super::bench_config::CampaignConfig,
 ) -> ::core::result::Result<self::SeedOutput, ::std::string::String> {
     let repo_root = super::bench_config::repo_root();
     let legacy_dir = repo_root.join(&bench_config.paths.input_legacy_dir);
@@ -114,7 +114,7 @@ pub fn seed_board(
 
 /// Recompute the inventory entries for the configured legacy directory.
 pub fn inventory_entries(
-    bench_config: &super::bench_config::BenchConfig,
+    bench_config: &super::bench_config::CampaignConfig,
 ) -> ::core::result::Result<::std::vec::Vec<self::InventoryEntry>, ::std::string::String> {
     let repo_root = super::bench_config::repo_root();
     let legacy_dir = repo_root.join(&bench_config.paths.input_legacy_dir);
@@ -371,8 +371,8 @@ pub fn count_unimplemented(workspace_root: &::std::path::Path) -> ::core::primit
 /// module path that consumer targets rely on. For example,
 /// `src/bin/test_vec.rs` calls `vec::vec_insert`. The pristine workspace also
 /// keeps compiling. Every compiled artifact lands in the one file the harness
-/// replaces. Returns the inlined module names.
-#[allow(dead_code)]
+/// replaces. Returns the inlined module names. Test-only today. The campaign
+/// pipeline wires this in when the workspace-overwrite path lands.
 pub fn normalize_workspace_layout(workspace_root: &::std::path::Path) -> ::std::vec::Vec<::std::string::String> {
     let lib_path = workspace_root.join("src/lib.rs");
     let read_res = ::std::fs::read_to_string(&lib_path);

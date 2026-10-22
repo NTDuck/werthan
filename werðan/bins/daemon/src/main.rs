@@ -107,7 +107,9 @@ fn parse_args(args: &[::std::string::String]) -> self::CliArgs {
 }
 
 async fn run_smoke_verification() {
-    let base_url = self::bench_config::BenchConfig::default().inference.effective_base_url();
+    let bench_config = self::bench_config::CampaignConfig::default();
+    use self::bench_config::InferenceExt;
+    let base_url = bench_config.inference.effective_base_url();
     let models_url = ::std::format!("{base_url}/models");
     ::std::println!("[smoke] Inference endpoint check: {models_url}");
     let client_res = ::reqwest::Client::new().get(&models_url).send().await;
@@ -158,6 +160,7 @@ struct ModelEntry {
 }
 
 async fn run_benchmark(path: &::std::path::Path) {
+    use self::bench_config::CampaignExt;
     let load_res = self::bench_config::load_bench_config(path);
     let bench_config = match load_res {
         ::core::result::Result::Ok(value) => value,

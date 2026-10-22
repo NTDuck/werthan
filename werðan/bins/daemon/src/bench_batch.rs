@@ -5,6 +5,7 @@
 pub async fn run_batch(
     config_dir: &::std::path::Path,
 ) -> ::core::result::Result<self::BatchSummary, ::std::string::String> {
+    use super::bench_config::CampaignExt;
     let config_paths = self::list_config_paths(config_dir)?;
     let total_count = config_paths.len();
     let mut results = ::std::vec::Vec::new();
@@ -125,9 +126,10 @@ fn load_result(path: &::std::path::Path) -> ::core::option::Option<super::bench_
 
 /// Write one result JSON to the daemon results directory.
 fn write_result(
-    bench_config: &super::bench_config::BenchConfig,
+    bench_config: &super::bench_config::CampaignConfig,
     result: &super::bench_runner::BenchResult,
 ) -> ::core::result::Result<(), ::std::string::String> {
+    use super::bench_config::CampaignExt;
     let result_dir = bench_config.result_dir();
     let dir_create = ::std::fs::create_dir_all(&result_dir);
     if let ::core::result::Result::Err(create_error) = dir_create {
