@@ -8,6 +8,7 @@ publish.workspace = true
 description = "Interactive campaign configuration agent driving the /mkcfg wizard"
 
 [build-dependencies]
+envload.workspace = true
 flatmods.workspace = true
 pathqual.workspace = true
 plumbing.workspace = true

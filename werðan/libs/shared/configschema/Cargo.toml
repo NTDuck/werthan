@@ -8,6 +8,7 @@ publish.workspace = true
 description = "Canonical migration.yml configuration schema shared by all werðan frontends"
 
 [build-dependencies]
+envload.workspace = true
 flatmods.workspace = true
 pathqual.workspace = true
 plumbing.workspace = true
