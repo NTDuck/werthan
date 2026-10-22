@@ -1,0 +1,32 @@
+[package]
+name = "global-critics"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Rig-backed semantic critic crew implementing the global arbiter contracts"
+
+[build-dependencies]
+flatmods.workspace = true
+pathqual.workspace = true
+plumbing.workspace = true
+ste100.workspace = true
+stepdown.workspace = true
+turbofish.workspace = true
+
+[dependencies]
+bon = { workspace = true }
+global-arbiter = { workspace = true }
+global-fsm = { workspace = true }
+global-workers = { workspace = true }
+global-blackboard = { workspace = true }
+holon-fsm = { workspace = true }
+rig-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true
