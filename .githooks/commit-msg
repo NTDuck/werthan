@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Conventional Commits 1.0.0 subject check (repo rule: .omp/rules + AGENTS.md).
+msgfile="$1"
+subject=$(head -n 1 "$msgfile")
+if [ -z "$subject" ]; then
+  echo "commit-msg: REJECTED — empty subject line" >&2
+  exit 1
+fi
+# type(scope)!: subject — scope and breaking mark optional; no trailing period in subject.
+pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9øð/-]+\))?!?: .+'
+if ! echo "$subject" | grep -qE "$pattern"; then
+  echo "commit-msg: REJECTED — subject not Conventional Commits: \"$subject\"" >&2
+  echo "  expected: <type>[optional scope][!]: <description>" >&2
+  echo "  types: feat fix docs style refactor perf test build ci chore revert" >&2
+  exit 1
+fi
+case "$subject" in
+  *.) echo "commit-msg: REJECTED — trailing period in subject" >&2; exit 1;;
+esac
+exit 0
