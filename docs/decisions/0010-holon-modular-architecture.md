@@ -58,10 +58,10 @@ werðan/
 
 ### Confirmation
 
-`.checks/flatmods` and `.checks/pathqual` verify the hierarchy at build time — no orphan crates, no cross-tier shortcuts. `cargo test --workspace` compiles the generic engine instantiations and the typestate transitions; transition attempts that skip states fail compilation. The FSM crate layout is asserted by the cucumber features in [ADR-0014](0014-cucumber-bdd-verification.md).
+`.checks/flatmods` and `.checks/pathqual` verify the hierarchy at build time — no orphan crates, no cross-tier shortcuts. `cargo test --workspace` compiles the generic engine instantiations and the typestate transitions; transition attempts that skip states fail compilation. The FSM crate layout is asserted by the validation contracts in [ADR-0015](0015-methodology-validation-contracts.md).
 
 ## More Information
 
 Evidence: commits 4c8d267, 760db85, c8dec2d. Session evidence: "HOLON typestate refactor is complete: fsm dynamic wrapper removed, engine/controller migrated to typed solve" and "ARIAD: Create crate holon/fsm... holon/mcts (removed as noop)".
 
-The search constants flowing through `AriadneSolver` are calibrated in [ADR-0012](0012-ariadne-constant-calibration.md); the tool suite the agents consume conforms to [ADR-0013](0013-omp-tool-suite-conformance.md); FSM behavior parity is verified per [ADR-0014](0014-cucumber-bdd-verification.md).
+The search constants flowing through `AriadneSolver` are calibrated in [ADR-0012](0012-ariadne-constant-calibration.md); the tool suite the agents consume conforms to [ADR-0013](0013-omp-tool-suite-conformance.md); FSM behavior parity is verified per [ADR-0015](0015-methodology-validation-contracts.md).

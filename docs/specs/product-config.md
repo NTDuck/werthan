@@ -118,11 +118,9 @@ cargo run -p daemon -- --config <path/to/migration.yml>
 # Run every *.yml under a directory sequentially (default: benchmarks/assets/configs/ReCodeAgent)
 cargo run -p daemon -- --benchmark-all [dir]
 
-# Verify inference endpoint reachability (GET /v1/models) and print the served model id
+# Smoke probe: verify inference endpoint reachability (GET /v1/models),
+# print the served model id, and exit nonzero on failure. Alias: --dry-run
 cargo run -p daemon -- --smoke
-
-# Parse-only validation of a config file
-cargo run -p daemon -- --dry-run
 ```
 
 With no arguments, the daemon falls through to `interactive::run_daemon_server()`, which launches the interactive TUI cockpit ([product.md §3](product.md)).
@@ -131,8 +129,7 @@ With no arguments, the daemon falls through to `interactive::run_daemon_server()
 
 - **Single benchmark (`--benchmark` / `--config`)**: run one real modernization campaign over the configured legacy source, then validate the target workspace with `cargo check` and `cargo test` under configured timeouts, and write the per-project result JSON to `BENCH_RESULTS_DIR`.
 - **Batch (`--benchmark-all [dir]`)**: iterate every `*.yml` under the directory sequentially, skip projects whose result JSON already exists (resume), and write the aggregate `summary.json`.
-- **Smoke (`--smoke`)**: endpoint reachability check only; no campaign executes.
-- **Dry run (`--dry-run`)**: validate configuration parsing without executing a campaign.
+- **Smoke (`--smoke` / `--dry-run`)**: resolve the inference URL from the campaign `inference.base_url` (fall back to the compiled `BASE_URL` default; fail when neither is set), probe `GET {base_url}/models`, print the base URL and the first served model id, and exit nonzero on failure; both flags dispatch to the same `daemon::bench_smoke::run_smoke_cli` path and no campaign executes.
 - **Interactive (no args)**: launch the TUI cockpit.
 
 ### Planned (not implemented)
@@ -144,6 +141,4 @@ The daemon currently logs through a single ANSI/stdout `tracing_subscriber::fmt(
 - **Results directory**: `BENCH_RESULTS_DIR` (default `benchmarks/results/daemon`), overridable per environment.
 - **Result labels**: each project result is `<label>.json`, where the label derives from the `workspace_root` path segments after `outputs/` (e.g. `outputs/matrix/crust-vec` → `crust-vec.json`).
 - **Batch aggregate**: `summary.json` next to the per-project files.
-- **Benchmark logs**: written under `benchmarks/logs`.
-- **Run directories**: the `{yyyymmdd}` component of a run directory is fixed at run start, so all artifacts of one run share it.
-- **Workspace reset**: each campaign resets `paths.workspace_root` to a pristine dataset copy and normalizes the stub layout before the engine starts; see [tech-spec/benchmark-harness.md §2](tech-spec/benchmark-harness.md).
+- **Workspace reset**: each campaign resets `paths.workspace_root` to a pristine dataset copy and normalizes the stub layout before the engine starts; the reset maps the `benchmarks/outputs/` prefix of `paths.workspace_root` onto `benchmarks/assets/ReCodeAgent/data/tool_projects/`, fails for roots outside that prefix or missing dataset directories, and treats a missing workspace root as already pristine; see [tech-spec/benchmark-harness.md §2](tech-spec/benchmark-harness.md).

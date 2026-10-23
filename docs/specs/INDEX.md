@@ -15,6 +15,7 @@ Authority order: [`../references/METHODOLOGY.md`](../references/METHODOLOGY.md) 
 | [tech-spec/statecharts-and-ariadne.md](tech-spec/statecharts-and-ariadne.md) | Harel statechart $\mathcal{H}$ (Definition 3), `TaskActivationEnvelope` (Definition 4), S0–S6 pipeline and two-stage guards, micro-FSM M0–M5, Kahn dispatch, ARIADNE MCTS controller and constants, evaluator, reward, regression tiers. |
 | [tech-spec/tools-and-configschema.md](tech-spec/tools-and-configschema.md) | 13 shared agent tools, `DisplayExt` error model, `configschema::CampaignConfig` schema, configurator agent. |
 | [tech-spec/benchmark-harness.md](tech-spec/benchmark-harness.md) | Daemon `bench_*` modules, workspace reset semantics, honesty gate, `BenchResult` fields, batch resume, LoC tiers, divergence roadmap. |
+| [validation-contracts.md](validation-contracts.md) | Implementation-agnostic validation contracts (`VAL-*` catalog) derived from the methodology; outrank implementation tests; replaces the former cucumber suites (superseding [ADR-0014](../decisions/0014-cucumber-bdd-verification.md)). |
 
 Section numbering note: `tech-spec.md` and `tech-spec/engine-and-blackboard.md` both preserve rationale sections `2.1`–`2.6`; the code comment at `werðan/libs/global/blackboard/src/state_vector.rs:54` cites `tech-spec 2.6`, which resolves to the engine-and-blackboard file. Never renumber these headings.
 
@@ -43,7 +44,8 @@ Decision records live in [`../decisions/`](../decisions/). The ledger is append-
 | [ADR-0011](../decisions/0011-env-config-parameters.md) | No scattered literals; operational parameters bubble up to compile-time `.env`. Accepted. |
 | [ADR-0012](../decisions/0012-ariadne-constant-calibration.md) | In-tree ARIADNE search constants deliberately deviate from METHODOLOGY τ=0.35/γ=0.15 for the local 27B serving stack. Accepted. |
 | [ADR-0013](../decisions/0013-omp-tool-suite-conformance.md) | 13 omp-spec tools with the `DisplayExt` blanket error conversion. Accepted. |
-| [ADR-0014](../decisions/0014-cucumber-bdd-verification.md) | Gherkin cucumber suites verify behavior parity with METHODOLOGY. Accepted. |
+| [ADR-0014](../decisions/0014-cucumber-bdd-verification.md) | Gherkin cucumber suites verify behavior parity with METHODOLOGY. Superseded by [ADR-0015](../decisions/0015-methodology-validation-contracts.md). |
+| [ADR-0015](../decisions/0015-methodology-validation-contracts.md) | Methodology validation contracts (`VAL-*`) replace cucumber BDD suites; contracts outrank implementation tests. Accepted. |
 
 ## Change Protocol
 

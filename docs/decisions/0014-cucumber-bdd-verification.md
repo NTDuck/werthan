@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "superseded by [ADR-0015](0015-methodology-validation-contracts.md)"
 date: 2026-10-22
 decision-makers: ["NTDuck", "omp"]
 consulted: ["werðan architecture team"]

@@ -102,7 +102,7 @@ decoding):
 ### Workspace Root Constraint
 - The daemon's `reset_workspace` requires `paths.workspace_root` to start with `benchmarks/outputs/`.
 - `benchmarks/outputs/` is gitignored and serves as the scratchpad during transformation cycles.
-- Final results are copied to `benchmarks/results/{yyyymmdd}/...` upon completion.
+- Result JSON lands in `BENCH_RESULTS_DIR` (default `benchmarks/results/daemon`) upon completion.
 
 ---
 
@@ -129,24 +129,12 @@ For any arbitrary modernization target `{category}/{project}` with `{source_lang
    ```bash
    cargo run -p daemon --release -- --benchmark benchmarks/assets/configs/ReCodeAgent/{category}/{project}.yml
    ```
-5. **Fixed Date Stamp (`{yyyymmdd}`):**
-   - The timestamp `{yyyymmdd}` is fixed at the exact moment the benchmark run begins (not the shifting current wall clock during or after the run).
-6. **Final Preserved Deliverables (Not Gitignored):**
+5. **Final Preserved Deliverables (Not Gitignored):**
    - **Translated Codebase:**
      ```
-     benchmarks/results/{yyyymmdd}/{category}/{project}/{target_lang}/
+     benchmarks/results/daemon/<label>.json
      ```
-   - **Metrics File:**
-     ```
-     benchmarks/results/{yyyymmdd}/{category}/{project}/results.yml
-     ```
-   - **Execution & Tracing Logs:**
-     ```
-     benchmarks/logs/{yyyymmdd}/{category}/{project}/
-     ├── engine.log                 # Translation execution traces
-     ├── inference.log              # Prompts, responses, and token counts
-     └── harness.log                # Compiler and test runner output
-     ```
+     (See §5 for the result artifact layout: per-project result JSON and batch `summary.json`, labeled from the `workspace_root` path after `outputs/`.)
 
 ---
 
@@ -214,35 +202,11 @@ benchmarks/outputs/skel/bst/javascript/
 ```
 
 #### 5. Expected Output Artifacts (Post-Run)
-After completion, artifacts are exported to:
-- **Translated JavaScript Codebase (Tracked in Git):**
-  ```
-  benchmarks/results/{yyyymmdd}/skel/bst/javascript/
-  ```
-- **Benchmark Metrics (`benchmarks/results/{yyyymmdd}/skel/bst/results.yml`):**
-  ```yaml
-  campaign_id: skel-bst-bench
-  timestamp: "{yyyymmdd}"
-  status: "PASSED"
-  compilation_success: true
-  test_pass_rate: 1.0
-  wall_time_ms: 1245000
-  engine_wall_time_ms: 1198000
-  llm_requests: 42
-  solver_dispatches: 1
-  structural_retries: 0
-  unimplemented_remaining: 0
-  code_lines: 185
-  cocomo_effort_pm: 0.42
-  error: null
-  ```
-- **Diagnostic Logs:**
-  ```
-  benchmarks/logs/{yyyymmdd}/skel/bst/
-  ├── engine.log
-  ├── inference.log
-  └── harness.log
-  ```
+After completion, the result artifact lands at:
+```
+benchmarks/results/daemon/skel-bst-javascript.json
+```
+(the label derives from the `workspace_root` segments after `outputs/`; see §5 for the full `BenchResult` field list and §2 for the workspace reset semantics). Execution traces stream to stdout via the tracing subscriber.
 
 ---
 

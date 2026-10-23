@@ -94,8 +94,7 @@ Benchmark runs write per-project result JSON files and a batch `summary.json` to
 
 - **Per-project result**: `<label>.json` where the label derives from the `workspace_root` path segments after `outputs/` (e.g. `outputs/matrix/crust-vec` → `crust-vec`). Fields: `campaign_id`, `wall_time_ms`, `engine_wall_time_ms`, `llm_requests`, `unimplemented_before`, `unimplemented_after_reset`, `compilation_success`, `test_pass_rate`, `unimplemented_remaining`, `solver_dispatches`, `worker_executions`, `structural_retries`, `macro_states_visited`, `total_lines`, `code_lines`, `cocomo_effort_pm`, `cocomo_duration_months`, `error`.
 - **Batch summary**: `summary.json` with `{total, compilation_rate, mean_test_pass_rate, mean_wall_time_ms, total_wall_time_ms, per_category}`.
-- **Benchmark logs**: under `benchmarks/logs`.
-- **Run scoping**: the `{yyyymmdd}` run directory component is fixed at run start, so all artifacts of one run share it.
+- **Diagnostics**: execution traces stream to stdout via the configured tracing subscriber; the daemon writes no separate log-directory artifacts.
 
 ## 5. Success Criteria
 

@@ -85,7 +85,7 @@ werðan/
 
 Build-time environment ingestion: every workspace `build.rs` calls `::envload::load()` first, ingesting the nearest `.env` at compile time ([ADR-0007](../decisions/0007-compile-time-env-ingestion.md)). Operational parameters follow the no-hardcoded-config rule ([ADR-0011](../decisions/0011-env-config-parameters.md)).
 
-Cucumber BDD suites ([ADR-0014](../decisions/0014-cucumber-bdd-verification.md)) verify behavior parity in holon-engine tests (`search.feature`, `reward.feature`, `regression.feature`) and per-linter `.checks` features (e.g. `flatmods` `legacy/modern-layout.feature`).
+Behavior parity is verified by methodology validation contracts (`VAL-*` catalog in [validation-contracts.md](validation-contracts.md), [ADR-0015](../decisions/0015-methodology-validation-contracts.md)) as plain integration tests per crate; the former cucumber BDD suites ([ADR-0014](../decisions/0014-cucumber-bdd-verification.md), superseded) are deleted.
 
 ## 4. Domain File Map
 

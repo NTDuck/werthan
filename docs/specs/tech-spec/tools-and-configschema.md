@@ -1,10 +1,10 @@
 # Shared Tools & Configuration Schema
 
-Entry point: [../tech-spec.md](../tech-spec.md). This file documents the 13 agent tools ([ADR-0013](../../decisions/0013-omp-tool-suite-conformance.md)), the canonical configuration schema ([ADR-0009](../../decisions/0009-canonical-campaign-configschema.md)), and the configurator agent.
+Entry point: [../tech-spec.md](../tech-spec.md). This file documents the 14 agent tools ([ADR-0013](../../decisions/0013-omp-tool-suite-conformance.md)), the canonical configuration schema ([ADR-0009](../../decisions/0009-canonical-campaign-configschema.md)), and the configurator agent.
 
 ## 1. Shared Agent Tools Architecture (`werðan/libs/shared/tools`)
 
-The `tools` crate provides 13 self-contained, omp-specification-conforming agent tools exposed as `::rig::tool::Tool` implementations ([ADR-0013](../../decisions/0013-omp-tool-suite-conformance.md)).
+The `tools` crate provides 14 self-contained, omp-specification-conforming agent tools exposed as `::rig::tool::Tool` implementations ([ADR-0013](../../decisions/0013-omp-tool-suite-conformance.md)).
 
 ### 1.1 Tool Registry & Interface Specifications
 
@@ -23,10 +23,11 @@ The `tools` crate provides 13 self-contained, omp-specification-conforming agent
 | `debug` | `DebugTool`, `DebugArgs`, `DebugOutput` | `action: String`, optional `session_id`, `payload` | `status: String`, `result: serde_json::Value` | DAP debugger adapter status and control inspector. |
 | `github` | `GithubTool`, `GithubArgs`, `GithubOutput` | `op: String`, optional `query`, `repo`, `limit` | `status: String`, `data: serde_json::Value` | Headless GitHub CLI (`gh`) runner querying issues, PRs, and repositories. |
 | `ask` | `AskTool`, `AskArgs`, `AskOutput`, `AskQuestion`, `AskAnswer` | `questions: Vec<AskQuestion>` | `answers: Vec<AskAnswer>` | Typed question surfacing (id, text, options, recommended) to the human operator through a process-global canned-answer sink; honest error when no operator answer exists. |
+| `partition_write` | `PartitionWriteTool` | `WriteArgs` (reused from `write`: `path: String`, `content: Option<String>`) | `WriteOutput` (reused from `write`: `path: String`, `bytes_written: usize`) | Partition-scoped mutation bounding every write to one declared root, constructed with `PartitionWriteTool::new(partition_root: PathBuf)` (VAL-TOOL-02). Rejects absolute paths and `ParentDir` components up front, and re-canonicalizes the written file to reject a symlink that resolves outside the root; both rejections return `ToolCallError` with a message naming the offending path and root. Filesystem failures convert through `DisplayExt::into_tool_error`. The plain `write` tool stays general. |
 
 ### 1.2 Error Propagation & Blanket Trait Implementation
 
-All 13 tools standardize error conversion through the `DisplayExt` blanket trait, which replaced the earlier `tool_err` helper ([ADR-0013](../../decisions/0013-omp-tool-suite-conformance.md)):
+All 14 tools standardize error conversion through the `DisplayExt` blanket trait, which replaced the earlier `tool_err` helper ([ADR-0013](../../decisions/0013-omp-tool-suite-conformance.md)):
 
 ```rust
 pub(crate) trait DisplayExt: ::core::fmt::Display {
