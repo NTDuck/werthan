@@ -432,8 +432,7 @@ fn contract_val_macro_13_arbiter_gated_regressions() {
     let conflict_campaign = conflict_board();
     conflict_engine.configure(conflict_campaign);
     let conflict_outcome = conflict_engine.run();
-    let conflict_error = conflict_outcome.expect_err("the parked child deadlocks the wave");
-    ::std::assert!(::core::matches!(conflict_error, ::global_engine::MacroEngineError::WaveDeadlock { .. }));
+    ::std::assert!(conflict_outcome.is_ok(), "the parked child re-dispatches instead of deadlocking the wave");
     let untouched = conflict_engine
         .board()
         .contracts
@@ -445,6 +444,19 @@ fn contract_val_macro_13_arbiter_gated_regressions() {
         .iter()
         .any(|entry| entry.1 == ::global_blackboard::ModuleMicroState::M5Invalidated);
     ::std::assert!(!invalidation, "the parent kept its hardened state");
+    let parked_child = conflict_engine
+        .transition_log()
+        .iter()
+        .any(|entry| entry.0 == "b" && entry.1 == ::global_blackboard::ModuleMicroState::M0Blocked);
+    ::std::assert!(parked_child, "the rejected child parked in M0_Blocked for re-dispatch");
+    let hardened = conflict_engine.state_vector().module_states.clone();
+    for vertex in ["a", "b"] {
+        ::std::assert_eq!(
+            hardened.get(vertex),
+            ::core::option::Option::Some(&::global_blackboard::ModuleMicroState::M4Hardened),
+            "the wave completed after parking"
+        );
+    }
 }
 
 /// Contract VAL-MACRO-14: every worker activation carries a typed envelope

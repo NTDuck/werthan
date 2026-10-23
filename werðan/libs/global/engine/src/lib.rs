@@ -358,6 +358,11 @@ impl self::MacroEngine {
         let structurally_sound =
             ::global_arbiter::trace_references_parties(&proof_trace, &parent_id, &module_id);
         if !structurally_sound {
+            // An unusable regression report must not orphan the child in an
+            // M1/M2/M3 micro-state. compute_ready_set excludes those states,
+            // so an early return here would deadlock the wave scheduler.
+            // Park in M0_Blocked so the scheduler can re-ready the module.
+            self.set_module_state(&module_id, ::global_blackboard::ModuleMicroState::M0Blocked);
             return;
         }
         let arbiter = &self.arbiter;
@@ -380,6 +385,11 @@ impl self::MacroEngine {
                 };
                 self.board.state.event_queue.push_front(conflict_event);
                 self.pending_gate = ::core::option::Option::Some(self::HitlGateKind::ExtrinsicConflict);
+            } else {
+                // Rejected conflict without an ask-human gate: park the child
+                // in M0_Blocked. Leaving it in M1/M2/M3 would deadlock the
+                // wave scheduler because compute_ready_set skips those states.
+                self.set_module_state(&module_id, ::global_blackboard::ModuleMicroState::M0Blocked);
             }
             return;
         }
@@ -1009,6 +1019,12 @@ impl self::MacroEngine {
         ready
     }
 
+    /// Record one module micro-state change in the state vector and audit log.
+    fn set_module_state(&mut self, module_id: &::core::primitive::str, next_state: ::global_blackboard::ModuleMicroState) {
+        self.board.state.module_states.insert(module_id.to_string(), next_state);
+        self.transition_log.push((module_id.to_string(), next_state));
+    }
+
     /// Report whether one module sits in the hardened micro-state.
     fn is_module_hardened(&self, module_id: &::core::primitive::str) -> ::core::primitive::bool {
         ::core::matches!(
@@ -1030,7 +1046,8 @@ impl self::MacroEngine {
             }
         };
         let model = self.hydrate_problem_model(module_id);
-        self.set_module_state(module_id, next_state);
+        self.board.state.module_states.insert(module_id.to_string(), next_state);
+        self.transition_log.push((module_id.to_string(), next_state));
 
         self.solver_dispatches += 1;
         let outcome = self.solver.solve(module_id, &model, mode);
@@ -1051,7 +1068,11 @@ impl self::MacroEngine {
                 delta_spec,
                 proof_trace,
             } => {
-                self.set_module_state(module_id, ::global_blackboard::ModuleMicroState::M3ContractNegotiate);
+                self.board
+                    .state
+                    .module_states
+                    .insert(module_id.to_string(), ::global_blackboard::ModuleMicroState::M3ContractNegotiate);
+                self.transition_log.push((module_id.to_string(), ::global_blackboard::ModuleMicroState::M3ContractNegotiate));
                 let conflict_event = ::global_blackboard::MacroEvent::ContractConflict {
                     parent_id,
                     module_id: { module_id.to_string() },
@@ -1098,12 +1119,6 @@ impl self::MacroEngine {
             model.legacy_source_slices.push(artifact.target_code.clone());
         }
         model
-    }
-
-    /// Record one module micro-state change in the state vector and audit log.
-    fn set_module_state(&mut self, module_id: &::core::primitive::str, next_state: ::global_blackboard::ModuleMicroState) {
-        self.board.state.module_states.insert(module_id.to_string(), next_state);
-        self.transition_log.push((module_id.to_string(), next_state));
     }
 
     /// Re-key rules, contracts, and artifacts onto the condensed DAG.
