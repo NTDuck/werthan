@@ -65,7 +65,7 @@ ID scheme: `VAL-<COMPONENT>-<NN>`. Components: `MACRO` (global engine/statechart
 ### 4.3 FWM — Stateless Shard Workers (Scatter Map)
 
 - **VAL-FWM-01 (Shard-scoped reads).** A worker invoked with envelope for shard k reads only that shard's slice (attempting to observe another shard's partition is impossible via the provided API).
-- **VAL-FWM-02 (Direct partition writes + completion event).** The worker writes its output directly to G[shard_k] and the engine emits ev_ShardDone(k) on completion; workers return outputs, never spawn agents.
+- **VAL-FWM-02 (Direct partition writes + completion event).** The worker returns its shard-scoped output; the engine commits it to G[shard_k] and emits ev_ShardDone(k) on completion. Workers never write the board themselves and never spawn agents.
 - **VAL-FWM-03 (UnresolvedCrossLink emission).** Given an artifact referencing a symbol outside the shard, the worker records an UnresolvedCrossLink(src_id, tgt_symbol) tag rather than resolving it inline.
 - **VAL-FWM-04 (Ephemeral lifecycle).** Worker execution is single-shot: one activation → produce → terminate; no retained conversational state across activations.
 - **VAL-FWM-05 (Worker type obligations).** The phase worker set covers the methodology roles: S1 assessors (inventory, dialect, risk), S2 dependency mapper + implicit-coupling scanner, S3 rule miners (Given/When/Then + citations + observed/inferred tags), S4 contract stubbers, S6 integration verifier + security auditor.
