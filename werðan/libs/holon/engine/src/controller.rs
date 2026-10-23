@@ -31,6 +31,7 @@ pub struct ClusterEngine<
     rollout_count: ::core::primitive::usize,
     best_candidate_code: ::core::option::Option<::std::string::String>,
     best_reward_score: ::core::primitive::f64,
+    last_pass_rate: ::core::option::Option<::core::primitive::f64>,
 }
 
 impl<M: ::rig::completion::CompletionModel, H, D> ::core::fmt::Debug for self::ClusterEngine<M, H, D> {
@@ -69,6 +70,7 @@ impl<
             evaluator,
             agents,
             rollout_count: 0,
+            last_pass_rate: ::core::option::Option::None,
             best_candidate_code: ::core::option::Option::None,
             best_reward_score: 0.0,
         }
@@ -168,10 +170,34 @@ impl<
                 let best_id = self.tree.best_node();
                 self.tree.set_warm_root(best_id);
             }
+            ::holon_fsm::ActivationMode::CriticRetry => {
+                // Re-entry after a validator or critic rejection. Keep the prior
+                // search tree and the populated characterization tests, and continue
+                // expanding from the existing frontier.
+                let best_id = self.tree.best_node();
+                self.tree.set_warm_root(best_id);
+            }
         }
     }
     fn step_core(&mut self) -> ::core::option::Option<self::StepResult> {
         self.rollout_count += 1;
+
+        // VAL-M2-03(d): demonstrated low parity invokes the adversarial test
+        // agent to expand coverage. The agent stays blind to candidate code.
+        // INITIAL-mode seeding already covers the empty-suite case.
+        let coverage_low = ::core::matches!(
+            self.last_pass_rate,
+            ::core::option::Option::Some(rate_value) if rate_value < 0.999_999
+        );
+        if coverage_low {
+            let seeded_tests = ::holon_testgen::HolonTestGenAgent::generate_characterization_tests(
+                &self.agents.test_gen_agent,
+                &self.blackboard.problem_model,
+            );
+            for test_entry in seeded_tests {
+                self.blackboard.characterization_tests.add_test_case(test_entry);
+            }
+        }
 
         let expandable_id = self.tree.select_expandable(
             self.config.ucb_c_exp,
@@ -190,6 +216,7 @@ impl<
             &self.blackboard.problem_model,
         );
 
+        self.last_pass_rate = ::core::option::Option::Some(eval_res.test_pass_rate);
         let reward = crate::reward::compute_gated_reward(
             &self.config.reward_weights,
             eval_res.compiles,

@@ -55,6 +55,22 @@ impl<M: ::rig::completion::CompletionModel> self::HolonStrategyAgentBuilder<M> {
     }
 }
 
+/// Error surfaced when strategy inference or parsing produces no usable hypotheses.
+/// The ARIADNE contract requires an honest error instead of a silent empty success.
+#[derive(::core::fmt::Debug)]
+pub struct StrategyAgentError {
+    /// Human-readable failure description.
+    pub message: ::std::string::String,
+}
+
+impl ::core::fmt::Display for self::StrategyAgentError {
+    fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        ::core::fmt::write(formatter, ::std::format_args!("strategy analysis failed: {}", self.message))
+    }
+}
+
+impl ::std::error::Error for self::StrategyAgentError {}
+
 /// Namespace for constructing the strategy agent and invoking it.
 pub struct HolonStrategyAgent;
 
@@ -80,7 +96,7 @@ impl self::HolonStrategyAgent {
 }
 
 /// Render the user prompt from the problem model slice.
-fn render_strategy_prompt(
+pub fn render_strategy_prompt(
     problem_model: &::holon_blackboard::ProblemModelSlice,
 ) -> ::std::string::String {
     let context_block = problem_model.render_prompt_context();

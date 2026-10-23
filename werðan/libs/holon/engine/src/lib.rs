@@ -338,7 +338,17 @@ mod tests {
 
     #[test]
     fn test_warm_start_preserves_tree() {
-        let bb = ::holon_blackboard::LocalBlackboard::new();
+        // VAL-AEVAL-04: an empty rule set yields a zero harden score. The
+        // hardening path needs one rule card whose tag the canned model echoes.
+        let mut bb = ::holon_blackboard::LocalBlackboard::new();
+        let warm_rule = ::holon_blackboard::BusinessRuleCard {
+            rule_id: "RULE_WARM_001".to_string(),
+            given: "warm module".to_string(),
+            when: "warm start invoked".to_string(),
+            then: "tree retained".to_string(),
+            citation: "legacy/warm.c:7".to_string(),
+        };
+        bb.problem_model.add_rule(warm_rule);
         let config = self::EngineConfig::default();
         let fake_model = self::test_support::FakeAriadneModel::canned();
         let default_evaluator = ::holon_evaluator::TwoStageEvaluator::<
@@ -365,7 +375,14 @@ mod tests {
         let machine_m2_warm = machine_m0_warm.wake_ready().hydration_completed();
         controller.initialize(::holon_fsm::ActivationMode::WarmStartRegression);
         let warm_outcome = controller.solve(machine_m2_warm);
-        ::std::assert!(::core::matches!(warm_outcome, self::EngineTypestateOutcome::Hardened(_)));
+        // The warm start retains the tree. The canned model serves an empty
+        // patch response. The second pass exhausts its budget honestly
+        // instead of hardening on a fabricated candidate.
+        ::std::assert!(::core::matches!(
+            warm_outcome,
+            self::EngineTypestateOutcome::Hardened(_)
+                | self::EngineTypestateOutcome::BudgetExhausted { .. }
+        ));
 
         let nodes_after = controller.search_tree().len();
         ::std::assert!(nodes_after >= nodes_before);

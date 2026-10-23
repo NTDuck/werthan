@@ -84,7 +84,7 @@ impl self::HolonPatchAgent {
 }
 
 /// Render the repair prompt from candidate code, fault record, and problem model.
-fn render_repair_prompt(
+pub fn render_repair_prompt(
     candidate_code: &::core::primitive::str,
     fault: &::holon_blackboard::FaultRecord,
     problem_model: &::holon_blackboard::ProblemModelSlice,

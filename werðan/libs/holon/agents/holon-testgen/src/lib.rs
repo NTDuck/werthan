@@ -87,7 +87,7 @@ impl self::HolonTestGenAgent {
 }
 
 /// Render the test generation prompt from the problem model.
-fn render_test_prompt(
+pub fn render_test_prompt(
     problem_model: &::holon_blackboard::ProblemModelSlice,
 ) -> ::std::string::String {
     let context_block = problem_model.render_prompt_context();
@@ -97,7 +97,8 @@ fn render_test_prompt(
 }
 
 /// Split a model response into individual test function entries.
-/// The splitter keeps the whole response as one entry when no split applies.
+/// A response carrying no test attribute yields zero entries so the
+/// suite fabricates no non-test content.
 pub fn split_test_entries(response_text: &::core::primitive::str) -> ::std::vec::Vec<::std::string::String> {
     let mut split_entries = ::std::vec::Vec::<::std::string::String>::new();
     let mut current_entry = ::std::string::String::new();
@@ -110,7 +111,7 @@ pub fn split_test_entries(response_text: &::core::primitive::str) -> ::std::vec:
         current_entry.push_str(source_line);
         current_entry.push('\n');
     }
-    if !current_entry.trim().is_empty() {
+    if !current_entry.trim().is_empty() && current_entry.contains("#[test]") {
         split_entries.push(current_entry.trim().to_string());
     }
     split_entries
@@ -172,11 +173,10 @@ mod tests {
     }
 
     #[test]
-    fn test_split_entries_keeps_whole_response() {
+    fn test_split_entries_drops_non_test_response() {
         let response_text = "fn helper() {\n    ::core::assert!(true)\n}";
         let suite = self::split_test_entries(response_text);
-        ::std::assert_eq!(suite.len(), 1);
-        ::std::assert!(suite.first().is_some_and(|entry| entry.contains("fn helper()")));
+        ::std::assert!(suite.is_empty());
     }
 
     #[test]

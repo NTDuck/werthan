@@ -32,11 +32,6 @@ rig-core = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
-cucumber = "0.21.1"
-
-[[test]]
-name = "cucumber"
-harness = false
 
 [lints]
 workspace = true

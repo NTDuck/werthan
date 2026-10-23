@@ -25,6 +25,8 @@ pub enum MicroStateTag {
 pub enum ActivationMode {
     /// Initial synthesis run from scratch.
     Initial,
+    /// Re-dispatch after a failed guard, carrying the validator traceback.
+    CriticRetry,
     /// Warm start regression maintaining prior search tree and tests.
     WarmStartRegression,
 }

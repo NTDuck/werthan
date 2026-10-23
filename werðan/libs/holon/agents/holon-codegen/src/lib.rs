@@ -84,7 +84,7 @@ impl self::HolonCodeGenAgent {
 }
 
 /// Render the user prompt from the problem model and hypothesis.
-fn render_codegen_prompt(
+pub fn render_codegen_prompt(
     problem_model: &::holon_blackboard::ProblemModelSlice,
     hypothesis: &::holon_blackboard::StrategyHypothesis,
 ) -> ::std::string::String {

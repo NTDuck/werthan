@@ -45,8 +45,8 @@ impl ::core::default::Default for self::EngineConfig {
         Self {
             max_rollouts: 16,
             ucb_c_exp: 1.414,
-            gamma_prior: 0.50,
-            softmax_temperature: 0.50,
+            gamma_prior: 0.15,
+            softmax_temperature: 0.35,
             generative_temperature: 0.20,
             reward_weights: { weights },
         }

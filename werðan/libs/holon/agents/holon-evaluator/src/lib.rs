@@ -9,6 +9,7 @@
 pub mod cargo_harness;
 pub mod llm_distiller;
 
+pub use self::cargo_harness::CargoHarness;
 pub use self::llm_distiller::{HolonEvaluatorAgent, HolonEvaluatorAgentBuilder, RigDiagnosticDistiller};
 
 /// Execution output from the execution harness.
@@ -356,9 +357,11 @@ fn audit_rules_impl(
     candidate_code: &::core::primitive::str,
     problem_model: &::holon_blackboard::ProblemModelSlice,
 ) -> ::core::primitive::f64 {
+    // VAL-AEVAL-04: with no rule cards the audit yields 0.0 so an unevaluated
+    // candidate never earns a perfect harden score by default.
     let is_empty_rules = problem_model.rules.is_empty();
     if is_empty_rules {
-        return 1.0;
+        return 0.0;
     }
     let total_rules = problem_model.rules.len();
     let mut matched_rules: ::core::primitive::usize = 0;
