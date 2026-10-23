@@ -87,12 +87,20 @@ fn contract_val_fwm_02_partition_write_and_completion_event() {
     };
     // Commit the mined output onto its partition.
     let beta_key = "beta".to_string();
-    // Wrap one card for the registry.
-    let mined_cards = ::std::vec![card];
+    // Wrap one card for the registry, keeping a copy for the landed probe.
+    let mined_cards = ::std::vec![::core::clone::Clone::clone(&card)];
     unseeded_board.rules.insert(beta_key, mined_cards);
-    // Probe the committed partition.
-    let landed = unseeded_board.rules.contains("beta");
-    ::std::assert!(landed, "commit landed");
+    // Probe the committed partition: the landed card is the mined card.
+    let landed_cards = unseeded_board
+        .rules
+        .get("beta")
+        .expect("commit landed on the beta partition");
+    ::std::assert_eq!(landed_cards.len(), 1, "one card landed on beta");
+    ::std::assert_eq!(
+        landed_cards[0].rule_id,
+        card.rule_id,
+        "the landed card equals the mined card"
+    );
     // Completion event: the engine commits the output and pushes the typed
     // ev_ShardDone marker with the partition position onto the event queue.
     let mut state_vector = ::global_blackboard::GlobalStateVector::initialize();
