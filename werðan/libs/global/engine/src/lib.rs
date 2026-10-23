@@ -13,6 +13,7 @@ pub use ::global_fsm::{
     MacroState, MacroStateError, MacroStateMachine, MacroStatechart,
 };
 pub use self::batches::{PhaseShard, regress_target, semantic_batches};
+pub use ::global_blackboard::{UnresolvedCrossLink, WorkManifest};
 pub use self::error::MacroEngineError;
 pub use self::guards::structural_guard;
 pub use self::solver::{ModuleSolver, SolverOutcome, StubModuleSolver};
@@ -20,6 +21,53 @@ pub use ::global_workers::{
     AssessmentReport, ContextAssembler, DeterministicWorkers, EdgeStub, PhaseWorkOutput,
     PhaseWorker, RiskMatrix, TaskActivationEnvelope, VerifyVerdict, phase_role_name,
 };
+
+/// One human-in-the-loop decision gate kind from the HitlSection contract.
+#[derive(::core::clone::Clone, ::core::fmt::Debug, ::core::cmp::PartialEq, ::core::cmp::Eq, ::core::cmp::Ord, ::core::cmp::PartialOrd)]
+pub enum HitlGateKind {
+    /// Human signoff required after S4 before S5.
+    Reimagine,
+    /// Human signoff required before rolling S5 back to S2.
+    MacroRegression,
+    /// Unresolved extrinsic conflict escalated to the human operator.
+    ExtrinsicConflict,
+}
+
+impl ::core::fmt::Display for self::HitlGateKind {
+    fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        let label = match self {
+            Self::Reimagine => "reimagine sign-off",
+            Self::MacroRegression => "macro regression sign-off",
+            Self::ExtrinsicConflict => "extrinsic conflict escalation",
+        };
+        ::core::write!(formatter, "{label}")
+    }
+}
+
+/// Human-in-the-loop gate configuration mirrored from configschema HitlSection.
+/// `full_auto` runs leave every gate disabled.
+#[derive(::core::clone::Clone, ::core::fmt::Debug, ::core::default::Default)]
+pub struct HitlGates {
+    /// Pause before the S4 to S5 transition when true.
+    pub gate_on_reimagine: ::core::primitive::bool,
+    /// Pause before the S5 to S2 macro regression when true.
+    pub gate_on_macro_regression: ::core::primitive::bool,
+    /// Escalate unresolved extrinsic conflicts to the human when true.
+    pub extrinsic_conflict_ask_human: ::core::primitive::bool,
+}
+
+/// Typed terminal outcome of one MacroEngine run invocation.
+#[derive(::core::fmt::Debug)]
+pub enum RunStop {
+    /// The statechart reached Terminated.
+    Terminated,
+    /// The engine parked on a human-in-the-loop gate.
+    /// The caller resolves the gate through approve_pending_gate and re-invokes run.
+    HitlGatePending {
+        /// Gate awaiting the operator decision.
+        gate: self::HitlGateKind,
+    },
+}
 
 /// Deterministic macro-orchestrator engine implementing Algorithm 1 in METHODOLOGY.md.
 pub struct MacroEngine {
@@ -31,6 +79,19 @@ pub struct MacroEngine {
     workers: ::std::boxed::Box<dyn ::global_workers::PhaseWorker>,
     warm_modes: ::std::collections::BTreeMap<::std::string::String, ::holon_fsm::ActivationMode>,
     regression_scope: ::core::option::Option<::std::vec::Vec<::std::string::String>>,
+    /// Batch keys already re-dispatched in the active stage-two remediation round.
+    stage_two_remediations: ::core::option::Option<::std::collections::BTreeSet<::std::string::String>>,
+    /// Human-in-the-loop gate configuration.
+    hitl: self::HitlGates,
+    /// Gate currently parked pending operator approval.
+    pending_gate: ::core::option::Option<self::HitlGateKind>,
+    /// Gate kinds already approved by the operator for this campaign.
+    approved_gates: ::std::collections::BTreeSet<self::HitlGateKind>,
+    /// Contract deltas awaiting hydration into the owning parent problem model.
+    pending_parent_deltas:
+        ::std::collections::BTreeMap<::std::string::String, ::std::vec::Vec<::std::string::String>>,
+    /// S0 preflight intent gate failure deferred until after the structural guard retry round.
+    intent_gate_error: ::core::option::Option<self::MacroEngineError>,
     step_budget: ::core::primitive::usize,
     steps_used: ::core::primitive::usize,
     solver_dispatches: ::core::primitive::usize,
@@ -57,6 +118,7 @@ impl self::MacroEngine {
         critic: ::core::option::Option<::std::boxed::Box<dyn ::global_arbiter::SemanticCritic>>,
         arbiter: ::core::option::Option<::std::boxed::Box<dyn ::global_arbiter::Arbiter>>,
         workers: ::core::option::Option<::std::boxed::Box<dyn ::global_workers::PhaseWorker>>,
+        hitl: ::core::option::Option<self::HitlGates>,
         step_budget: ::core::option::Option<::core::primitive::usize>,
     ) -> Self {
         let board = board.unwrap_or_default();
@@ -90,6 +152,7 @@ impl self::MacroEngine {
             }
         };
         let step_budget = step_budget.unwrap_or(256);
+        let hitl = hitl.unwrap_or_default();
         Self {
             board,
             statechart,
@@ -99,6 +162,12 @@ impl self::MacroEngine {
             workers,
             warm_modes: ::std::collections::BTreeMap::new(),
             regression_scope: ::core::option::Option::None,
+            stage_two_remediations: ::core::option::Option::None,
+            hitl,
+            pending_gate: ::core::option::Option::None,
+            approved_gates: ::std::collections::BTreeSet::new(),
+            pending_parent_deltas: ::std::collections::BTreeMap::new(),
+            intent_gate_error: ::core::option::Option::None,
             step_budget,
             steps_used: 0,
             solver_dispatches: 0,
@@ -126,6 +195,13 @@ impl self::MacroEngine {
         &self.board.state
     }
 
+    /// Return the macro statechart traversal history (VAL-MACRO-08/11/12).
+    /// The history is the observable record of transitions, including
+    /// regression revisits produced by Tier B/C remediation loops.
+    pub fn macro_history(&self) -> &[::global_fsm::MacroState] {
+        self.statechart.history()
+    }
+
     /// Return total solver dispatch count.
     pub fn solver_dispatches(&self) -> ::core::primitive::usize {
         self.solver_dispatches
@@ -146,11 +222,16 @@ impl self::MacroEngine {
         &self.transition_log
     }
 
-    /// Execute Algorithm 1 until the Terminated state or an error occurs.
-    pub fn run(&mut self) -> ::core::result::Result<(), self::MacroEngineError> {
-        self.board.state.event_queue.push_back(::global_blackboard::MacroEvent::Start);
-        self.statechart = ::global_fsm::MacroStatechart::new();
-        self.board.state.macro_state = self.statechart.state();
+    /// Execute Algorithm 1 until Terminated, a human gate pause, or an error.
+    /// Seeding happens only when no campaign is in flight (steps_used == 0).
+    /// Callers resume a gate-paused run by approving the gate and calling run again.
+    pub fn run(&mut self) -> ::core::result::Result<self::RunStop, self::MacroEngineError> {
+        let campaign_fresh = self.steps_used == 0;
+        if campaign_fresh {
+            self.board.state.event_queue.push_back(::global_blackboard::MacroEvent::Start);
+            self.statechart = ::global_fsm::MacroStatechart::new();
+            self.board.state.macro_state = self.statechart.state();
+        }
         loop {
             self.steps_used += 1;
             ::tracing::info!("MacroEngine::run loop: step {}, state {:?}", self.steps_used, self.statechart.state());
@@ -161,8 +242,14 @@ impl self::MacroEngine {
                 });
             }
             self.process_event_queue()?;
+            let parked = self.pending_gate.clone();
+            if let ::core::option::Option::Some(gate) = parked {
+                return ::core::result::Result::Ok(self::RunStop::HitlGatePending { gate });
+            }
             match self.statechart.state() {
-                ::global_fsm::MacroState::Terminated => return ::core::result::Result::Ok(()),
+                ::global_fsm::MacroState::Terminated => {
+                    return ::core::result::Result::Ok(self::RunStop::Terminated);
+                }
                 ::global_fsm::MacroState::S0IntentPreflight
                 | ::global_fsm::MacroState::S1Assess
                 | ::global_fsm::MacroState::S2MapDag
@@ -177,6 +264,19 @@ impl self::MacroEngine {
                 }
             }
         }
+    }
+
+    /// Record operator approval for the pending human gate so the next run
+    /// invocation resumes past it.
+    pub fn approve_pending_gate(&mut self) {
+        if let ::core::option::Option::Some(gate) = self.pending_gate.take() {
+            self.approved_gates.insert(gate);
+        }
+    }
+
+    /// Borrow the human gate parked pending operator approval.
+    pub fn pending_gate(&self) -> ::core::option::Option<&self::HitlGateKind> {
+        self.pending_gate.as_ref()
     }
 
     /// Drain and apply the pending events on the global event bus.
@@ -210,6 +310,22 @@ impl self::MacroEngine {
                 } => {
                     self.handle_cycle_found(cycle_edges, proof_trace)?;
                 }
+                ::global_blackboard::MacroEvent::TaskDone { .. } => {
+                    // Zero-traffic acknowledgement: the worker committed its
+                    // artifact before pushing this event (tech-spec 2.6).
+                }
+                ::global_blackboard::MacroEvent::ShardDone { .. } => {
+                    // Scatter shard completion marker. The engine drains these
+                    // without further action because shard outputs commit
+                    // synchronously through dispatch_phase_worker.
+                }
+            }
+            // A parked HITL gate must suspend the drain: the requeued event
+            // sits at the queue front and reprocessing it without approval
+            // would loop forever.
+            let gate_parked = self.pending_gate.is_some();
+            if gate_parked {
+                break;
             }
         }
         ::core::result::Result::Ok(())
@@ -247,6 +363,24 @@ impl self::MacroEngine {
         let arbiter = &self.arbiter;
         let accepted = arbiter.adjudicate(&delta_spec, &proof_trace);
         if !accepted {
+            // Unresolved conflict with ask-human escalation parks on the
+            // extrinsic conflict gate. The operator resolves the contract
+            // externally and approves. Subsequent reprocessing takes the
+            // M0 parking path below without renegotiating.
+            let escalation = self.hitl.extrinsic_conflict_ask_human;
+            let already_approved = self
+                .approved_gates
+                .contains(&self::HitlGateKind::ExtrinsicConflict);
+            if escalation && !already_approved {
+                let conflict_event = ::global_blackboard::MacroEvent::ContractConflict {
+                    parent_id,
+                    module_id,
+                    delta_spec,
+                    proof_trace,
+                };
+                self.board.state.event_queue.push_front(conflict_event);
+                self.pending_gate = ::core::option::Option::Some(self::HitlGateKind::ExtrinsicConflict);
+            }
             return;
         }
         let key = (parent_id.clone(), module_id.clone());
@@ -260,16 +394,31 @@ impl self::MacroEngine {
             };
             self.board.contracts.insert(key, edge_contract);
         }
-        let parent_is_compilable = self.board.dag.vertices.contains(&parent_id)
-            && !parent_id.ends_with(".h");
-        if parent_is_compilable && self.is_module_hardened(&parent_id) {
+        // Canonical Algorithm 1 Tier B path: park the conflicting child in M0_Blocked.
+        // Invalidate the parent's hardened state. Warm-start the parent's cluster with
+        // the updated contract re-hydrated into its problem model.
+        let parent_holds_artifact = self.is_module_hardened(&parent_id);
+        let parent_known = self.board.dag.vertices.contains(&parent_id);
+        if parent_known && parent_holds_artifact {
             self.set_module_state(&module_id, ::global_blackboard::ModuleMicroState::M0Blocked);
             self.set_module_state(&parent_id, ::global_blackboard::ModuleMicroState::M5Invalidated);
             self.warm_modes.insert(parent_id.clone(), ::holon_fsm::ActivationMode::WarmStartRegression);
             self.set_module_state(&parent_id, ::global_blackboard::ModuleMicroState::M2AriadneMcts);
+            // Warm-start patch (METHODOLOGY-DRV.md Tier B step 3): append the
+            // reported delta to the parent problem model's delta constraints.
+            let parent_artifact_absent = !self.is_module_hardened(&parent_id);
+            if parent_artifact_absent {
+                let delta_text =
+                    ::std::format!("parent {parent_id} contract delta from {module_id}: {delta_spec}");
+                self.pending_parent_deltas
+                    .entry(parent_id)
+                    .or_default()
+                    .push(delta_text);
+            }
         } else {
-            self.warm_modes.insert(module_id.clone(), ::holon_fsm::ActivationMode::WarmStartRegression);
-            self.set_module_state(&module_id, ::global_blackboard::ModuleMicroState::M2AriadneMcts);
+            // No hardened parent artifact exists yet. The child simply waits in M0 for
+            // the wave scheduler to re-ready it once the parent dispatches.
+            self.set_module_state(&module_id, ::global_blackboard::ModuleMicroState::M0Blocked);
         }
     }
 
@@ -289,14 +438,37 @@ impl self::MacroEngine {
             .collect::<::std::vec::Vec<_>>()
             .join(",");
         let subject = joined.as_str();
+        // g_struct(E_cycle): every reported edge endpoint must be a known vertex, and
+        // every edge must traverse the current DAG before the engine accepts the regression.
+        let edges_traversable = cycle_edges.iter().all(|edge_pair| {
+            let start_known = self.board.dag.vertices.contains(&edge_pair.0);
+            let end_known = self.board.dag.vertices.contains(&edge_pair.1);
+            start_known && end_known
+        });
+        let trace_empty = proof_trace.is_empty();
+        if trace_empty || !edges_traversable {
+            return ::core::result::Result::Ok(());
+        }
         let arbiter = &self.arbiter;
         let accepted = arbiter.adjudicate(subject, &proof_trace);
         if !accepted {
             return ::core::result::Result::Ok(());
         }
-        // Modules caught mid-synthesis by the macro regression park in M5 so the
-        // next wave re-dispatches them instead of deadlocking on M1 occupancy.
-        // The conversion precedes the snapshot so Theta_H* holds parked states.
+        // Human-in-the-loop gate before rolling S5 back to S2. The cycle event
+        // returns to the queue front so an approval reprocesses it.
+        let gate_enabled = self.hitl.gate_on_macro_regression;
+        let gate_approved = self
+            .approved_gates
+            .contains(&self::HitlGateKind::MacroRegression);
+        if gate_enabled && !gate_approved {
+            let cycle_event = ::global_blackboard::MacroEvent::CyclicDependencyFound {
+                cycle_edges,
+                proof_trace,
+            };
+            self.board.state.event_queue.push_front(cycle_event);
+            self.pending_gate = ::core::option::Option::Some(self::HitlGateKind::MacroRegression);
+            return ::core::result::Result::Ok(());
+        }
         let stalled = self
             .board
             .state
@@ -342,48 +514,161 @@ impl self::MacroEngine {
 
 
     /// Run one bounded discovery phase with shard dispatch and two-stage guards.
-    /// On a structural guard failure the retry dispatch carries the guard detail
-    /// as the delta directive per the CRITIC_RETRY protocol.
+    /// Structural failures re-dispatch only the offending shards under
+    /// ActivationMode::CriticRetry until the guard passes (Algorithm 1 stage one).
+    /// After one fruitless retry round the phase fails with StructuralGuardFailure.
     fn run_discovery_phase(&mut self, phase: ::global_fsm::MacroState) -> ::core::result::Result<(), self::MacroEngineError> {
+        const MAX_GUARD_RETRIES: ::core::primitive::usize = 1;
         let shards = self::batches::partition_shards(&self.board, phase, &self.regression_scope);
-        for shard in shards {
-            self.dispatch_phase_worker(shard, ::core::option::Option::None);
+        let shard_clones = shards.to_vec();
+        for (shard_index, shard) in shard_clones.into_iter().enumerate() {
+            self.dispatch_phase_worker(shard, shard_index, ::core::option::Option::None);
         }
-        let detail = self::guards::structural_guard(phase, &self.board);
-        let guard_failed = detail.is_err();
-        if guard_failed {
-            // One CRITIC_RETRY re-dispatch round per Algorithm 1 guard protocol.
+        let mut retry_round = 0;
+        loop {
+            let failing = self::batches::guard_failing_shards(&self.board, phase, &shards);
+            let guard_passed = failing.is_empty();
+            if guard_passed {
+                break;
+            }
+            if retry_round >= MAX_GUARD_RETRIES {
+                let detail = self::guards::structural_guard(phase, &self.board)
+                    .expect_err("guard reported failing shards without a detail");
+                return ::core::result::Result::Err(
+                    self::MacroEngineError::StructuralGuardFailure { phase, detail },
+                );
+            }
+            retry_round += 1;
             self.structural_retries += 1;
-            let delta = detail.err();
-            let shards = self::batches::partition_shards(&self.board, phase, &self.regression_scope);
-            for shard in shards {
-                self.dispatch_phase_worker(shard, delta.clone());
-            }
-            let retried = self::guards::structural_guard(phase, &self.board);
-            match retried {
-                ::core::result::Result::Ok(()) => {
-                    // The retry dispatch repaired the board state. Continue to stage two.
-                    self.run_stage_two(phase)?;
-                    return ::core::result::Result::Ok(());
+            let delta = self::guards::structural_guard(phase, &self.board).err();
+            for shard in failing {
+                let mut shard_index = ::core::primitive::usize::default();
+                for (probe, listed) in shards.iter().enumerate() {
+                    if self::shards_match_subject(listed, &shard) {
+                        shard_index = probe;
+                        break;
+                    }
                 }
-                ::core::result::Result::Err(failed) => {
-                    return ::core::result::Result::Err(
-                        self::MacroEngineError::StructuralGuardFailure {
-                            phase,
-                            detail: { failed },
-                        },
-                    );
-                }
+                self.dispatch_phase_worker(shard, shard_index, delta.clone());
             }
+        }
+        // A probe-reported INTENT violation binds after the guard round: the
+        // deterministic guard cannot repair a missing harness or inventory.
+        if let ::core::option::Option::Some(gate_failure) = self.intent_gate_error.take() {
+            return ::core::result::Result::Err(gate_failure);
         }
         self.run_stage_two(phase)?;
+        self.run_reduce_stage(phase);
         ::core::result::Result::Ok(())
     }
 
+
+    /// Run the stage-two semantic critic batches and either remediate, regress, or advance.
+    /// RemediateLocal verdicts re-dispatch only the offending batch's owning worker with
+    /// the CritiqueRecord notes as the delta directive (Algorithm 1 stage two).
+    fn run_stage_two(&mut self, phase: ::global_fsm::MacroState) -> ::core::result::Result<(), self::MacroEngineError> {
+        // Scatter (Algorithm 1 S_m.1): persist the phase WorkManifest on G.
+        let shards = self::batches::partition_shards(&self.board, phase, &self.regression_scope);
+        self.commit_work_manifest(phase, &shards);
+        let batches = self::batches::semantic_batches(&self.board, phase, &self.regression_scope);
+        let mut remediated = self.stage_two_remediations.take().unwrap_or_default();
+        let mut remediation_rounds = ::std::vec::Vec::new();
+        for batch in batches {
+            let record = self.critic.audit_batch(phase, &batch);
+            match record.verdict {
+                ::global_arbiter::CritiqueVerdict::RegressUpstream(_) => {
+                    remediated.clear();
+                    self.stage_two_remediations = ::core::option::Option::None;
+                    let target = self::batches::regress_target(phase);
+                    let current_chart = ::core::mem::take(&mut self.statechart);
+                    let regressed = current_chart.regress_to(target)?;
+                    self.statechart = regressed;
+                    self.board.state.macro_state = self.statechart.state();
+                    return ::core::result::Result::Ok(());
+                }
+
+                ::global_arbiter::CritiqueVerdict::RemediateLocal(_) => {
+                    let batch_key = batch.join("\u{1f}");
+                    let already = remediated.contains(&batch_key);
+                    if already {
+                        // The remediation dispatch did not flip the critic verdict.
+                        // Surface the rejection instead of looping forever.
+                        remediated.clear();
+                        self.stage_two_remediations = ::core::option::Option::None;
+                        return ::core::result::Result::Err(
+                            self::MacroEngineError::SemanticRemediationFailed {
+                                phase,
+                                detail: ::core::clone::Clone::clone(&record.remediation_notes),
+                            },
+                        );
+                    }
+                    remediated.insert(batch_key);
+                    self.structural_retries += 1;
+                    remediation_rounds.push((batch, record.remediation_notes));
+                }
+                ::global_arbiter::CritiqueVerdict::Pass => {}
+            }
+        }
+        for (batch, directive) in remediation_rounds {
+            self.dispatch_shard_batch(phase, &batch, ::core::option::Option::Some(directive));
+        }
+        remediated.clear();
+        self.stage_two_remediations = ::core::option::Option::None;
+        self.advance_phase(phase)
+    }
+
+    /// Persist the Scatter WorkManifest for one phase onto the board.
+    fn commit_work_manifest(
+        &mut self,
+        phase: ::global_fsm::MacroState,
+        shards: &[self::batches::PhaseShard],
+    ) {
+        let shard_subjects = shards
+            .iter()
+            .map(|shard| match shard {
+                self::batches::PhaseShard::Whole => "repository".to_string(),
+                self::batches::PhaseShard::Vertex(vertex) => ::core::clone::Clone::clone(vertex),
+                self::batches::PhaseShard::Edge(parent_id, child_id) => {
+                    ::std::format!("{parent_id}->{child_id}")
+                }
+            })
+            .collect::<::std::vec::Vec<_>>();
+        self.board.work_manifests.push(self::WorkManifest {
+            phase,
+            shard_subjects,
+        });
+    }
+
+    /// Re-dispatch the workers whose shard subjects appear in one semantic batch.
+    fn dispatch_shard_batch(
+        &mut self,
+        phase: ::global_fsm::MacroState,
+        batch: &[::std::string::String],
+        directive: ::core::option::Option<::std::string::String>,
+    ) {
+        let shards = self::batches::partition_shards(&self.board, phase, &self.regression_scope);
+        for (shard_index, shard) in shards.into_iter().enumerate() {
+            let subject_owned = match &shard {
+                self::batches::PhaseShard::Whole => "repository".to_string(),
+                self::batches::PhaseShard::Vertex(vertex) => vertex.clone(),
+                self::batches::PhaseShard::Edge(parent_id, child_id) => ::std::format!("{parent_id}->{child_id}"),
+            };
+            let batch_hit = batch
+                .iter()
+                .any(|item| subject_owned.contains(item.as_str()) || item.contains(&subject_owned));
+            if batch_hit {
+                self.dispatch_phase_worker(shard, shard_index, directive.clone());
+            }
+        }
+    }
+
     /// Dispatch one phase shard worker and commit the typed output to the board.
+    /// `shard_index` is the partition position of `shard` for the phase. The
+    /// engine carries it on the `ev_ShardDone` completion event.
     fn dispatch_phase_worker(
         &mut self,
         shard: self::batches::PhaseShard,
+        shard_index: ::core::primitive::usize,
         delta_directive: ::core::option::Option<::std::string::String>,
     ) {
         let subject = match &shard {
@@ -393,7 +678,12 @@ impl self::MacroEngine {
         };
         let phase = self.statechart.state();
         let role = ::global_workers::phase_role_name(phase);
-        let mode = ::holon_fsm::ActivationMode::Initial;
+        let retry_dispatch = delta_directive.is_some();
+        let mode = if retry_dispatch {
+            ::holon_fsm::ActivationMode::CriticRetry
+        } else {
+            ::holon_fsm::ActivationMode::Initial
+        };
         let envelope = ::global_workers::ContextAssembler::hydrate(
             role,
             mode,
@@ -404,11 +694,134 @@ impl self::MacroEngine {
         self.worker_executions += 1;
         let output = self.workers.execute(phase, &subject, &envelope, &self.board);
         self.commit_phase_output(phase, output);
+        // Completion signaling (VAL-FWM-02): the engine pushes the typed
+        // ev_ShardDone event onto the event queue. No polling surface exists.
+        // Agents drain events FIFO via pop_event.
+        self.board
+            .state
+            .event_queue
+            .push_back(::global_blackboard::MacroEvent::ShardDone { shard_index });
+    }
+
+    /// Run the Reduce stage (Algorithm 1 S_m.3) after one phase completes.
+    /// After S3 the linker resolves every UnresolvedCrossLink tag by copying
+    /// the referenced source rule card to the vertex whose rules name the
+    /// target symbol. Resolved tags drop off the board.
+    fn run_reduce_stage(&mut self, phase: ::global_fsm::MacroState) {
+        let s3_complete = phase == ::global_fsm::MacroState::S3ExtractRules;
+        if !s3_complete {
+            return;
+        }
+        let tags = ::core::clone::Clone::clone(&self.board.cross_links);
+        let mut remaining = ::std::vec::Vec::new();
+        for tag in tags {
+            let resolved = self.resolve_cross_link(&tag);
+            if !resolved {
+                remaining.push(tag);
+            }
+        }
+        self.board.cross_links = remaining;
+    }
+
+    /// Resolve one cross-link tag by linking the referenced rule card.
+    /// The tag resolves when a rule card whose clauses name the target symbol
+    /// exists on a vertex. The card copies to every vertex the tag names.
+    fn resolve_cross_link(&mut self, tag: &::global_blackboard::UnresolvedCrossLink) -> ::core::primitive::bool {
+        let mut source_found = ::core::option::Option::None;
+        for vertex in &self.board.dag.vertices {
+            let cards_absent = !self.board.rules.contains(vertex);
+            if cards_absent {
+                continue;
+            }
+            let cards = match self.board.rules.get(vertex) {
+                ::core::option::Option::Some(entries) => ::core::clone::Clone::clone(entries),
+                ::core::option::Option::None => ::std::vec::Vec::new(),
+            };
+            let references_source = cards
+                .iter()
+                .any(|card| card.rule_id == tag.src_id);
+            if references_source {
+                source_found = ::core::option::Option::Some(vertex.clone());
+                break;
+            }
+        }
+        let source_vertex = match source_found {
+            ::core::option::Option::Some(name) => name,
+            ::core::option::Option::None => return false,
+        };
+        let source_cards = match self.board.rules.get(&source_vertex) {
+            ::core::option::Option::Some(entries) => ::core::clone::Clone::clone(entries),
+            ::core::option::Option::None => ::std::vec::Vec::new(),
+        };
+        let matching_card = source_cards
+            .iter()
+            .find(|card| card.rule_id == tag.src_id)
+            .cloned();
+        let card = match matching_card {
+            ::core::option::Option::Some(entry) => entry,
+            ::core::option::Option::None => return false,
+        };
+        // Copy the card to the vertex the tag names by its identifier.
+        let mut linked_any = false;
+        for vertex in &self.board.dag.vertices {
+            let target_match = vertex == &tag.tgt_symbol;
+            if !target_match {
+                continue;
+            }
+            let self_link = *vertex == source_vertex;
+            if self_link {
+                continue;
+            }
+            let target_cards = match self.board.rules.get(vertex) {
+                ::core::option::Option::Some(entries) => ::core::clone::Clone::clone(entries),
+                ::core::option::Option::None => ::std::vec::Vec::new(),
+            };
+            let already_linked = target_cards.iter().any(|existing| existing.rule_id == card.rule_id);
+            if already_linked {
+                continue;
+            }
+            let card_copy = ::core::clone::Clone::clone(&card);
+            let vertex_name = ::core::clone::Clone::clone(vertex);
+            let mut merged = target_cards;
+            merged.push(card_copy);
+            self.board.rules.insert(vertex_name, merged);
+            linked_any = true;
+        }
+        linked_any
     }
 
     /// Commit one typed worker output onto the global blackboard.
     fn commit_phase_output(&mut self, phase: ::global_fsm::MacroState, output: ::global_workers::PhaseWorkOutput) {
         match (phase, output) {
+            (
+                ::global_fsm::MacroState::S0IntentPreflight,
+                ::global_workers::PhaseWorkOutput::Preflight {
+                    intent_valid,
+                    harness,
+                },
+            ) => {
+                // INTENT structural gate (METHODOLOGY.md S0 guard): the probe
+                // verdict binds. An invalid intent fails the phase outright.
+                if !intent_valid {
+                    let build_present = !harness.build_cmd.is_empty();
+                    let test_present = !harness.test_cmd.is_empty();
+                    let inventory_present = !self.board.inventory.is_empty();
+                    let detail = if !inventory_present {
+                        "intent: repository inventory is empty".to_string()
+                    } else if !build_present && !test_present {
+                        "intent: target build and test commands missing".to_string()
+                    } else if !build_present {
+                        "intent: target build command missing".to_string()
+                    } else if !test_present {
+                        "intent: target test command missing".to_string()
+                    } else {
+                        "intent: harness commands present but probe rejected intent".to_string()
+                    };
+                    self.intent_gate_error = ::core::option::Option::Some(
+                        self::MacroEngineError::PreflightGateFailed { detail },
+                    );
+                }
+            }
             (
                 ::global_fsm::MacroState::S1Assess,
                 ::global_workers::PhaseWorkOutput::Assessment { synthesized, .. },
@@ -428,7 +841,7 @@ impl self::MacroEngine {
             }
             (
                 ::global_fsm::MacroState::S3ExtractRules,
-                ::global_workers::PhaseWorkOutput::Rules { cards, .. },
+                ::global_workers::PhaseWorkOutput::Rules { cards, cross_links },
             ) => {
                 for (vertex, card) in cards {
                     let mut merged = match self.board.rules.get(&vertex) {
@@ -437,6 +850,17 @@ impl self::MacroEngine {
                     };
                     merged.push(card);
                     self.board.rules.insert(vertex, merged);
+                }
+                for tag in cross_links {
+                    let known = self
+                        .board
+                        .cross_links
+                        .iter()
+                        .any(|existing| existing.src_id == tag.src_id && existing.tgt_symbol == tag.tgt_symbol);
+                    if known {
+                        continue;
+                    }
+                    self.board.cross_links.push(tag);
                 }
             }
             (
@@ -476,25 +900,18 @@ impl self::MacroEngine {
         }
     }
 
-    /// Run the stage-two semantic critic batches and either regress or advance the phase.
-    fn run_stage_two(&mut self, phase: ::global_fsm::MacroState) -> ::core::result::Result<(), self::MacroEngineError> {
-        let batches = self::batches::semantic_batches(&self.board, phase, &self.regression_scope);
-        for batch in batches {
-            let record = self.critic.audit_batch(phase, &batch);
-            if let ::global_arbiter::CritiqueVerdict::RegressUpstream(_) = record.verdict {
-                let target = self::batches::regress_target(phase);
-                let current_chart = ::core::mem::take(&mut self.statechart);
-                let regressed = current_chart.regress_to(target)?;
-                self.statechart = regressed;
-                self.board.state.macro_state = self.statechart.state();
-                return ::core::result::Result::Ok(());
-            }
-        }
-        self.advance_phase(phase)
-    }
-
     /// Advance to the next macro phase and run the S4 to S5 deep history restore.
     fn advance_phase(&mut self, _phase: ::global_fsm::MacroState) -> ::core::result::Result<(), self::MacroEngineError> {
+        // Human-in-the-loop gate after S4 before entering S5 (reimagine sign-off).
+        let leaving_s4 = self.statechart.state() == ::global_fsm::MacroState::S4BriefContracts;
+        let gate_enabled = self.hitl.gate_on_reimagine;
+        let gate_approved = self
+            .approved_gates
+            .contains(&self::HitlGateKind::Reimagine);
+        if leaving_s4 && gate_enabled && !gate_approved {
+            self.pending_gate = ::core::option::Option::Some(self::HitlGateKind::Reimagine);
+            return ::core::result::Result::Ok(());
+        }
         let current_chart = ::core::mem::take(&mut self.statechart);
         let advanced = current_chart.advance()?;
         self.statechart = advanced;
@@ -608,7 +1025,9 @@ impl self::MacroEngine {
         };
         let next_state = match mode {
             ::holon_fsm::ActivationMode::Initial => ::global_blackboard::ModuleMicroState::M1ContextHydration,
-            ::holon_fsm::ActivationMode::WarmStartRegression => ::global_blackboard::ModuleMicroState::M2AriadneMcts,
+            ::holon_fsm::ActivationMode::CriticRetry | ::holon_fsm::ActivationMode::WarmStartRegression => {
+                ::global_blackboard::ModuleMicroState::M2AriadneMcts
+            }
         };
         let model = self.hydrate_problem_model(module_id);
         self.set_module_state(module_id, next_state);
@@ -666,6 +1085,11 @@ impl self::MacroEngine {
             let key = (parent.clone(), module_id.to_string());
             if let ::core::option::Option::Some(contract) = self.board.contracts.get(&key) {
                 model.add_parent_contract(contract.clone());
+            }
+        }
+        if let ::core::option::Option::Some(deltas) = self.pending_parent_deltas.get(module_id) {
+            for delta in deltas {
+                model.add_delta_constraint(delta.clone());
             }
         }
         if let ::core::option::Option::Some(::core::option::Option::Some(artifact)) =
@@ -773,6 +1197,31 @@ impl self::MacroEngine {
 
 }
 
+/// Report whether two shards address the same partition subject. Shard
+/// variants do not derive equality because subjects may repeat across
+/// partition regenerations. Subject identity is the partition key.
+fn shards_match_subject(
+    listed: &self::batches::PhaseShard,
+    candidate: &self::batches::PhaseShard,
+) -> ::core::primitive::bool {
+    let listed_subject = match listed {
+        self::batches::PhaseShard::Whole => "repository".to_string(),
+        self::batches::PhaseShard::Vertex(vertex) => ::core::clone::Clone::clone(vertex),
+        self::batches::PhaseShard::Edge(parent_id, child_id) => {
+            ::std::format!("{parent_id}->{child_id}")
+        }
+    };
+    let candidate_subject = match candidate {
+        self::batches::PhaseShard::Whole => "repository".to_string(),
+        self::batches::PhaseShard::Vertex(vertex) => ::core::clone::Clone::clone(vertex),
+        self::batches::PhaseShard::Edge(parent_id, child_id) => {
+            ::std::format!("{parent_id}->{child_id}")
+        }
+    };
+    listed_subject == candidate_subject
+}
+
+
 
 #[cfg(test)]
 mod tests {
@@ -783,6 +1232,224 @@ mod tests {
         let engine = self::MacroEngine::builder().build();
         ::std::assert_eq!(engine.step_budget, 256);
         ::std::assert_eq!(engine.solver_dispatches(), 0);
+    }
+
+    #[test]
+    fn test_reimagine_gate_pauses_and_resume_completes() {
+        let solver = self::StubModuleSolver::default();
+        let boxed = ::std::boxed::Box::new(solver);
+        let hitl = self::HitlGates {
+            gate_on_reimagine: true,
+            gate_on_macro_regression: false,
+            extrinsic_conflict_ask_human: false,
+        };
+        let mut engine = self::MacroEngine::builder()
+            .solver(boxed)
+            .hitl(hitl)
+            .build();
+        let board = self::chain_board();
+        engine.configure(board);
+        let first = engine.run();
+        match first {
+            ::core::result::Result::Ok(self::RunStop::HitlGatePending { gate }) => {
+                ::std::assert_eq!(gate, self::HitlGateKind::Reimagine);
+            }
+            other => ::std::panic!("expected reimagine gate pause, got {other:?}"),
+        }
+        ::std::assert!(engine.pending_gate().is_some());
+        engine.approve_pending_gate();
+        ::std::assert!(engine.pending_gate().is_none());
+        let second = engine.run();
+        ::std::assert!(::core::matches!(
+            second,
+            ::core::result::Result::Ok(self::RunStop::Terminated)
+        ));
+    }
+
+    #[test]
+    fn test_macro_regression_gate_pauses_and_reprocesses_cycle() {
+        let solver = self::CycleThenHardenSolver {
+            cycle_fired: false,
+        };
+        let boxed = ::std::boxed::Box::new(solver);
+        let hitl = self::HitlGates {
+            gate_on_reimagine: false,
+            gate_on_macro_regression: true,
+            extrinsic_conflict_ask_human: false,
+        };
+        let mut engine = self::MacroEngine::builder()
+            .solver(boxed)
+            .hitl(hitl)
+            .build();
+        let mut board = ::global_blackboard::GlobalBlackboard {
+            inventory: ::std::vec!["a".to_string(), "b".to_string(), "d".to_string()].into(),
+            ..::core::default::Default::default()
+        };
+        board.inventory.harness = ::global_blackboard::HarnessConfig {
+            build_cmd: "cargo check".to_string(),
+            test_cmd: "cargo test".to_string(),
+            legacy_harness_cmd: "legacy test".to_string(),
+        };
+        board.dag.vertices = ::std::vec!["a".to_string(), "b".to_string(), "d".to_string()];
+        board.dag.edges = ::std::vec![("a".to_string(), "b".to_string())];
+        board.contracts.insert(
+            ("a".to_string(), "b".to_string()),
+            ::holon_blackboard::EdgeContract {
+                parent_id: "a".to_string(),
+                interface_spec: "iface".to_string(),
+                preconditions: ::std::vec::Vec::new(),
+            },
+        );
+        engine.configure(board);
+        let first = engine.run();
+        match first {
+            ::core::result::Result::Ok(self::RunStop::HitlGatePending { gate }) => {
+                ::std::assert_eq!(gate, self::HitlGateKind::MacroRegression);
+            }
+            other => ::std::panic!("expected macro regression gate pause, got {other:?}"),
+        }
+        // The cycle event returned to the queue so approval reprocesses it.
+        let queued_cycle = engine
+            .state_vector()
+            .event_queue
+            .iter()
+            .any(|event| ::core::matches!(event, ::global_blackboard::MacroEvent::CyclicDependencyFound { .. }));
+        ::std::assert!(queued_cycle);
+        engine.approve_pending_gate();
+        let second = engine.run();
+        ::std::assert!(::core::matches!(
+            second,
+            ::core::result::Result::Ok(self::RunStop::Terminated)
+        ));
+        // The regression still ran after approval: the DAG condensed the cycle.
+        let vertices = &engine.board().dag.vertices;
+        ::std::assert!(vertices.contains(&"a+b".to_string()));
+    }
+
+    #[test]
+    fn test_scatter_writes_work_manifest_per_phase() {
+        let solver = self::StubModuleSolver::default();
+        let boxed = ::std::boxed::Box::new(solver);
+        let mut engine = self::chain_engine(boxed);
+        let outcome = engine.run();
+        ::std::assert!(outcome.is_ok());
+        let manifests = &engine.board().work_manifests;
+        ::std::assert!(manifests.len() >= 6);
+        let s3_covered = manifests
+            .iter()
+            .any(|manifest| manifest.phase == ::global_fsm::MacroState::S3ExtractRules
+                && manifest.covers("a")
+                && manifest.covers("c"));
+        ::std::assert!(s3_covered);
+    }
+
+    #[test]
+    fn test_task_done_and_shard_done_events_drain_without_effect() {
+        let solver = self::StubModuleSolver::default();
+        let boxed = ::std::boxed::Box::new(solver);
+        let mut engine = self::chain_engine(boxed);
+        engine
+            .board
+            .state
+            .push_event(::global_blackboard::MacroEvent::TaskDone {
+                agent_id: "RuleMiner".to_string(),
+                target_ref: "a".to_string(),
+            });
+        engine
+            .board
+            .state
+            .push_event(::global_blackboard::MacroEvent::ShardDone { shard_index: 0 });
+        let outcome = engine.run();
+        ::std::assert!(outcome.is_ok());
+        ::std::assert!(engine.state_vector().event_queue.is_empty());
+        ::std::assert_eq!(
+            engine.state_vector().macro_state,
+            ::global_fsm::MacroState::Terminated
+        );
+    }
+
+    #[test]
+    fn test_cross_link_tag_resolves_by_copying_rule_card() {
+        let solver = self::StubModuleSolver::default();
+        let boxed = ::std::boxed::Box::new(solver);
+        let mut engine = self::chain_engine(boxed);
+        // A rule card on vertex a whose clauses name module b models the
+        // cross-shard reference the tag reports.
+        engine.board.rules.insert(
+            "a",
+            ::std::vec![::holon_blackboard::BusinessRuleCard {
+                rule_id: "RA".to_string(),
+                given: "module b exposes a ledger".to_string(),
+                when: "module b commits an entry".to_string(),
+                then: "module b preserves the entry order".to_string(),
+                citation: "legacy/a.c:42".to_string(),
+            }],
+        );
+        engine.board.cross_links.push(::global_blackboard::UnresolvedCrossLink {
+            src_id: "RA".to_string(),
+            tgt_symbol: "b".to_string(),
+        });
+        let outcome = engine.run();
+        ::std::assert!(outcome.is_ok());
+        // The linker copied RA onto the vertex whose rules name the target symbol.
+        let linked = engine.board().rules.get("b").map(|cards| {
+            cards
+                .iter()
+                .any(|card| card.rule_id == "RA")
+        });
+        ::std::assert_eq!(linked, ::core::option::Option::Some(true));
+        // Resolved tags drop off the board.
+        ::std::assert!(engine.board().cross_links.is_empty());
+    }
+
+    #[test]
+    fn test_empty_harness_fails_preflight_intent_gate() {
+        let solver = self::StubModuleSolver::default();
+        let boxed = ::std::boxed::Box::new(solver);
+        let mut engine = self::chain_engine(boxed);
+        engine.board.inventory.harness = ::global_blackboard::HarnessConfig::default();
+        let outcome = engine.run();
+        let error = outcome.unwrap_err();
+        ::std::assert!(::core::matches!(
+            error,
+            self::MacroEngineError::PreflightGateFailed { .. }
+        ));
+    }
+
+    #[test]
+    fn test_tier_b_delta_appends_to_parent_problem_model() {
+        let solver = self::ConflictThenHardenSolver::new();
+        let boxed = ::std::boxed::Box::new(solver);
+        let mut engine = self::MacroEngine::new(boxed);
+        let mut board = ::global_blackboard::GlobalBlackboard {
+            inventory: ::std::vec!["a".to_string(), "b".to_string()].into(),
+            ..::core::default::Default::default()
+        };
+        board.inventory.harness = ::global_blackboard::HarnessConfig {
+            build_cmd: "cargo check".to_string(),
+            test_cmd: "cargo test".to_string(),
+            legacy_harness_cmd: "legacy test".to_string(),
+        };
+        board.dag.vertices = ::std::vec!["a".to_string(), "b".to_string()];
+        board.dag.edges = ::std::vec![("a".to_string(), "b".to_string())];
+        board.contracts.insert(
+            ("a".to_string(), "b".to_string()),
+            ::holon_blackboard::EdgeContract {
+                parent_id: "a".to_string(),
+                interface_spec: "iface".to_string(),
+                preconditions: ::std::vec::Vec::new(),
+            },
+        );
+        engine.configure(board);
+        let outcome = engine.run();
+        ::std::assert!(outcome.is_ok());
+        // The parent warm-start re-dispatch hydrated the reported delta.
+        let pending = engine.pending_parent_deltas.get("a");
+        ::std::assert!(pending.is_some());
+        let deltas = pending.unwrap();
+        ::std::assert!(deltas
+            .iter()
+            .any(|delta| delta.contains("delta_from_b")));
     }
 
     #[test]
@@ -915,6 +1582,11 @@ mod tests {
             inventory: ::std::vec!["a".to_string(), "b".to_string()].into(),
             ..::core::default::Default::default()
         };
+        board.inventory.harness = ::global_blackboard::HarnessConfig {
+            build_cmd: "cargo check".to_string(),
+            test_cmd: "cargo test".to_string(),
+            legacy_harness_cmd: "legacy test".to_string(),
+        };
         board.dag.vertices = ::std::vec!["a".to_string(), "b".to_string()];
         board.dag.edges = ::std::vec![("a".to_string(), "b".to_string())];
         board.contracts.insert(
@@ -993,6 +1665,11 @@ mod tests {
             inventory: ::std::vec!["a".to_string(), "b".to_string(), "d".to_string()].into(),
             ..::core::default::Default::default()
         };
+        board.inventory.harness = ::global_blackboard::HarnessConfig {
+            build_cmd: "cargo check".to_string(),
+            test_cmd: "cargo test".to_string(),
+            legacy_harness_cmd: "legacy test".to_string(),
+        };
         board.dag.vertices = ::std::vec!["a".to_string(), "b".to_string(), "d".to_string()];
         board.dag.edges = ::std::vec![("a".to_string(), "b".to_string())];
         board.contracts.insert(
@@ -1046,7 +1723,7 @@ mod tests {
         let error = outcome.unwrap_err();
         let expected = self::MacroEngineError::StructuralGuardFailure {
             phase: ::global_fsm::MacroState::S0IntentPreflight,
-            detail: "inventory is empty".to_string(),
+            detail: "repository: inventory is empty".to_string(),
         };
         ::std::assert_eq!(error, expected);
         ::std::assert_eq!(engine.structural_retries(), 1);
@@ -1095,6 +1772,11 @@ mod tests {
         let mut board = ::global_blackboard::GlobalBlackboard {
             inventory: ::std::vec!["a".to_string(), "b".to_string(), "c".to_string()].into(),
             ..::core::default::Default::default()
+        };
+        board.inventory.harness = ::global_blackboard::HarnessConfig {
+            build_cmd: "cargo check".to_string(),
+            test_cmd: "cargo test".to_string(),
+            legacy_harness_cmd: "legacy test".to_string(),
         };
         board.dag.vertices = ::std::vec!["a".to_string(), "b".to_string(), "c".to_string()];
         board.dag.edges = ::std::vec![

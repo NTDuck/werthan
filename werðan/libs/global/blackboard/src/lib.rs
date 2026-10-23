@@ -11,6 +11,7 @@ pub mod path_resolver;
 pub mod rules;
 pub mod scc;
 pub mod state_vector;
+pub mod work_manifest;
 
 pub use self::artifacts::{ArtifactRegistry, ModuleArtifact};
 pub use self::contracts::ContractRegistry;
@@ -23,6 +24,7 @@ pub use self::inventory::{DialectProfile, HarnessConfig, RepositoryInventory};
 pub use self::path_resolver::{default_blackboard_dir, resolve_component_path};
 pub use self::rules::RuleRegistry;
 pub use self::state_vector::{GlobalStateVector, MacroEvent, ModuleMicroState};
+pub use self::work_manifest::{UnresolvedCrossLink, WorkManifest};
 
 /// Global blackboard G per METHODOLOGY.md Definition 1.
 /// Holds the inventory I_inv, the condensed DAG G=(V,E), rule cards R_rules,
@@ -39,6 +41,10 @@ pub struct GlobalBlackboard {
     pub contracts: self::contracts::ContractRegistry,
     /// Hardened target artifacts per vertex A_artifacts.
     pub artifacts: self::artifacts::ArtifactRegistry,
+    /// Work manifests written by the Scatter stage per phase (Algorithm 1 S_m.1).
+    pub work_manifests: ::std::vec::Vec<self::work_manifest::WorkManifest>,
+    /// Unresolved cross-shard link tags awaiting the Reduce linker (Algorithm 1 S_m.3).
+    pub cross_links: ::std::vec::Vec<self::work_manifest::UnresolvedCrossLink>,
     /// Transactionally persisted state configuration Sigma(G).
     pub state: self::state_vector::GlobalStateVector,
 }
@@ -132,6 +138,8 @@ impl self::GlobalBlackboard {
             rules,
             contracts,
             artifacts,
+            work_manifests: ::std::vec::Vec::new(),
+            cross_links: ::std::vec::Vec::new(),
             state,
         })
     }

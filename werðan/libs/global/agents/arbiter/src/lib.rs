@@ -125,6 +125,31 @@ pub fn trace_references_parties(
     trace.contains(parent_id) || trace.contains(module_id)
 }
 
+/// Conjoin the shard batch verdicts of one phase's stage-two audit round into
+/// the phase semantic guard outcome (VAL-CRITIC-03). The phase passes only when
+/// every shard batch verdict is PASS. One REGRESS_UPSTREAM dominates all local
+/// remediations. Otherwise the first REJECT_LOCAL verdict stands so the engine
+/// re-dispatches exactly the offending shard batch.
+pub fn conjunction_verdict(records: &[self::CritiqueRecord]) -> self::CritiqueVerdict {
+    let mut first_local = ::core::option::Option::None;
+    for record in records {
+        match &record.verdict {
+            self::CritiqueVerdict::RegressUpstream(reasons) => {
+                let cloned_reasons = ::core::clone::Clone::clone(reasons);
+                return self::CritiqueVerdict::RegressUpstream(cloned_reasons);
+            }
+            self::CritiqueVerdict::RemediateLocal(reasons) => {
+                if first_local.is_none() {
+                    let cloned_reasons = ::core::clone::Clone::clone(reasons);
+                    first_local = ::core::option::Option::Some(self::CritiqueVerdict::RemediateLocal(cloned_reasons));
+                }
+            }
+            self::CritiqueVerdict::Pass => {}
+        }
+    }
+    first_local.unwrap_or(self::CritiqueVerdict::Pass)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

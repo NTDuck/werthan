@@ -50,6 +50,19 @@ pub enum MacroEvent {
         /// Failure proof trace.
         proof_trace: ::std::string::String,
     },
+    /// Ephemeral agent finished its task. Zero-traffic acknowledgement per the
+    /// push-based ephemeral invocation contract (tech-spec 2.6).
+    TaskDone {
+        /// Identifier of the terminating agent role.
+        agent_id: ::std::string::String,
+        /// Shard or vertex the agent targeted.
+        target_ref: ::std::string::String,
+    },
+    /// One scatter shard worker completed. Algorithm 1 substate S_m.2 event.
+    ShardDone {
+        /// Zero-based index of the completed shard.
+        shard_index: ::core::primitive::usize,
+    },
 }
 
 /// Transactionally persisted state configuration Sigma(G) from METHODOLOGY.md Definition 1.

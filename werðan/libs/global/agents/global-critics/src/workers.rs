@@ -163,6 +163,7 @@ fn render_worker_prompt(
     let phase_label = ::std::format!("{phase:?}");
     let mode_label = match envelope.mode {
         ::holon_fsm::ActivationMode::Initial => "initial",
+        ::holon_fsm::ActivationMode::CriticRetry => "critic retry",
         ::holon_fsm::ActivationMode::WarmStartRegression => "warm start regression",
     };
     let mut prompt_body = ::std::string::String::new();

@@ -123,3 +123,46 @@ fn scoped_vertices(
     }
     vertices
 }
+
+/// Map a structural guard failure detail onto the shards owning the named subject.
+/// Guards report failures as "<subject>: <reason>" strings. A shard fails when its
+/// subject appears in the detail. Guards without a subject (whole-repo predicates
+/// such as DAG acyclicity) match the Whole shard. Unknown subjects retry all shards
+/// conservatively rather than skipping a repair.
+pub fn guard_failing_shards(
+    board: &::global_blackboard::GlobalBlackboard,
+    phase: ::global_fsm::MacroState,
+    shards: &[self::PhaseShard],
+) -> ::std::vec::Vec<self::PhaseShard> {
+    let guard_detail = match crate::guards::structural_guard(phase, board) {
+        ::core::result::Result::Ok(()) => return ::std::vec::Vec::new(),
+        ::core::result::Result::Err(detail) => detail,
+    };
+    let mut failing = ::std::vec::Vec::new();
+    for shard in shards {
+        let subject_owned = match shard {
+            self::PhaseShard::Whole => ::std::string::String::from("repository"),
+            self::PhaseShard::Vertex(vertex) => ::std::clone::Clone::clone(vertex),
+            self::PhaseShard::Edge(parent_id, child_id) => {
+                ::std::format!("{parent_id}->{child_id}")
+            }
+        };
+        let subject = subject_owned.as_str();
+        // Attribution requires the detail to name the subject as the owning
+        // key. The shape is "<subject>: <reason>" and never a bare substring.
+        // A bare substring match would let the article in the reason text
+        // match shard "a".
+        let detail_subject = guard_detail.split(':').next().unwrap_or_default();
+        let shard_matches = detail_subject.trim() == subject;
+        if shard_matches {
+            failing.push(shard.clone());
+        }
+    }
+    let none_attributed = failing.is_empty();
+    if none_attributed {
+        let shard_iter = shards.iter();
+        let cloned_shards = shard_iter.cloned().collect::<::std::vec::Vec<_>>();
+        return cloned_shards;
+    }
+    failing
+}

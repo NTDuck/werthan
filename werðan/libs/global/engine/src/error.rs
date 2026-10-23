@@ -15,6 +15,19 @@ pub enum MacroEngineError {
         /// Consumed step count.
         steps_used: ::core::primitive::usize,
     },
+    /// A RemediateLocal critique persisted after its remediation re-dispatch.
+    SemanticRemediationFailed {
+        /// Phase whose critic rejected the remediated batch.
+        phase: ::global_fsm::MacroState,
+        /// Critic remediation notes describing the unresolved rejection.
+        detail: ::std::string::String,
+    },
+    /// The S0 preflight intent gate rejected the campaign intent (METHODOLOGY.md
+    /// S0 structural guard: harness configuration and INTENT validity).
+    PreflightGateFailed {
+        /// Gate detail describing the invalid intent element.
+        detail: ::std::string::String,
+    },
     /// Wave dispatch found no ready vertex while modules remain unhardened.
     WaveDeadlock {
         /// Detail about the stuck module set.
@@ -38,6 +51,12 @@ impl ::core::fmt::Display for self::MacroEngineError {
             }
             Self::StepBudgetExhausted { steps_used } => {
                 ::core::write!(formatter, "step budget exhausted after {steps_used} steps")
+            }
+            Self::SemanticRemediationFailed { phase, detail } => {
+                ::core::write!(formatter, "semantic remediation failed in phase {phase:?}: {detail}")
+            }
+            Self::PreflightGateFailed { detail } => {
+                ::core::write!(formatter, "preflight intent gate failed: {detail}")
             }
             Self::WaveDeadlock { detail } => {
                 ::core::write!(formatter, "wave dispatch deadlock: {detail}")

@@ -98,12 +98,12 @@ pub enum PhaseWorkOutput {
         /// Newly discovered dependency edges as parent and child pairs.
         discovered_edges: ::std::vec::Vec<(::std::string::String, ::std::string::String)>,
     },
-    /// S3 rule cards with their owning vertex plus the cross-module link count.
+    /// S3 rule cards with their owning vertex plus unresolved cross-module markers.
     Rules {
         /// Rule cards paired with their owning vertex identifier.
         cards: ::std::vec::Vec<(::std::string::String, ::holon_blackboard::BusinessRuleCard)>,
-        /// Count of cross-vertex link copies emitted by the linker.
-        linked_count: ::core::primitive::usize,
+        /// Declarative UnresolvedCrossLink markers per S_m.2 map semantics.
+        cross_links: ::std::vec::Vec<::global_blackboard::UnresolvedCrossLink>,
     },
     /// S4 target idioms plus stubbed edge contracts.
     Contracts {
@@ -185,11 +185,10 @@ impl self::PhaseWorker for self::DeterministicWorkers {
                     let vertex_owned = ::core::clone::Clone::clone(vertex);
                     cards.push((vertex_owned, self.mine_rules(vertex)));
                 }
-                let (linked, linked_count) = self.link_cross_module_rules(board, &cards);
-                cards.extend(linked);
+                let cross_links = self.link_cross_module_rules(board, &cards);
                 self::PhaseWorkOutput::Rules {
                     cards,
-                    linked_count,
+                    cross_links,
                 }
             }
             ::global_fsm::MacroState::S4BriefContracts => {
@@ -318,15 +317,16 @@ impl self::DeterministicWorkers {
     /// the card on that vertex so cross-module obligations surface in S5
     /// problem models. Token matching is exact-word and never substring to
     /// avoid spurious links through unrelated clause prose.
-    fn link_cross_module_rules(
+    /// Emit declarative UnresolvedCrossLink markers for rule cards whose
+    /// clauses name another vertex (METHODOLOGY-DRV S_m.2 map semantics).
+    /// The engine's S3 reduce stage resolves the markers by copying the
+    /// source card onto the named vertex.
+    pub fn link_cross_module_rules(
         &self,
         board: &::global_blackboard::GlobalBlackboard,
         cards: &[(::std::string::String, ::holon_blackboard::BusinessRuleCard)],
-    ) -> (
-        ::std::vec::Vec<(::std::string::String, ::holon_blackboard::BusinessRuleCard)>,
-        ::core::primitive::usize,
-    ) {
-        let mut linked = ::std::vec::Vec::new();
+    ) -> ::std::vec::Vec<::global_blackboard::UnresolvedCrossLink> {
+        let mut tags = ::std::vec::Vec::new();
         for (owner, card) in cards {
             for vertex in &board.dag.vertices {
                 let self_link = vertex == owner;
@@ -335,14 +335,15 @@ impl self::DeterministicWorkers {
                 }
                 let references = self::card_references_vertex(card, vertex);
                 if references {
-                    let card_copy = ::core::clone::Clone::clone(card);
-                    let copy = (vertex.clone(), card_copy);
-                    linked.push(copy);
+                    let tag = ::global_blackboard::UnresolvedCrossLink {
+                        src_id: ::core::clone::Clone::clone(&card.rule_id),
+                        tgt_symbol: ::core::clone::Clone::clone(vertex),
+                    };
+                    tags.push(tag);
                 }
             }
         }
-        let linked_count = linked.len();
-        (linked, linked_count)
+        tags
     }
 
     /// Emit the global target idiom line from the dialect profile.
@@ -660,11 +661,11 @@ mod tests {
             &board,
         );
         match output {
-            self::PhaseWorkOutput::Rules { cards, linked_count } => {
+            self::PhaseWorkOutput::Rules { cards, cross_links } => {
                 ::std::assert_eq!(cards.len(), 1);
                 ::std::assert_eq!(cards[0].0, "beta");
                 ::std::assert_eq!(cards[0].1.rule_id, "beta_rule_1");
-                ::std::assert_eq!(linked_count, 0);
+                ::std::assert!(cross_links.is_empty());
             }
             _ => ::std::panic!("expected rules output"),
         }
@@ -700,7 +701,7 @@ mod tests {
     }
 
     #[test]
-    fn linker_copies_cards_that_name_other_vertices() {
+    fn linker_emits_cross_link_tags_for_cards_naming_other_vertices() {
         let workers = self::DeterministicWorkers::new();
         let board = self::sample_board();
         let card = ::holon_blackboard::BusinessRuleCard {
@@ -712,10 +713,10 @@ mod tests {
         };
         let card_copy = ::core::clone::Clone::clone(&card);
         let cards = ::std::vec![("alpha".to_string(), card_copy)];
-        let (linked, linked_count) = workers.link_cross_module_rules(&board, &cards);
-        ::std::assert_eq!(linked_count, 1);
-        ::std::assert_eq!(linked[0].0, "beta");
-        ::std::assert_eq!(linked[0].1.rule_id, "alpha_rule_1");
+        let tags = workers.link_cross_module_rules(&board, &cards);
+        ::std::assert_eq!(tags.len(), 1);
+        ::std::assert_eq!(tags[0].src_id, "alpha_rule_1");
+        ::std::assert_eq!(tags[0].tgt_symbol, "beta");
     }
 
     #[test]

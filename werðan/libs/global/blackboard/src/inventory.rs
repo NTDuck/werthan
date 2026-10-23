@@ -129,15 +129,25 @@ impl self::RepositoryInventory {
         }
     }
 
-    /// Add a file into the inventory.
+    /// Add a file into the inventory. Files record exactly once: a repeated
+    /// path is a no-op so the inventory stays the unique coverage basis for
+    /// the S1 100% coverage guard (VAL-BB-G-07).
     pub fn add_file(&mut self, file: impl ::core::convert::Into<::std::string::String>) {
         let path = file.into();
+        let already_recorded = self.contains(&path);
+        if already_recorded {
+            return;
+        }
         self.files.push(path);
     }
 
-    /// Push a file into the inventory.
+    /// Push a file into the inventory with exactly-once recording.
     pub fn push(&mut self, file: impl ::core::convert::Into<::std::string::String>) {
         let path = file.into();
+        let already_recorded = self.contains(&path);
+        if already_recorded {
+            return;
+        }
         self.files.push(path);
     }
 

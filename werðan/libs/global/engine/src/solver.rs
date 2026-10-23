@@ -80,6 +80,7 @@ impl self::ModuleSolver for self::StubModuleSolver {
         *entry += 1;
         let mode_tag = match mode {
             ::holon_fsm::ActivationMode::Initial => "initial",
+            ::holon_fsm::ActivationMode::CriticRetry => "retry",
             ::holon_fsm::ActivationMode::WarmStartRegression => "warm",
         };
         let target_code = ::std::format!("fn {}_hardened() -> u32 {{ {} }}", module_id, mode_tag);
