@@ -55,6 +55,13 @@ pub fn seed_board(
     }
     let dag = self::build_dag(&entries);
     let mut board = ::global_blackboard::GlobalBlackboard::default();
+    // The S0 INTENT gate requires the verified harness configuration on the
+    // board. The target commands come from the campaign stack section.
+    board.inventory.harness = ::global_blackboard::HarnessConfig {
+        build_cmd: ::core::clone::Clone::clone(&bench_config.stack.target_build_cmd),
+        test_cmd: ::core::clone::Clone::clone(&bench_config.stack.target_test_cmd),
+        legacy_harness_cmd: ::core::clone::Clone::clone(&bench_config.stack.legacy_test_harness_cmd),
+    };
     // The S2 guard requires every inventory entry to be covered by a DAG
     // vertex, so the board inventory carries module files only. Header and
     // test-tree files still feed the size metrics and the rule prompts.

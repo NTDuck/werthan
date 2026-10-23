@@ -1763,6 +1763,7 @@ dependencies = [
  "serde_json",
  "ste100",
  "stepdown",
+ "tempfile",
  "turbofish",
 ]
 
@@ -1782,6 +1783,7 @@ dependencies = [
  "serde_json",
  "ste100",
  "stepdown",
+ "tempfile",
  "turbofish",
 ]
 
@@ -1803,6 +1805,7 @@ dependencies = [
  "serde_json",
  "ste100",
  "stepdown",
+ "tempfile",
  "tokio",
  "tracing",
  "turbofish",
@@ -1827,6 +1830,7 @@ dependencies = [
  "serde_json",
  "ste100",
  "stepdown",
+ "tempfile",
  "tracing",
  "turbofish",
 ]
@@ -2094,7 +2098,6 @@ name = "holon-engine"
 version = "0.1.0"
 dependencies = [
  "bon",
- "cucumber",
  "envload",
  "flatmods",
  "futures",
@@ -2141,7 +2144,6 @@ dependencies = [
 name = "holon-fsm"
 version = "0.1.0"
 dependencies = [
- "cucumber",
  "envload",
  "flatmods",
  "pathqual",
@@ -2150,7 +2152,6 @@ dependencies = [
  "serde_json",
  "ste100",
  "stepdown",
- "tokio",
  "turbofish",
 ]
 
@@ -5395,7 +5396,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ast-grep-core",
- "cucumber",
  "envload",
  "flatmods",
  "globset",

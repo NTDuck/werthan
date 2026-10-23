@@ -249,8 +249,8 @@ pub struct InteractiveCockpit {
     pub wizard: ::core::option::Option<::configurator::ConfiguratorAgent>,
     /// Shared blackboard instance.
     pub blackboard: self::mock::Blackboard,
-    /// Active state machine state.
-    pub current_state: self::mock::ModernizationState,
+    /// Persisted runner state vector: single source of truth for rendering.
+    pub state_vector: self::mock::RunnerStateVector,
     /// Pending human gate.
     pub pending_gate: ::core::option::Option<self::mock::HumanGate>,
     /// Flag indicating whether workflow is running.
@@ -621,11 +621,15 @@ fn render_status_telemetry(
     let magenta_style = ::ratatui::style::Style::default().fg(::ratatui::style::Color::Magenta);
     let path_style = ::ratatui::style::Style::default().fg(::ratatui::style::Color::Blue);
 
-    let state_str = app.current_state.to_string();
+    let state_str = app.state_vector.macro_state.to_string();
     let gate_str = match &app.pending_gate {
         ::core::option::Option::Some(gate_name) => gate_name.to_string(),
         ::core::option::Option::None => "none".to_string(),
     };
+    // The rendered state span derives from the persisted state vector, so the
+    // UI never reads a duplicate state source.
+    let telemetry_text = self::telemetry_state_text(&app.state_vector);
+    ::std::debug_assert!(telemetry_text.starts_with(&state_str));
 
     let span_brand = ::ratatui::text::Span::styled(" π werðan", brand_style);
     let span_sep1 = ::ratatui::text::Span::styled(" · ", sep_style);
@@ -1078,7 +1082,7 @@ impl self::InteractiveCockpit {
             draft_config: { default_config },
             wizard: ::core::option::Option::None,
             blackboard: { bb },
-            current_state: self::mock::ModernizationState::S0IntentPreflight,
+            state_vector: self::mock::RunnerStateVector::default(),
             pending_gate: ::core::option::Option::None,
             is_running: false,
             event_tx: { tx },
@@ -1347,7 +1351,7 @@ impl self::InteractiveCockpit {
                 self.resolve_gate_rejection(&reason);
             },
             "/status" => {
-                let st = self.current_state;
+                let st = self.state_vector.macro_state;
                 let is_run = self.is_running;
                 let cov = self.blackboard.obligation_coverage().await;
                 let taint = self.blackboard.is_tainted().await;
@@ -1408,7 +1412,11 @@ impl self::InteractiveCockpit {
                     from,
                     to,
                 } => {
-                    self.current_state = to;
+                    let outcome = self::mock::StepOutcome::Advanced {
+                        from: ::core::clone::Clone::clone(&from),
+                        to: ::core::clone::Clone::clone(&to),
+                    };
+                    self.state_vector.record(&outcome);
                     self.messages.push(self::ChatMessage::Transition {
                         from,
                         to,
@@ -1418,6 +1426,11 @@ impl self::InteractiveCockpit {
                     gate,
                     prompt,
                 } => {
+                    let outcome = self::mock::StepOutcome::GateRequired {
+                        gate,
+                        prompt: ::core::clone::Clone::clone(&prompt),
+                    };
+                    self.state_vector.record(&outcome);
                     self.pending_gate = ::core::option::Option::Some(gate);
                     self.messages.push(self::ChatMessage::GatePrompt {
                         gate,
@@ -1427,6 +1440,10 @@ impl self::InteractiveCockpit {
                 self::UiStreamEvent::WorkflowCompleted {
                     receipts,
                 } => {
+                    let outcome = self::mock::StepOutcome::Completed {
+                        receipts: ::core::clone::Clone::clone(&receipts),
+                    };
+                    self.state_vector.record(&outcome);
                     self.is_running = false;
                     self.pending_gate = ::core::option::Option::None;
                     let count = receipts.len();
@@ -1750,12 +1767,24 @@ impl self::InteractiveCockpit {
 
             if assess_runner.is_auto() {
                 let (approved_runner, advanced) = assess_runner.advance_auto();
-                if let self::mock::StepOutcome::Advanced { from, to } = advanced {
+                if let self::mock::StepOutcome::Advanced { from, to } = ::core::clone::Clone::clone(&advanced) {
                     let _ = ui_tx.send(self::UiStreamEvent::StateTransition { from, to });
                     let log_line = ::std::format!("FSM transition: {from} -> {to}");
                     let _ = ui_tx.send(self::UiStreamEvent::OrchestratorLine(log_line));
                 }
-                let completion = approved_runner.step();
+                let (transform_runner, transform_outcome) = approved_runner.step();
+                if let self::mock::StepOutcome::Advanced { from, to } = ::core::clone::Clone::clone(&transform_outcome) {
+                    let _ = ui_tx.send(self::UiStreamEvent::StateTransition { from, to });
+                    let log_line = ::std::format!("FSM transition: {from} -> {to}");
+                    let _ = ui_tx.send(self::UiStreamEvent::OrchestratorLine(log_line));
+                }
+                let (verify_runner, verify_outcome) = transform_runner.step();
+                if let self::mock::StepOutcome::Advanced { from, to } = ::core::clone::Clone::clone(&verify_outcome) {
+                    let _ = ui_tx.send(self::UiStreamEvent::StateTransition { from, to });
+                    let log_line = ::std::format!("FSM transition: {from} -> {to}");
+                    let _ = ui_tx.send(self::UiStreamEvent::OrchestratorLine(log_line));
+                }
+                let completion = verify_runner.step();
                 if let self::mock::StepOutcome::Completed { receipts } = completion {
                     let _ = ui_tx.send(self::UiStreamEvent::WorkflowCompleted { receipts });
                 }
@@ -1774,8 +1803,31 @@ impl self::InteractiveCockpit {
                     }
                 };
                 match assess_runner.submit_gate_decision(decision) {
-                    ::core::result::Result::Ok(approved_runner) => {
-                        let completion = approved_runner.step();
+                    ::core::result::Result::Ok((approved_runner, approved_outcome)) => {
+                        if let self::mock::StepOutcome::Advanced { from, to } =
+                            ::core::clone::Clone::clone(&approved_outcome)
+                        {
+                            let _ = ui_tx.send(self::UiStreamEvent::StateTransition { from, to });
+                            let log_line = ::std::format!("FSM transition: {from} -> {to}");
+                            let _ = ui_tx.send(self::UiStreamEvent::OrchestratorLine(log_line));
+                        }
+                        let (transform_runner, transform_outcome) = approved_runner.step();
+                        if let self::mock::StepOutcome::Advanced { from, to } =
+                            ::core::clone::Clone::clone(&transform_outcome)
+                        {
+                            let _ = ui_tx.send(self::UiStreamEvent::StateTransition { from, to });
+                            let log_line = ::std::format!("FSM transition: {from} -> {to}");
+                            let _ = ui_tx.send(self::UiStreamEvent::OrchestratorLine(log_line));
+                        }
+                        let (verify_runner, verify_outcome) = transform_runner.step();
+                        if let self::mock::StepOutcome::Advanced { from, to } =
+                            ::core::clone::Clone::clone(&verify_outcome)
+                        {
+                            let _ = ui_tx.send(self::UiStreamEvent::StateTransition { from, to });
+                            let log_line = ::std::format!("FSM transition: {from} -> {to}");
+                            let _ = ui_tx.send(self::UiStreamEvent::OrchestratorLine(log_line));
+                        }
+                        let completion = verify_runner.step();
                         if let self::mock::StepOutcome::Completed { receipts } = completion {
                             let _ = ui_tx.send(self::UiStreamEvent::WorkflowCompleted { receipts });
                         }
@@ -1820,4 +1872,12 @@ impl self::InteractiveCockpit {
             self.messages.push(self::ChatMessage::Error("No human gate is currently pending rejection.".to_string()));
         }
     }
+}
+
+/// Build the status telemetry text from the persisted state vector. The
+/// rendering layer consumes this single source of truth (VAL-INTERACTIVE-01).
+pub fn telemetry_state_text(state_vector: &self::mock::RunnerStateVector) -> ::std::string::String {
+    let state_text = state_vector.macro_state.to_string();
+    let event_count = state_vector.event_log.len();
+    ::std::format!("{state_text} | events: {event_count}")
 }

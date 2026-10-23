@@ -92,8 +92,30 @@ fn run_campaign_blocking(
     for (vertex_id, cards) in rule_report.cards_per_vertex {
         seeded_board.rules.insert(vertex_id, cards);
     }
-    let solver = self::build_solver(bench_config, request_count.clone(), workspace_root.clone());
-    let mut engine = ::global_engine::MacroEngine::new(solver);
+    let solver_res = self::build_solver(bench_config, request_count.clone(), workspace_root.clone());
+    let solver = match solver_res {
+        ::core::result::Result::Ok(value) => value,
+        ::core::result::Result::Err(config_failure) => {
+            let mut failed = self::failed_result(&campaign_id, &config_failure);
+            failed.wall_time_ms =
+                campaign_started.elapsed().as_millis() as ::core::primitive::u64;
+            return failed;
+        },
+    };
+    let hitl_gates = ::global_engine::HitlGates {
+        gate_on_reimagine: ::core::clone::Clone::clone(&bench_config.hitl.gate_on_reimagine),
+        gate_on_macro_regression: ::core::clone::Clone::clone(
+            &bench_config.hitl.gate_on_macro_regression,
+        ),
+        extrinsic_conflict_ask_human: ::core::matches!(
+            &bench_config.hitl.extrinsic_conflict_escalation,
+            ::configschema::ConflictEscalation::AskHuman
+        ),
+    };
+    let mut engine = ::global_engine::MacroEngine::builder()
+        .solver(solver)
+        .hitl(hitl_gates)
+        .build();
     engine.configure(seeded_board);
     ::tracing::info!("starting engine.run()");
     let engine_started = ::std::time::Instant::now();
@@ -102,7 +124,19 @@ fn run_campaign_blocking(
     let engine_wall_time_ms = { engine_started.elapsed().as_millis() as ::core::primitive::u64 };
     ::tracing::info!("finished engine.run() in {}ms", engine_wall_time_ms);
     let engine_error = match run_res {
-        ::core::result::Result::Ok(()) => ::core::option::Option::None,
+        ::core::result::Result::Ok(global_engine_run_stop) => {
+            ::tracing::info!("engine stopped: {global_engine_run_stop:?}");
+            match global_engine_run_stop {
+                ::global_engine::RunStop::Terminated => ::core::option::Option::None,
+                ::global_engine::RunStop::HitlGatePending { gate } => {
+                    // A headless benchmark has no operator to approve the
+                    // gate, so a parked campaign is an explicit outcome.
+                    let detail = ::std::format!("campaign parked on human gate {gate:?}");
+                    ::tracing::info!("{detail}");
+                    ::core::option::Option::Some(detail)
+                }
+            }
+        },
         ::core::result::Result::Err(engine_failure) => {
             ::core::option::Option::Some(::std::format!("{engine_failure}"))
         },
@@ -240,9 +274,14 @@ fn reset_workspace(
     }
     let remove_res = ::std::fs::remove_dir_all(workspace_root);
     if let ::core::result::Result::Err(remove_error) = remove_res {
-        return ::core::option::Option::Some(::std::format!(
-            "workspace reset remove failed: {remove_error}"
-        ));
+        // A missing workspace root is already the pristine state the reset
+        // targets. Only a real removal failure blocks the campaign.
+        let already_clean = remove_error.kind() == ::std::io::ErrorKind::NotFound;
+        if !already_clean {
+            return ::core::option::Option::Some(::std::format!(
+                "workspace reset remove failed: {remove_error}"
+            ));
+        }
     }
     let copy_res = self::copy_dir_recursive(&dataset_dir, workspace_root);
     if let ::core::result::Result::Err(copy_error) = copy_res {
@@ -322,9 +361,15 @@ fn build_solver(
     bench_config: &super::bench_config::CampaignConfig,
     request_count: ::std::sync::Arc<::std::sync::atomic::AtomicU64>,
     workspace_root: ::std::path::PathBuf,
-) -> ::std::boxed::Box<dyn ::global_engine::ModuleSolver> {
+) -> ::core::result::Result<::std::boxed::Box<dyn ::global_engine::ModuleSolver>, ::std::string::String> {
     let inference = &bench_config.inference;
-    let compat_model = super::bench_llm::OpenAiCompatModel::from_inference(inference);
+    let compat_model_res = super::bench_llm::OpenAiCompatModel::from_inference(inference);
+    let compat_model = match compat_model_res {
+        ::core::result::Result::Ok(value) => value,
+        ::core::result::Result::Err(failure) => {
+            return ::core::result::Result::Err(failure);
+        },
+    };
     ::tracing::info!("campaign {}: LLM backend configured", bench_config.campaign_id);
     let mut mcts_config = ::holon_engine::EngineConfig::default();
     let rollout_budget = bench_config.ariadne.engine_budget_per_module;
@@ -332,6 +377,16 @@ fn build_solver(
     if rollout_nonzero {
         mcts_config.max_rollouts = rollout_budget;
     }
+    mcts_config.ucb_c_exp = bench_config.ariadne.ucb_exploration_c;
+    mcts_config.softmax_temperature = bench_config.ariadne.softmax_temperature;
+    let engine_weights = ::holon_engine::RewardWeights {
+        compile: ::core::clone::Clone::clone(&bench_config.ariadne.reward_weights.compile),
+        parity: ::core::clone::Clone::clone(
+            &bench_config.ariadne.reward_weights.characterization_parity,
+        ),
+        harden: ::core::clone::Clone::clone(&bench_config.ariadne.reward_weights.hardening_score),
+    };
+    mcts_config.reward_weights = engine_weights;
     let counting_model =
         super::bench_llm::CountingCompletionModel::new(compat_model, request_count.clone());
     let base_temperature = inference.inference_temperature;
@@ -395,7 +450,10 @@ fn build_solver(
     .harness(harness)
     .distiller(distiller)
     .build();
-    ::std::boxed::Box::new(solver)
+    let boxed_solver = ::std::boxed::Box::new(solver);
+    let dyn_solver: ::std::boxed::Box<dyn ::global_engine::ModuleSolver> = boxed_solver;
+    let solver_ok = ::core::result::Result::Ok(dyn_solver);
+    solver_ok
 }
 
 #[cfg(test)]

@@ -32,7 +32,14 @@ pub fn extract_rules_for_board(
 ) -> self::RuleExtractionReport {
     let mut report = self::RuleExtractionReport::default();
     let inference = &bench_config.inference;
-    let compat_model = super::bench_llm::OpenAiCompatModel::from_inference(inference);
+    let compat_model_res = super::bench_llm::OpenAiCompatModel::from_inference(inference);
+    let compat_model = match compat_model_res {
+        ::core::result::Result::Ok(value) => value,
+        ::core::result::Result::Err(_config_failure) => {
+            report.failed_vertices = entries.iter().map(|entry| entry.vertex_id.clone()).collect();
+            return report;
+        },
+    };
     let counting_model =
         super::bench_llm::CountingCompletionModel::new(compat_model, request_counter.clone());
     let request_temperature = inference.inference_temperature;

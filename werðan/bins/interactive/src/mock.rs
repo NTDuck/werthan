@@ -168,7 +168,7 @@ impl ::core::default::Default for self::ModernizeConfig {
 }
 
 /// Mock receipt stamp recorded on workflow milestones.
-#[derive(::core::clone::Clone, ::core::fmt::Debug, ::serde::Serialize, ::serde::Deserialize)]
+#[derive(::core::clone::Clone, ::core::fmt::Debug, ::core::cmp::PartialEq, ::serde::Serialize, ::serde::Deserialize)]
 pub struct ReceiptStamp {
     /// Associated human gate name.
     pub gate: ::std::string::String,
@@ -262,7 +262,7 @@ impl self::Blackboard {
 }
 
 /// Mock step outcome returned by state machine runner.
-#[derive(::core::clone::Clone, ::core::fmt::Debug)]
+#[derive(::core::clone::Clone, ::core::fmt::Debug, ::core::cmp::PartialEq)]
 pub enum StepOutcome {
     /// State machine transitioned from one state to another.
     Advanced {
@@ -288,6 +288,78 @@ pub enum StepOutcome {
 /// Run phase zero: S0 Intent Preflight. Awaits the wake transition into assessment.
 #[derive(::core::fmt::Debug, ::core::default::Default)]
 pub struct RunnerS0IntentPreflight;
+
+/// Recorded state transition event in the runner event log.
+#[derive(::core::clone::Clone, ::core::fmt::Debug, ::core::cmp::PartialEq, ::serde::Serialize, ::serde::Deserialize)]
+pub enum RunnerEvent {
+    /// One state machine transition from one state into another.
+    Transition {
+        /// State before the transition.
+        from: self::ModernizationState,
+        /// State after the transition.
+        to: self::ModernizationState,
+    },
+    /// Required human gate recorded by the runner.
+    GateRequired {
+        /// Required gate.
+        gate: self::HumanGate,
+    },
+    /// Campaign completion with the count of verified receipt stamps.
+    Completed {
+        /// Number of verified receipt stamps.
+        receipt_count: ::core::primitive::usize,
+    },
+}
+
+/// Persisted runner state vector: the single source of truth that the
+/// rendering layer consumes (VAL-INTERACTIVE-01). The macro state and the
+/// FIFO event log derive from the same vector, so mock-driven and
+/// engine-driven behavior stays identical for equal state vectors.
+#[derive(::core::clone::Clone, ::core::fmt::Debug, ::core::cmp::PartialEq, ::serde::Serialize, ::serde::Deserialize)]
+pub struct RunnerStateVector {
+    /// Current macro state recorded by the runner.
+    pub macro_state: self::ModernizationState,
+    /// FIFO event log recorded by the runner.
+    pub event_log: ::std::vec::Vec<self::RunnerEvent>,
+}
+
+impl ::core::default::Default for self::RunnerStateVector {
+    fn default() -> Self {
+        Self {
+            macro_state: self::ModernizationState::S0IntentPreflight,
+            event_log: ::std::vec::Vec::new(),
+        }
+    }
+}
+
+impl self::RunnerStateVector {
+    /// Record one step outcome into the vector: the transition, gate, or
+    /// completion event lands in FIFO order on the event log.
+    pub fn record(&mut self, outcome: &self::StepOutcome) {
+        match outcome {
+            self::StepOutcome::Advanced { from, to } => {
+                self.macro_state = ::core::clone::Clone::clone(to);
+                let event = self::RunnerEvent::Transition {
+                    from: ::core::clone::Clone::clone(from),
+                    to: ::core::clone::Clone::clone(to),
+                };
+                self.event_log.push(event);
+            },
+            self::StepOutcome::GateRequired { gate, .. } => {
+                let event = self::RunnerEvent::GateRequired {
+                    gate: ::core::clone::Clone::clone(gate),
+                };
+                self.event_log.push(event);
+            },
+            self::StepOutcome::Completed { receipts } => {
+                let event = self::RunnerEvent::Completed {
+                    receipt_count: { receipts.len() },
+                };
+                self.event_log.push(event);
+            },
+        }
+    }
+}
 
 /// Run phase one: S1 Assess. Blocks on the reimagine human gate in Hitl mode.
 #[derive(::core::fmt::Debug, ::core::default::Default)]
@@ -365,8 +437,8 @@ impl self::StateMachineRunner<self::RunnerS1Assess> {
     /// Full-auto advance past assessment into the approved phase.
     /// Yields the approved machine plus its transition event.
     pub fn advance_auto(self) -> (self::StateMachineRunner<self::RunnerS4Approved>, self::StepOutcome) {
-        let from_state = self::ModernizationState::S4BriefContracts;
-        let to_state = self::ModernizationState::S5IterativeDag;
+        let from_state = self::ModernizationState::S1Assess;
+        let to_state = self::ModernizationState::S4BriefContracts;
         let outcome = self::StepOutcome::Advanced {
             from: { from_state },
             to: { to_state },
@@ -387,15 +459,23 @@ impl self::StateMachineRunner<self::RunnerS1Assess> {
         outcome
     }
 
-    /// Record human gate decision, consuming the assessing machine.
+    /// Record human gate decision, consuming the assessing machine. Approval
+    /// yields the approved machine plus the same S1 to S4 transition event the
+    /// full-auto path emits (mock runner fidelity, VAL-INTERACTIVE-02).
     pub fn submit_gate_decision(
         self,
         decision: self::GateDecision,
-    ) -> ::core::result::Result<self::StateMachineRunner<self::RunnerS4Approved>, ::std::string::String> {
+    ) -> ::core::result::Result<(self::StateMachineRunner<self::RunnerS4Approved>, self::StepOutcome), ::std::string::String> {
         match decision {
             self::GateDecision::Approved { .. } => {
+                let from_state = self::ModernizationState::S1Assess;
+                let to_state = self::ModernizationState::S4BriefContracts;
+                let outcome = self::StepOutcome::Advanced {
+                    from: { from_state },
+                    to: { to_state },
+                };
                 let machine_approved = self::StateMachineRunner::<self::RunnerS4Approved>::from(self);
-                ::core::result::Result::Ok(machine_approved)
+                ::core::result::Result::Ok((machine_approved, outcome))
             }
             self::GateDecision::Rejected { reason } => ::core::result::Result::Err(reason),
         }
@@ -414,6 +494,70 @@ impl ::core::convert::From<self::StateMachineRunner<self::RunnerS1Assess>>
 }
 
 impl self::StateMachineRunner<self::RunnerS4Approved> {
+    /// Advance from approved contracts into the iterative DAG phase.
+    /// Yields the transform machine plus its transition event.
+    pub fn step(
+        self,
+    ) -> (self::StateMachineRunner<self::RunnerS5Transform>, self::StepOutcome) {
+        let from_state = self::ModernizationState::S4BriefContracts;
+        let to_state = self::ModernizationState::S5IterativeDag;
+        let outcome = self::StepOutcome::Advanced {
+            from: { from_state },
+            to: { to_state },
+        };
+        let machine_transform = self::StateMachineRunner::<self::RunnerS5Transform>::from(self);
+        (machine_transform, outcome)
+    }
+}
+
+/// Run phase four: S5 iterative DAG transformation. Transforms the shard DAG.
+#[derive(::core::fmt::Debug, ::core::default::Default)]
+pub struct RunnerS5Transform;
+
+impl ::core::convert::From<self::StateMachineRunner<self::RunnerS4Approved>>
+    for self::StateMachineRunner<self::RunnerS5Transform>
+{
+    fn from(machine: self::StateMachineRunner<self::RunnerS4Approved>) -> Self {
+        Self {
+            context: { machine.context },
+            state: self::RunnerS5Transform,
+        }
+    }
+}
+
+impl self::StateMachineRunner<self::RunnerS5Transform> {
+    /// Advance from the iterative DAG phase into system verification.
+    /// Yields the verify machine plus its transition event.
+    pub fn step(
+        self,
+    ) -> (self::StateMachineRunner<self::RunnerS6Verify>, self::StepOutcome) {
+        let from_state = self::ModernizationState::S5IterativeDag;
+        let to_state = self::ModernizationState::S6SystemVerify;
+        let outcome = self::StepOutcome::Advanced {
+            from: { from_state },
+            to: { to_state },
+        };
+        let machine_verify = self::StateMachineRunner::<self::RunnerS6Verify>::from(self);
+        (machine_verify, outcome)
+    }
+}
+
+/// Run phase five: S6 system verification. Completes the campaign.
+#[derive(::core::fmt::Debug, ::core::default::Default)]
+pub struct RunnerS6Verify;
+
+impl ::core::convert::From<self::StateMachineRunner<self::RunnerS5Transform>>
+    for self::StateMachineRunner<self::RunnerS6Verify>
+{
+    fn from(machine: self::StateMachineRunner<self::RunnerS5Transform>) -> Self {
+        Self {
+            context: { machine.context },
+            state: self::RunnerS6Verify,
+        }
+    }
+}
+
+impl self::StateMachineRunner<self::RunnerS6Verify> {
     /// Complete the campaign with the reimagine receipt.
     pub fn step(self) -> self::StepOutcome {
         let receipt = self::ReceiptStamp {

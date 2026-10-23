@@ -12,6 +12,7 @@ mod github;
 mod glob;
 mod grep;
 mod lsp;
+mod partition_write;
 mod read;
 mod write;
 
@@ -28,6 +29,7 @@ pub use self::grep::{GrepArgs, GrepMatch, GrepOutput, GrepTool};
 pub use self::lsp::{LspArgs, LspOutput, LspTool};
 pub use self::read::{ReadArgs, ReadOutput, ReadTool};
 pub use self::write::{WriteArgs, WriteOutput, WriteTool};
+pub use self::partition_write::PartitionWriteTool;
 pub use ::rig::tool::Tool;
 
 /// Extension trait converting displayable errors into rig tool errors.

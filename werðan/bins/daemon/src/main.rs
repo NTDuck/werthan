@@ -1,14 +1,5 @@
-//! Thin modernization daemon binary: argument parsing and dispatch.
-
-/// Benchmark subsystem modules: configuration, harness, runner, and batch modes.
-mod bench_batch;
-mod bench_config;
-mod bench_harness;
-mod bench_llm;
-mod bench_rules;
-mod bench_runner;
-mod bench_validation;
-
+//! Thin modernization daemon binary: argument parsing and dispatch into the
+//! daemon library crate (bench subsystem modules live in the lib target).
 
 /// Command line arguments for daemon.
 #[derive(::core::clone::Clone, ::core::fmt::Debug)]
@@ -31,22 +22,22 @@ async fn main() {
     let cli = parse_args(&args);
 
     if cli.is_smoke || cli.is_dry_run {
-        self::run_smoke_verification().await;
+        ::daemon::bench_smoke::run_smoke_cli().await;
         return;
     }
 
     if let ::core::option::Option::Some(path) = &cli.benchmark_path {
-        self::run_benchmark(path).await;
+        run_benchmark(path).await;
         return;
     }
 
     if let ::core::option::Option::Some(path) = &cli.benchmark_all_path {
-        self::run_benchmark_all(path).await;
+        run_benchmark_all(path).await;
         return;
     }
 
     if let ::core::option::Option::Some(path) = &cli.config_path {
-        self::run_benchmark(path).await;
+        run_benchmark(path).await;
         return;
     }
 
@@ -106,62 +97,9 @@ fn parse_args(args: &[::std::string::String]) -> self::CliArgs {
     }
 }
 
-async fn run_smoke_verification() {
-    let bench_config = self::bench_config::CampaignConfig::default();
-    use self::bench_config::InferenceExt;
-    let base_url = bench_config.inference.effective_base_url();
-    let models_url = ::std::format!("{base_url}/models");
-    ::std::println!("[smoke] Inference endpoint check: {models_url}");
-    let client_res = ::reqwest::Client::new().get(&models_url).send().await;
-    let response = match client_res {
-        ::core::result::Result::Ok(value) => value,
-        ::core::result::Result::Err(request_error) => {
-            ::std::println!("[smoke] Endpoint unreachable: {request_error}");
-            ::std::process::exit(1);
-        },
-    };
-    let status_ok = response.status().is_success();
-    if !status_ok {
-        ::std::println!("[smoke] Endpoint returned status {}", response.status());
-        ::std::process::exit(1);
-    }
-    let parse_res = response.json::<self::ModelsResponse>().await;
-    let models = match parse_res {
-        ::core::result::Result::Ok(value) => value,
-        ::core::result::Result::Err(parse_error) => {
-            ::std::println!("[smoke] Model list parse failed: {parse_error}");
-            ::std::process::exit(1);
-        },
-    };
-    let first_model = models.data.first().map(|entry| entry.id.clone());
-    let env_model = self::bench_config::default_model_id();
-    let shown_model = match first_model.or(env_model) {
-        ::core::option::Option::Some(model_id) => model_id,
-        ::core::option::Option::None => {
-            ::std::println!("[smoke] Endpoint served an empty model list.");
-            ::std::process::exit(1);
-        },
-    };
-    ::std::println!("[smoke] Inference endpoint reachable. Model id: {shown_model}");
-}
-
-/// Response shape of the OpenAI-compatible /v1/models listing.
-#[derive(::serde::Deserialize)]
-struct ModelsResponse {
-    /// Model descriptor entries served by the endpoint.
-    data: ::std::vec::Vec<self::ModelEntry>,
-}
-
-/// One model descriptor from the /v1/models listing.
-#[derive(::serde::Deserialize)]
-struct ModelEntry {
-    /// Model identifier string.
-    id: ::std::string::String,
-}
-
 async fn run_benchmark(path: &::std::path::Path) {
-    use self::bench_config::CampaignExt;
-    let load_res = self::bench_config::load_bench_config(path);
+    use ::daemon::bench_config::CampaignExt;
+    let load_res = ::daemon::bench_config::load_bench_config(path);
     let bench_config = match load_res {
         ::core::result::Result::Ok(value) => value,
         ::core::result::Result::Err(load_error) => {
@@ -173,7 +111,7 @@ async fn run_benchmark(path: &::std::path::Path) {
         "[benchmark] Campaign {} starting.",
         bench_config.campaign_id
     );
-    let result = self::bench_runner::run_campaign(&bench_config).await;
+    let result = ::daemon::bench_runner::run_campaign(&bench_config).await;
     let result_dir = bench_config.result_dir();
     let create_res = ::std::fs::create_dir_all(&result_dir);
     if let ::core::result::Result::Err(create_error) = create_res {
@@ -211,7 +149,7 @@ async fn run_benchmark(path: &::std::path::Path) {
 }
 
 async fn run_benchmark_all(path: &::std::path::Path) {
-    let batch_res = self::bench_batch::run_batch(path).await;
+    let batch_res = ::daemon::bench_batch::run_batch(path).await;
     let summary = match batch_res {
         ::core::result::Result::Ok(value) => value,
         ::core::result::Result::Err(batch_error) => {
@@ -219,7 +157,7 @@ async fn run_benchmark_all(path: &::std::path::Path) {
             ::std::process::exit(1);
         },
     };
-    let summary_write_res = self::bench_batch::write_summary(&summary);
+    let summary_write_res = ::daemon::bench_batch::write_summary(&summary);
     match summary_write_res {
         ::core::result::Result::Ok(summary_path) => {
             ::std::println!(

@@ -54,21 +54,30 @@ impl self::OpenAiCompatModel {
     /// Construct the model from the bench inference settings.
     ///
     /// The local inference server ignores the Bearer header, so the compiled
-    /// empty API key stays correct.
-    pub fn from_inference(inference: &::configschema::InferenceSection) -> Self {
+    /// empty API key stays correct. An empty base URL with no environment
+    /// default fails the construction honestly (VAL-DAEMON-02): the contract
+    /// forbids a silent fallback backend.
+    pub fn from_inference(inference: &::configschema::InferenceSection) -> ::core::result::Result<Self, ::std::string::String> {
         use super::bench_config::InferenceExt;
-        let base_url_value = inference.effective_base_url();
+        let environment_url = super::bench_config::default_base_url();
+        let base_url_res = super::bench_smoke::resolve_inference_url(&inference.base_url, &environment_url);
+        let base_url_value = match base_url_res {
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(failure) => {
+                return ::core::result::Result::Err(failure);
+            },
+        };
         let model_value = inference
             .effective_model()
             .unwrap_or_default();
         let api_key = ::core::env!("INFERENCE_API_KEY");
         let client = ::rig::providers::openai::Client::from_url(api_key, &base_url_value);
         let inner = client.completion_model(&model_value);
-        Self {
+        ::core::result::Result::Ok(Self {
             timeout_secs: { inference.inference_timeout_secs },
             defaults: self::CompletionDefaults::from_inference(inference),
             inner: { inner },
-        }
+        })
     }
 }
 
