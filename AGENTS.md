@@ -10,7 +10,7 @@ Read `docs/specs/INDEX.md` first: it routes every domain to its spec file, maps 
 4. **Living specs**: `docs/specs/**` is written in present tense with no historical narrative; history lives in `docs/decisions/` as the append-only ledger.
 5. **FSM convention** (`.omp/rules/specs.md` §3): state machines use the state-as-struct Hoverbear pattern; unit-variant enums are reflection tags, never state machines.
 6. **No hardcoded configuration** (`.omp/rules/`): operational parameters bubble up to `.env` ingested at compile time by the `envload` crate; see [ADR-0007](docs/decisions/0007-compile-time-env-ingestion.md) and [ADR-0011](docs/decisions/0011-env-config-parameters.md).
-7. **Quality gates**: workspace linters (`flatmods`, `pathqual`, `plumbing`, `ste100`, `stepdown`, `turbofish`) run through every crate's `build.rs`; cucumber BDD suites verify engine and linter behavior (see `docs/specs/tech-spec/benchmark-harness.md` and [ADR-0014](docs/decisions/0014-cucumber-bdd-verification.md)).
+7. **Quality gates**: workspace linters (`flatmods`, `pathqual`, `plumbing`, `ste100`, `stepdown`, `turbofish`) run through every crate's `build.rs`; methodology validation contracts verify engine and linter behavior (see `docs/specs/validation-contracts.md` and [ADR-0015](docs/decisions/0015-methodology-validation-contracts.md)).
 
 ## Canonical resources
 
@@ -41,7 +41,7 @@ Read `docs/specs/INDEX.md` first: it routes every domain to its spec file, maps 
 ```bash
 cargo check --workspace --tests
 cargo clippy --workspace
-cargo test --workspace            # includes cucumber suites (tools, holon-fsm, holon-engine, .checks)
+cargo test --workspace            # includes methodology validation contracts (tools, holon, global, daemon, interactive)
 cargo run -p daemon -- --smoke    # inference endpoint reachability
 ```
 
