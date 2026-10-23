@@ -58,4 +58,4 @@ Tier table (legacy codebase LoC → tier):
 
 Evidence: commits 45f75f9, 0cca708, ff3f560; full rationale and per-tier table in `benchmarks/README.md`.
 
-The campaign schema these configs populate is the canonical parser defined in [ADR-0009](0009-canonical-campaign-configschema.md); the transport endpoints the configs address follow [ADR-0006](0006-de-qwen-inference-transport.md).
+The campaign schema these configs populate is the canonical parser defined in [ADR-0009](0009-canonical-campaign-configschema.md); the transport endpoints the configs address follow [ADR-0016](0016-daemon-owned-transport-deadlines.md).

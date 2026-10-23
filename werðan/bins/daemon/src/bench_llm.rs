@@ -1,6 +1,6 @@
 //! Rig completion-model layer for honest benchmark runs.
 //! The transport targets any OpenAI-compatible chat-completions endpoint
-//! through the stock rig OpenAI provider. Reasoning-heavy backends bury the
+//! through a daemon-owned reqwest client. Reasoning-heavy backends bury the
 //! answer behind reasoning traces. The adapter reduces every response to
 //! its most usable answer text and keeps the error when nothing usable
 //! remains.
@@ -24,16 +24,24 @@ impl self::CompletionDefaults {
     }
 }
 
-/// Completion model over the stock rig OpenAI provider.
+/// Completion model over a daemon-owned OpenAI-compatible HTTP transport.
 ///
-/// The rig client exposes no timeout knob, so the adapter re-imposes the
-/// configured inference timeout around every inner exchange. The provider
-/// never serializes `max_tokens`, so the adapter injects it through
-/// `additional_params`.
+/// The stock rig OpenAI client builds its own reqwest client with no timeout
+/// knob, which let stalled body reads hang past every wall-clock budget. This
+/// model owns the HTTP call directly: the reqwest client enforces the whole
+/// request deadline (connect, headers, body) inside hyper, independent of any
+/// future wrapping. Responses reduce to the most usable answer text before
+/// the rig prompt layer ever sees them.
 #[derive(::core::clone::Clone)]
 pub struct OpenAiCompatModel {
-    /// Stock rig completion model that reaches the inference endpoint.
-    inner: ::rig::providers::openai::CompletionModel,
+    /// Base URL of the chat-completions endpoint, without the /chat path.
+    base_url: ::std::string::String,
+    /// Target model identifier sent in every request body.
+    model_id: ::std::string::String,
+    /// Compiled API key. The local server ignores the Bearer header.
+    api_key: ::std::string::String,
+    /// Shared HTTP client carrying the hard whole-request deadline.
+    http_client: ::reqwest::Client,
     /// Whole-request timeout in seconds.
     timeout_secs: ::core::primitive::u64,
     /// Sampling and budget defaults reused for every exchange.
@@ -44,6 +52,8 @@ impl ::core::fmt::Debug for self::OpenAiCompatModel {
     fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         formatter
             .debug_struct("OpenAiCompatModel")
+            .field("base_url", &self.base_url)
+            .field("model_id", &self.model_id)
             .field("timeout_secs", &self.timeout_secs)
             .field("defaults", &self.defaults)
             .finish()
@@ -70,25 +80,39 @@ impl self::OpenAiCompatModel {
         let model_value = inference
             .effective_model()
             .unwrap_or_default();
-        let api_key = ::core::env!("INFERENCE_API_KEY");
-        let client = ::rig::providers::openai::Client::from_url(api_key, &base_url_value);
-        let inner = client.completion_model(&model_value);
+        let request_timeout = ::std::time::Duration::from_secs(inference.inference_timeout_secs);
+        let client_build_result = ::reqwest::Client::builder()
+            .timeout(request_timeout)
+            .connect_timeout(request_timeout)
+            .build();
+        let http_client = match client_build_result {
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(build_error) => {
+                return ::core::result::Result::Err(::std::format!(
+                    "inference HTTP client build failed: {build_error}"
+                ));
+            },
+        };
         ::core::result::Result::Ok(Self {
+            base_url: { base_url_value },
+            model_id: { model_value },
+            api_key: { ::core::env!("INFERENCE_API_KEY") }.to_string(),
+            http_client: { http_client },
             timeout_secs: { inference.inference_timeout_secs },
             defaults: self::CompletionDefaults::from_inference(inference),
-            inner: { inner },
         })
     }
 }
 
 impl ::rig::completion::CompletionModel for self::OpenAiCompatModel {
-    type Response = ::rig::providers::openai::CompletionResponse;
+    type Response = ::serde_json::Value;
 
-    /// Run one completion exchange with the configured defaults and timeout.
+    /// Run one completion exchange through the daemon-owned HTTP transport.
     ///
-    /// The inner provider future runs async-native, so the adapter needs no
-    /// thread bridge. The timeout wrap requires a tokio reactor with the
-    /// time driver enabled at the call site.
+    /// The reqwest client carries the whole-request deadline at the hyper
+    /// layer, so a stalled body read returns an error instead of parking
+    /// forever. Requires a tokio reactor with the time driver at the call
+    /// site.
     fn completion(
         &self,
         request: ::rig::completion::CompletionRequest,
@@ -98,44 +122,79 @@ impl ::rig::completion::CompletionModel for self::OpenAiCompatModel {
             ::rig::completion::CompletionError,
         >,
     > + ::core::marker::Send {
-        let mut effective_request = request;
-        let effective_temperature = effective_request
+        let temperature = request
             .temperature
             .unwrap_or(self.defaults.temperature);
-        effective_request.temperature = ::core::option::Option::Some(effective_temperature);
-        let effective_max_tokens = effective_request
+        let max_tokens = request
             .max_tokens
             .unwrap_or(self.defaults.max_tokens as ::core::primitive::u64);
-        let existing_params = effective_request.additional_params.take();
-        let merged_params = self::merged_additional_params(
-            effective_max_tokens,
-            existing_params,
-        );
-        effective_request.additional_params =
-            ::core::option::Option::Some(merged_params);
-        let timeout_secs = self.timeout_secs;
-        let inner_future = self.inner.completion(effective_request);
         let exchange_future = async move {
-            let request_timeout = ::std::time::Duration::from_secs(timeout_secs);
-            let timeout_result =
-                ::tokio::time::timeout(request_timeout, inner_future).await;
-            let inner_result = match timeout_result {
-                ::core::result::Result::Ok(inner_result) => inner_result,
-                ::core::result::Result::Err(_elapsed) => {
+            let request_payload_build =
+                self::request_payload_of(&request, &self.model_id, temperature, max_tokens);
+            let request_payload = match request_payload_build {
+                ::core::result::Result::Ok(value) => value,
+                ::core::result::Result::Err(build_error) => {
+                    return ::core::result::Result::Err(build_error);
+                },
+            };
+        let chat_url = ::std::format!("{}/chat/completions", self.base_url);
+            let send_result = self
+                .http_client
+                .post(&chat_url)
+                .bearer_auth(&self.api_key)
+                .json(&request_payload)
+                .send()
+                .await;
+            let response = match send_result {
+                ::core::result::Result::Ok(value) => value,
+                ::core::result::Result::Err(send_error) => {
+                    if send_error.is_timeout() {
+                        return ::core::result::Result::Err(
+                            ::rig::completion::CompletionError::ProviderError(::std::format!(
+                                "inference timeout after {} seconds: {send_error}",
+                                self.timeout_secs
+                            )),
+                        );
+                    }
                     return ::core::result::Result::Err(
                         ::rig::completion::CompletionError::ProviderError(::std::format!(
-                            "inference timeout after {timeout_secs} seconds"
+                            "inference transport error: {send_error}"
                         )),
                     );
                 },
             };
-            let inner_response = match inner_result {
-                ::core::result::Result::Ok(response) => response,
-                ::core::result::Result::Err(completion_error) => {
-                    return ::core::result::Result::Err(completion_error);
+            let status = response.status();
+            let body_result = response.text().await;
+            let body_text = match body_result {
+                ::core::result::Result::Ok(value) => value,
+                ::core::result::Result::Err(body_error) => {
+                    return ::core::result::Result::Err(
+                        ::rig::completion::CompletionError::ProviderError(::std::format!(
+                            "inference body read failed: {body_error}"
+                        )),
+                    );
                 },
             };
-            let raw_text = self::assistant_text_of(&inner_response.choice);
+            if !status.is_success() {
+                let failure_snippet = self::error_snippet_of(&body_text);
+                return ::core::result::Result::Err(
+                    ::rig::completion::CompletionError::ProviderError(::std::format!(
+                        "inference endpoint status {status}: {failure_snippet}"
+                    )),
+                );
+            }
+            let parse_result = ::serde_json::from_str::<self::ChatCompletionsBody>(&body_text);
+            let parsed_body = match parse_result {
+                ::core::result::Result::Ok(value) => value,
+                ::core::result::Result::Err(parse_error) => {
+                    return ::core::result::Result::Err(
+                        ::rig::completion::CompletionError::ProviderError(::std::format!(
+                            "inference response parse failed: {parse_error}"
+                        )),
+                    );
+                },
+            };
+            let raw_text = self::response_text_of(&parsed_body);
             let answer_text = self::usable_answer(&raw_text);
             let answer_present = !answer_text.is_empty();
             if !answer_present {
@@ -151,10 +210,10 @@ impl ::rig::completion::CompletionModel for self::OpenAiCompatModel {
             let choice = ::rig::OneOrMany::one(answer_content);
             ::core::result::Result::Ok(::rig::completion::CompletionResponse {
                 choice: { choice },
-                raw_response: { inner_response.raw_response },
+                raw_response: { parsed_body.raw },
             })
         };
-        exchange_future
+        ::std::boxed::Box::pin(exchange_future)
     }
 }
 
@@ -215,40 +274,172 @@ impl<M: ::rig::completion::CompletionModel> ::rig::completion::CompletionModel
     }
 }
 
-/// Build the injected additional parameters for one completion request.
-///
-/// Existing provider parameters win over the injected token budget.
-fn merged_additional_params(
-    max_tokens: ::core::primitive::u64,
-    existing_params: ::core::option::Option<::serde_json::Value>,
-) -> ::serde_json::Value {
-    let mut params = ::serde_json::Map::new();
-    let max_tokens_json = ::serde_json::Value::from(max_tokens);
-    params.insert("max_tokens".to_string(), max_tokens_json);
-    if let ::core::option::Option::Some(::serde_json::Value::Object(existing)) = existing_params {
-        for (key, value) in existing {
-            params.insert(key, value);
-        }
-    }
-    ::serde_json::Value::Object(params)
+/// Parsed OpenAI-compatible chat-completions response body.
+#[derive(::serde::Deserialize)]
+struct ChatCompletionsBody {
+    /// Raw body kept for honesty auditing and logging.
+    #[serde(flatten)]
+    raw: ::serde_json::Value,
+    /// Choice list. The daemon reads only the first text channel.
+    #[serde(default)]
+    choices: ::std::vec::Vec<self::ChatCompletionsChoice>,
 }
 
-/// Extract the text content from one completion choice.
+/// One choice in a chat-completions response.
+#[derive(::serde::Deserialize)]
+struct ChatCompletionsChoice {
+    /// Assistant message carrying the answer channels.
+    #[serde(default)]
+    message: ::core::option::Option<self::ChatCompletionsMessage>,
+}
+
+/// Assistant message with every text channel the local backend may fill.
+#[derive(::serde::Deserialize)]
+struct ChatCompletionsMessage {
+    /// Primary answer channel.
+    #[serde(default)]
+    content: ::core::option::Option<::std::string::String>,
+    /// Reasoning trace channel some OpenAI-compatible backends fill instead.
+    #[serde(default, rename = "reasoning_content")]
+    reasoning_content: ::core::option::Option<::std::string::String>,
+    /// Refusal channel.
+    #[serde(default)]
+    refusal: ::core::option::Option<::std::string::String>,
+}
+
+/// Serialize one completion request into the OpenAI wire format.
 ///
-/// The helper skips tool-call content. An empty result means the response
-/// carried no text channel at all.
-fn assistant_text_of(
-    choice: &::rig::OneOrMany<::rig::message::AssistantContent>,
-) -> ::std::string::String {
-    choice
-        .iter()
-        .find_map(|item| match item {
-            ::rig::message::AssistantContent::Text(text) => {
-                ::core::option::Option::Some(text.text.clone())
-            },
-            _ => ::core::option::Option::None,
-        })
-        .unwrap_or_default()
+/// Documents ride along as a leading user turn. Chat history and the prompt
+/// convert through the stock rig OpenAI message format.
+fn request_payload_of(
+    request: &::rig::completion::CompletionRequest,
+    model_id: &::core::primitive::str,
+    temperature: ::core::primitive::f64,
+    max_tokens: ::core::primitive::u64,
+) -> ::core::result::Result<::serde_json::Value, ::rig::completion::CompletionError> {
+    let mut messages = ::std::vec::Vec::<::serde_json::Value>::new();
+    if let ::core::option::Option::Some(preamble_text) = &request.preamble {
+        let preamble_message = self::system_message_value(preamble_text);
+        messages.push(preamble_message);
+    }
+    for document in &request.documents {
+        let document_message = self::user_message_value(&document.text);
+        messages.push(document_message);
+    }
+    for history_message in &request.chat_history {
+        let wire_messages = ::std::convert::TryInto::<
+            ::std::vec::Vec<::rig::providers::openai::Message>,
+        >::try_into(history_message.clone())
+        .map_err(|conversion_error| {
+            ::rig::completion::CompletionError::ProviderError(::std::format!(
+                "chat history conversion failed: {conversion_error}"
+            ))
+        })?;
+        for wire_message in wire_messages {
+            let serialized = ::serde_json::to_value(&wire_message).map_err(|serialization_error| {
+                ::rig::completion::CompletionError::ProviderError(::std::format!(
+                    "chat history serialization failed: {serialization_error}"
+                ))
+            })?;
+            messages.push(serialized);
+        }
+    }
+    let prompt_wire_messages =
+        ::std::convert::TryInto::<::std::vec::Vec<::rig::providers::openai::Message>>::try_into(
+            request.prompt.clone(),
+        )
+        .map_err(|conversion_error| {
+            ::rig::completion::CompletionError::ProviderError(::std::format!(
+                "prompt conversion failed: {conversion_error}"
+            ))
+        })?;
+    for wire_message in prompt_wire_messages {
+        let serialized = ::serde_json::to_value(&wire_message).map_err(|serialization_error| {
+            ::rig::completion::CompletionError::ProviderError(::std::format!(
+                "prompt serialization failed: {serialization_error}"
+            ))
+        })?;
+        messages.push(serialized);
+    }
+    let payload = self::chat_payload_value(model_id, messages, temperature, max_tokens);
+    ::core::result::Result::Ok(payload)
+}
+
+/// Build one wire system message value.
+fn system_message_value(
+    text: &::core::primitive::str,
+) -> ::serde_json::Value {
+    let mut message = ::serde_json::Map::new();
+    let role_value = ::serde_json::Value::from("system");
+    message.insert("role".to_string(), role_value);
+    let content_value = ::serde_json::Value::from(text);
+    message.insert("content".to_string(), content_value);
+    ::serde_json::Value::Object(message)
+}
+
+/// Build one wire user message value.
+fn user_message_value(
+    text: &::core::primitive::str,
+) -> ::serde_json::Value {
+    let mut message = ::serde_json::Map::new();
+    let role_value = ::serde_json::Value::from("user");
+    message.insert("role".to_string(), role_value);
+    let content_value = ::serde_json::Value::from(text);
+    message.insert("content".to_string(), content_value);
+    ::serde_json::Value::Object(message)
+}
+
+/// Build the chat-completions request payload.
+fn chat_payload_value(
+    model_id: &::core::primitive::str,
+    messages: ::std::vec::Vec<::serde_json::Value>,
+    temperature: ::core::primitive::f64,
+    max_tokens: ::core::primitive::u64,
+) -> ::serde_json::Value {
+    let mut payload = ::serde_json::Map::new();
+    let model_value = ::serde_json::Value::from(model_id);
+    payload.insert("model".to_string(), model_value);
+    let messages_value = ::serde_json::Value::from(messages);
+    payload.insert("messages".to_string(), messages_value);
+    let temperature_value = ::serde_json::Value::from(temperature);
+    payload.insert("temperature".to_string(), temperature_value);
+    let max_tokens_value = ::serde_json::Value::from(max_tokens);
+    payload.insert("max_tokens".to_string(), max_tokens_value);
+    ::serde_json::Value::Object(payload)
+}
+
+/// Parse the raw chat-completions JSON into its raw value and answer text.
+///
+/// The text channel falls back through: assistant text content, the
+/// `reasoning_content` field many OpenAI-compatible backends fill instead of
+/// `content`, and the refusal channel.
+fn response_text_of(body: &self::ChatCompletionsBody) -> ::std::string::String {
+    let mut collected = ::std::string::String::new();
+    for choice in &body.choices {
+        if let ::core::option::Option::Some(message) = &choice.message {
+            if let ::core::option::Option::Some(content_text) = &message.content {
+                collected.push_str(content_text);
+            }
+            if let ::core::option::Option::Some(reasoning_text) = &message.reasoning_content {
+                collected.push_str(reasoning_text);
+            }
+            if let ::core::option::Option::Some(refusal_text) = &message.refusal {
+                collected.push_str(refusal_text);
+            }
+        }
+    }
+    collected
+}
+
+/// Cut one long failed body down to a bounded snippet for error reporting.
+fn error_snippet_of(body_text: &::core::primitive::str) -> ::std::string::String {
+    const SNIPPET_LIMIT: ::core::primitive::usize = 240;
+    let collapsed = body_text.split_whitespace().collect::<::std::vec::Vec<_>>().join(" ");
+    if collapsed.len() > SNIPPET_LIMIT {
+        collapsed[..SNIPPET_LIMIT].to_string()
+    } else {
+        collapsed
+    }
 }
 
 /// Reduce a reasoning-dominant response to its most usable answer text.

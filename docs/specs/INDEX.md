@@ -36,7 +36,7 @@ Decision records live in [`../decisions/`](../decisions/). The ledger is append-
 | [ADR-0003](../decisions/0003-master-slave-tui-chatbot.md) | Master/slave TUI chatbot topology. Superseded. |
 | [ADR-0004](../decisions/0004-code-modernization-rig-rust-pipeline.md) | Code modernization Rig/Rust pipeline. Superseded by [ADR-0005](../decisions/0005-methodology-source-of-truth.md). |
 | [ADR-0005](../decisions/0005-methodology-source-of-truth.md) | METHODOLOGY.md is the single source of architectural truth. Accepted, canonical. |
-| [ADR-0006](../decisions/0006-de-qwen-inference-transport.md) | All LLM transport over Rig's stock OpenAI-compatible provider. Accepted. |
+| [ADR-0006](../decisions/0006-de-qwen-inference-transport.md) | All LLM transport over Rig's stock OpenAI-compatible provider. Superseded by [ADR-0016](../decisions/0016-daemon-owned-transport-deadlines.md). |
 | [ADR-0007](../decisions/0007-compile-time-env-ingestion.md) | Compile-time env ingestion via the `envload` crate in every workspace `build.rs`. Accepted. |
 | [ADR-0008](../decisions/0008-loc-tier-inference-scaling.md) | 118 benchmark configs retuned by legacy-codebase LoC tier. Accepted. |
 | [ADR-0009](../decisions/0009-canonical-campaign-configschema.md) | Single canonical `configschema::CampaignConfig` parser for all frontends. Accepted. |
@@ -46,6 +46,7 @@ Decision records live in [`../decisions/`](../decisions/). The ledger is append-
 | [ADR-0013](../decisions/0013-omp-tool-suite-conformance.md) | 13 omp-spec tools with the `DisplayExt` blanket error conversion. Accepted. |
 | [ADR-0014](../decisions/0014-cucumber-bdd-verification.md) | Gherkin cucumber suites verify behavior parity with METHODOLOGY. Superseded by [ADR-0015](../decisions/0015-methodology-validation-contracts.md). |
 | [ADR-0015](../decisions/0015-methodology-validation-contracts.md) | Methodology validation contracts (`VAL-*`) replace cucumber BDD suites; contracts outrank implementation tests. Accepted. |
+| [ADR-0016](../decisions/0016-daemon-owned-transport-deadlines.md) | Daemon-owned reqwest transport with client-level deadlines inside `bench_llm::OpenAiCompatModel`. Accepted. |
 
 ## Change Protocol
 

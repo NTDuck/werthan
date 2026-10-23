@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "superseded by [0016-daemon-owned-transport-deadlines.md](0016-daemon-owned-transport-deadlines.md)"
 date: 2026-10-22
 decision-makers: ["NTDuck", "omp"]
 consulted: ["werðan architecture team"]

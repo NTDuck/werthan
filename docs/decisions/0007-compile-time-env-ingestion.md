@@ -40,7 +40,7 @@ Chosen option: "envload crate called from every workspace build.rs, replacing ru
 
 * Good, because a missing key breaks the build, not a benchmark campaign mid-run.
 * Good, because `.env` edits take effect on the next build with no runtime file probing.
-* Bad, because changing `.env` requires a rebuild to affect binaries; runtime reconfiguration goes through `migration.yml` instead (see [ADR-0006](0006-de-qwen-inference-transport.md)).
+* Bad, because changing `.env` requires a rebuild to affect binaries; runtime reconfiguration goes through `migration.yml` instead (see [ADR-0016](0016-daemon-owned-transport-deadlines.md)).
 * Neutral, because nested workspaces resolve to their nearest `.env`, which supports per-directory overrides.
 
 ### Confirmation
@@ -51,4 +51,4 @@ Chosen option: "envload crate called from every workspace build.rs, replacing ru
 
 Evidence: commits b4bfb11, 6e20e01, 0121bde, 1831b5b. Session evidence: "envload crate wired into all 23 build scripts... workspace checks and tests green".
 
-The operational parameters routed through this mechanism and their consumers are enumerated in [ADR-0011](0011-env-config-parameters.md); the inference transport config chain that consumes the fallback tier is defined in [ADR-0006](0006-de-qwen-inference-transport.md).
+The operational parameters routed through this mechanism and their consumers are enumerated in [ADR-0011](0011-env-config-parameters.md); the inference transport config chain that consumes the fallback tier is defined in [ADR-0016](0016-daemon-owned-transport-deadlines.md).

@@ -51,4 +51,4 @@ Chosen option: "single canonical `configschema::CampaignConfig` crate as the onl
 
 Evidence: commits 54306ed, a3ab9ac, cb5d91c, ea82257.
 
-The 118 configs' per-tier parameter bands are defined in [ADR-0008](0008-loc-tier-inference-scaling.md); the `inference.*` keys this schema carries feed the transport chain in [ADR-0006](0006-de-qwen-inference-transport.md). The `ariadne.*` override keys interact with the constant calibration in [ADR-0012](0012-ariadne-constant-calibration.md).
+The 118 configs' per-tier parameter bands are defined in [ADR-0008](0008-loc-tier-inference-scaling.md); the `inference.*` keys this schema carries feed the transport chain in [ADR-0016](0016-daemon-owned-transport-deadlines.md). The `ariadne.*` override keys interact with the constant calibration in [ADR-0012](0012-ariadne-constant-calibration.md).

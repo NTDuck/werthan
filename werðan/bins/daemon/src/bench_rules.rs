@@ -222,9 +222,7 @@ fn user_message_of(prompt_text: &::core::primitive::str) -> ::rig::message::Mess
 
 /// Extract the first text content item from one completion response choice.
 fn choice_text_of(
-    response: &::rig::completion::CompletionResponse<
-        ::rig::providers::openai::CompletionResponse,
-    >,
+    response: &::rig::completion::CompletionResponse<::serde_json::Value>,
 ) -> ::std::string::String {
     response
         .choice
