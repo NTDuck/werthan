@@ -27,7 +27,7 @@ Live end-to-end analog (Scrutiny/User-Testing validators): run the daemon smoke 
 Every component under contract MUST be independently constructible in a test:
 - Prefer bon builders (`#[builder]`-style fluent construction) for any struct with more than trivial fields.
 - Trait-mockable where an LLM or filesystem dependency exists: every LLM-facing agent/harness trait has a deterministic in-test fake. Contract tests NEVER require a network.
-- Missing components found during contract derivation (per methodology, absent in the crate skeleton) MUST be added by the implementing agent (e.g. `FsmStateVector` persistence, `ContractPatchRequest` typed event, `ShardCritic` verdict type). [INFERENCE] skeleton names from glob; agents verify at implementation time.
+- Missing components found during contract derivation (per methodology, absent in the crate skeleton) MUST be added by the implementing agent. Realized during implementation: `FsmHistory` persistence (holon-fsm), the `MacroEvent::ContractConflict` typed event (global-blackboard), and the `CritiqueRecord` verdict type (global-arbiter).
 
 ## 4. Assertion Catalog
 
@@ -42,12 +42,12 @@ ID scheme: `VAL-<COMPONENT>-<NN>`. Components: `MACRO` (global engine/statechart
 - VAL-MACRO-05 (Two-stage guard pipeline). g = g_struct ∧ g_sem evaluated with short-circuit: if any structural guard fails, g_sem is never evaluated for that shard; semantic critics run only when all shards pass g_struct.
 - **VAL-MACRO-06 (CritiqueRecord-driven REJECT_LOCAL retry).** When a shard critic returns `REJECT_LOCAL` with a CritiqueRecord, exactly the offending shard's worker is re-dispatched with `DeltaDirective` = that CritiqueRecord, activation mode `CRITIC_RETRY`; other shards untouched.
 - **VAL-MACRO-07 (REGRESS_UPSTREAM macro-regression).** When a critic verdict is `REGRESS_UPSTREAM` targeting upstream macro-state S_target, the engine transitions S_macro to S_target and continues the loop (no full restart, no terminate).
-- **VAL-MACRO-08 (Per-phase semantic guard obligations).** Each macro-phase's semantic guard inspects the methodology-mandated concern: S1 assessment citations, S2 implicit coupling (reflection/shared tables/event buses), S3 rule-card completeness vs legacy AST, S4 over-engineering & rule-card coverage. [INFERENCE on exact names; concern mapping is contractual.]
+- **VAL-MACRO-08 (Per-phase semantic guard obligations).** Each macro-phase's semantic guard inspects the methodology-mandated concern: S1 assessment citations, S2 implicit coupling (reflection/shared tables/event buses), S3 rule-card completeness vs legacy AST, S4 over-engineering & rule-card coverage, S6 release sign-off (per-module test suite + compilation verdict, zero security findings).
 - **VAL-MACRO-09 (Deep History checkpoint).** On Tier C (`ev_CyclicDependencyFound`) with a valid trace: the engine saves deep history Θ_H*(S5) ← M (the full per-module state vector), quiesces the active regions in the cycle, and transitions S_macro to S2.
 - **VAL-MACRO-10 (H\* restoration on re-entry).** After SCC condensation completes and S5 is re-entered, every module region unaffected by the repair is restored to its prior micro-state (e.g. previously M4_Hardened modules are M4_Hardened again without re-execution); only cycle members follow the normal M0→… path.
 - **VAL-MACRO-11 (S4→S5 initialization).** When the engine advances from S4 into S5, per-module states initialize from deep history where present (Θ_H*(S5)[vi]) and to M0_Blocked otherwise.
 - **VAL-MACRO-12 (S5 completion guard).** The engine exits S5 to S6 exactly when all modules report M4_Hardened; not before.
-- **VAL-MACRO-13 (Arbiter-gated regressions).** Tier B/C regressions execute only when `g_struct(trace) ∧ O_arbiter(...) = VALID`; when the arbiter returns invalid, no state transition occurs and the interrupt is rejected.
+- **VAL-MACRO-13 (Arbiter-gated regressions).** Tier B/C regressions execute only when `g_struct(trace) ∧ O_arbiter(...) = VALID`; when the arbiter returns invalid (or the conflict trace fails the party-reference check), no state transition occurs, the reporting module parks in M0_Blocked so the wave scheduler can re-dispatch it, and the campaign never deadlocks on unhardened modules.
 - **VAL-MACRO-14 (Phase dispatch via typed activation envelopes).** Every worker activation carries an envelope with (activation mode, scoped blackboard slice, delta directive, tool bindings); the scoped slice contains exactly the target ref's 1-hop neighborhood.
 - **VAL-MACRO-15 (Push-based, no polling).** The engine consumes a FIFO event queue; agents are ephemeral. There is no API by which an agent can block-poll the blackboard; completion is signaled exclusively by typed events (ev_TaskDone / ev_ShardDone / regression interrupts / ev_ModuleHardened).
 - **VAL-MACRO-16 (Termination artifact).** On termination, the produced artifact set R_tgt equals the accumulated artifacts on G (A_artifacts), and the final macro-state is terminal.
@@ -111,7 +111,7 @@ ID scheme: `VAL-<COMPONENT>-<NN>`. Components: `MACRO` (global engine/statechart
 ### 4.9 AGEN — Code Generation Agent
 
 - **VAL-AGEN-01 (Candidate synthesis).** Given problem model + one hypothesis, the agent produces a complete candidate module source string implementing the contracts/rules of that hypothesis.
-- **VAL-AGEN-02 (Honest failure sentinel).** On inference failure, the agent returns a compile_error! sentinel candidate (failure stays visible to the evaluator; no silent empty string). [INFERENCE: sentinel convention may evolve; contract = failure visible, never silent success.]
+- **VAL-AGEN-02 (Honest failure sentinel).** On inference failure, the agent returns a `compile_error!` sentinel candidate (failure stays visible to the evaluator; no silent empty string).
 - **VAL-AGEN-03 (Prompt fidelity).** The codegen prompt includes the problem-model rules/contracts relevant to the hypothesis; contract/rule cards referenced in the slice appear in the rendered prompt.
 
 ### 4.10 ATEST — Adversarial Test Generation Agent
