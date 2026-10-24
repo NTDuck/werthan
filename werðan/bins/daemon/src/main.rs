@@ -18,6 +18,10 @@ struct CliArgs {
 
 #[::tokio::main]
 async fn main() {
+    // Fault-path diagnostics (bench_llm warn!) require a global subscriber.
+    // Without init, every warn is silently dropped and campaign logs lose
+    // the evidence needed to diagnose empty-answer inference failures.
+    let _ = ::tracing_subscriber::fmt().try_init();
     let args = ::std::env::args().collect::<::std::vec::Vec<::std::string::String>>();
     let cli = parse_args(&args);
 

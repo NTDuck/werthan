@@ -104,6 +104,45 @@ impl self::OpenAiCompatModel {
     }
 }
 
+/// Retry policy for transient inference endpoint failures.
+///
+/// The benchmark fleet hits systemic 500 bursts from KV-cache admission
+/// pressure. Retrying the send (never the payload build) inside the same
+/// exchange future turns those blips into successes. The whole-request
+/// reqwest deadline keeps every attempt bounded. Timeouts never retry: the
+/// deadline already governs them on its own error path.
+const RETRYABLE_MAX_ATTEMPTS: ::core::primitive::u32 = 4;
+
+/// Classify one HTTP status as retryable (transient server pressure).
+fn is_retryable_status(status: ::core::primitive::u16) -> ::core::primitive::bool {
+    ::core::matches!(status, 500 | 502 | 503 | 504 | 429)
+}
+
+/// Backoff for one retry attempt: 500ms, 1000ms, 2000ms.
+///
+/// Attempts beyond the third saturate at the final step. The caller stops
+/// long before that. The caller applies jitter at call time, not here, so
+/// the base shape stays deterministic and the tests assert exact values.
+fn retry_delay(attempt: ::core::primitive::u32) -> ::std::time::Duration {
+    let exponent = attempt.min(2);
+    let base_millis = 500u64.checked_shl(exponent).unwrap_or(2000);
+    ::std::time::Duration::from_millis(base_millis)
+}
+
+/// Pseudo-random jitter factor in 0.80..=1.20 derived from wall-clock
+/// sub-second nanos. No rand dependency. Two-decimal granularity is plenty
+/// for spreading retry storms.
+fn jittered_delay(delay: ::std::time::Duration) -> ::std::time::Duration {
+    let nanos = ::std::time::SystemTime::now()
+        .duration_since(::std::time::UNIX_EPOCH)
+        .map(|since_epoch| since_epoch.subsec_nanos())
+        .unwrap_or(0);
+    // 0..=40 spread over a 100 step grid maps to the 0.80..=1.20 band.
+    let jitter_step = (nanos % 41) as ::core::primitive::u64;
+    let scaled = delay.as_millis() as ::core::primitive::u64 * (80 + jitter_step) / 100;
+    ::std::time::Duration::from_millis(scaled)
+}
+
 impl ::rig::completion::CompletionModel for self::OpenAiCompatModel {
     type Response = ::serde_json::Value;
 
@@ -138,27 +177,67 @@ impl ::rig::completion::CompletionModel for self::OpenAiCompatModel {
                 },
             };
         let chat_url = ::std::format!("{}/chat/completions", self.base_url);
-            let send_result = self
-                .http_client
-                .post(&chat_url)
-                .bearer_auth(&self.api_key)
-                .json(&request_payload)
-                .send()
-                .await;
-            let response = match send_result {
-                ::core::result::Result::Ok(value) => value,
-                ::core::result::Result::Err(send_error) => {
-                    if send_error.is_timeout() {
-                        return ::core::result::Result::Err(
-                            ::rig::completion::CompletionError::ProviderError(::std::format!(
-                                "inference timeout after {} seconds: {send_error}",
-                                self.timeout_secs
-                            )),
+            let mut response = ::core::option::Option::None;
+            let mut transport_failure = ::core::option::Option::None;
+            for attempt in 0..self::RETRYABLE_MAX_ATTEMPTS {
+                let send_result = self
+                    .http_client
+                    .post(&chat_url)
+                    .bearer_auth(&self.api_key)
+                    .json(&request_payload)
+                    .send()
+                    .await;
+                match send_result {
+                    ::core::result::Result::Ok(sent_response) => {
+                        let status_code = sent_response.status().as_u16();
+                        if self::is_retryable_status(status_code) && attempt + 1 < self::RETRYABLE_MAX_ATTEMPTS {
+                            let base_delay = self::retry_delay(attempt);
+                            let backoff = self::jittered_delay(base_delay);
+                            ::tracing::warn!(
+                                attempt = attempt + 1,
+                                status = status_code,
+                                "inference endpoint returned retryable status. retrying after {backoff:?}"
+                            );
+                            ::tokio::time::sleep(backoff).await;
+                            continue;
+                        }
+                        response = ::core::option::Option::Some(sent_response);
+                        break;
+                    },
+                    ::core::result::Result::Err(send_error) => {
+                        if send_error.is_timeout() {
+                            return ::core::result::Result::Err(
+                                ::rig::completion::CompletionError::ProviderError(::std::format!(
+                                    "inference timeout after {} seconds: {send_error}",
+                                    self.timeout_secs
+                                )),
+                            );
+                        }
+                        let retrying = attempt + 1 < self::RETRYABLE_MAX_ATTEMPTS;
+                        if !retrying {
+                            transport_failure = ::core::option::Option::Some(send_error);
+                            break;
+                        }
+                        let base_delay = self::retry_delay(attempt);
+                        let backoff = self::jittered_delay(base_delay);
+                        ::tracing::warn!(
+                            attempt = attempt + 1,
+                            error = %send_error,
+                            "inference transport error. retrying after {backoff:?}"
                         );
-                    }
+                        ::tokio::time::sleep(backoff).await;
+                    },
+                };
+            }
+            let response = match response {
+                ::core::option::Option::Some(value) => value,
+                ::core::option::Option::None => {
+                    let failure_detail = transport_failure
+                        .map(|send_error| send_error.to_string())
+                        .unwrap_or_else(|| "no response".to_string());
                     return ::core::result::Result::Err(
                         ::rig::completion::CompletionError::ProviderError(::std::format!(
-                            "inference transport error: {send_error}"
+                            "inference transport error: {failure_detail}"
                         )),
                     );
                 },
@@ -198,6 +277,20 @@ impl ::rig::completion::CompletionModel for self::OpenAiCompatModel {
             let answer_text = self::usable_answer(&raw_text);
             let answer_present = !answer_text.is_empty();
             if !answer_present {
+                // Fault-path diagnostics: without the response shape on
+                // record, an empty-answer campaign failure is undiagnosable
+                // after the fact.
+                let raw_length = raw_text.chars().count();
+                let raw_prefix = raw_text
+                    .chars()
+                    .take(200)
+                    .collect::<::std::string::String>()
+                    .replace('\n', " ");
+                let fenced_present = raw_text.contains("```");
+                ::tracing::warn!(
+                    target: "bench_llm",
+                    "no usable answer: raw_chars={raw_length} fenced={fenced_present} prefix={raw_prefix}"
+                );
                 return ::core::result::Result::Err(
                     ::rig::completion::CompletionError::ProviderError(
                         "no usable answer in response".to_string(),
@@ -300,7 +393,10 @@ struct ChatCompletionsMessage {
     #[serde(default)]
     content: ::core::option::Option<::std::string::String>,
     /// Reasoning trace channel some OpenAI-compatible backends fill instead.
+    /// Kept for wire deserialization completeness; never surfaced as an
+    /// answer because deliberation is not output.
     #[serde(default, rename = "reasoning_content")]
+    #[allow(dead_code)]
     reasoning_content: ::core::option::Option<::std::string::String>,
     /// Refusal channel.
     #[serde(default)]
@@ -405,23 +501,36 @@ fn chat_payload_value(
     payload.insert("temperature".to_string(), temperature_value);
     let max_tokens_value = ::serde_json::Value::from(max_tokens);
     payload.insert("max_tokens".to_string(), max_tokens_value);
+    // Reasoning traces burn the whole token budget on long-form generation
+    // under concurrency and never surface as output. The serving stack
+    // honors this template flag; disabling it makes every call emit content
+    // directly. Iterative self-heal compensates for one-shot quality.
+    let template_kwargs = ::serde_json::json!({ "enable_thinking": false });
+    payload.insert("chat_template_kwargs".to_string(), template_kwargs);
     ::serde_json::Value::Object(payload)
 }
 
 /// Parse the raw chat-completions JSON into its raw value and answer text.
 ///
-/// The text channel falls back through: assistant text content, the
-/// `reasoning_content` field many OpenAI-compatible backends fill instead of
-/// `content`, and the refusal channel.
+/// The text channel prefers assistant text `content` and only falls back to
+/// the `reasoning_content` field when content is empty. The refusal channel
+/// appends when present. Concatenating reasoning with content would corrupt
+/// downstream code extraction.
 fn response_text_of(body: &self::ChatCompletionsBody) -> ::std::string::String {
     let mut collected = ::std::string::String::new();
     for choice in &body.choices {
         if let ::core::option::Option::Some(message) = &choice.message {
-            if let ::core::option::Option::Some(content_text) = &message.content {
-                collected.push_str(content_text);
-            }
-            if let ::core::option::Option::Some(reasoning_text) = &message.reasoning_content {
-                collected.push_str(reasoning_text);
+            // Reasoning content is model deliberation, never the answer.
+            // An empty content with a long reasoning stream means the model
+            // exhausted its budget before emitting any output; surfacing the
+            // reasoning would only produce spurious sketch rejections and
+            // misleading diagnostics.
+            let content_present = message
+                .content
+                .as_deref()
+                .is_some_and(|content_text| !content_text.trim().is_empty());
+            if content_present {
+                collected.push_str(message.content.as_deref().unwrap_or_default());
             }
             if let ::core::option::Option::Some(refusal_text) = &message.refusal {
                 collected.push_str(refusal_text);
@@ -445,13 +554,40 @@ fn error_snippet_of(body_text: &::core::primitive::str) -> ::std::string::String
 /// Reduce a reasoning-dominant response to its most usable answer text.
 ///
 /// The heuristic order: a fenced code block if present, then the text after
-/// the last reasoning closing tag. A truncated reasoning trace with no
-/// conclusion is prose, never code. It returns empty so the caller keeps
-/// the primary error instead of corrupting the target workspace.
+/// the last reasoning closing tag, then the bare content itself. Every
+/// daemon payload sets `enable_thinking: false`, so content is the direct
+/// answer channel and bare content is accepted; fence and think-close
+/// shaping stays for backends that embed reasoning in content. It returns
+/// empty only for a fenced sketch so the caller keeps the primary error
+/// instead of corrupting the target workspace.
 fn usable_answer(response_text: &::core::primitive::str) -> ::std::string::String {
+    let trimmed_response = response_text.trim();
+    if trimmed_response.is_empty() {
+        return ::std::string::String::new();
+    }
+    // Rule extraction prompts demand a bare JSON array with no markdown
+    // fence, so a response that opens as JSON is a complete answer even
+    // without a fence or reasoning close tag.
+    let json_shaped = trimmed_response.starts_with('[') || trimmed_response.starts_with('{');
+    if json_shaped {
+        return trimmed_response.to_string();
+    }
     let fenced = self::extract_code(response_text);
-    let fence_present = fenced.contains("fn ") || fenced.contains("pub ");
-    if fence_present {
+    let from_real_fence = response_text.contains("```") && !fenced.is_empty();
+    if from_real_fence {
+        // A line whose entire body is an ellipsis placeholder (ASCII dots or
+        // the Unicode ellipsis, bare or brace-wrapped) is a sketch marker.
+        // Rest/spread usage like `(...args)` never forms a full line, so
+        // placeholder-line detection cannot reject real code.
+        let mut placeholder_lines = 0;
+        for line_text in fenced.lines() {
+            if self::is_sketch_placeholder_line(line_text) {
+                placeholder_lines += 1;
+            }
+        }
+        if placeholder_lines > 0 {
+            return ::std::string::String::new();
+        }
         return fenced;
     }
     let think_closed = response_text.rfind("</think");
@@ -466,10 +602,12 @@ fn usable_answer(response_text: &::core::primitive::str) -> ::std::string::Strin
             }
         }
     }
-    ::std::string::String::new()
+    // Thinking-off content carries no reasoning wrapper: the trimmed body
+    // is the answer. Downstream syntax gates judge non-code honestly.
+    trimmed_response.to_string()
 }
 
-/// Extract the first fenced Rust code block from a model response.
+/// Extract the first fenced code block from a model response.
 /// Unfenced responses come back trimmed so bare code still works.
 fn extract_code(response_text: &::core::primitive::str) -> ::std::string::String {
     let fence_token = "```";
@@ -489,9 +627,33 @@ fn extract_code(response_text: &::core::primitive::str) -> ::std::string::String
     code_body.trim().to_string()
 }
 
+/// A line is a sketch placeholder when its entire body is an ellipsis,
+/// bare or brace-wrapped. Rest/spread usage like `(...args)` never forms
+/// a full line, so this classifier cannot reject real code.
+fn is_sketch_placeholder_line(line_text: &::core::primitive::str) -> ::core::primitive::bool {
+    let tail_text = line_text.rsplit('{').next().unwrap_or(line_text);
+    let tail = tail_text.trim().trim_end_matches('}').trim();
+    tail == "..." || tail == "\u{2026}"
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chat_payload_disables_thinking_channel() {
+        let payload = self::chat_payload_value(
+            "test-model",
+            ::std::vec![],
+            0.7,
+            4096,
+        );
+        let kwargs = payload
+            .get("chat_template_kwargs")
+            .and_then(|kwargs_value| kwargs_value.get("enable_thinking"))
+            .and_then(|flag_value| flag_value.as_bool());
+        ::std::assert_eq!(kwargs, ::core::option::Option::Some(false));
+    }
 
     #[test]
     fn usable_answer_prefers_fenced_code() {
@@ -508,11 +670,143 @@ mod tests {
     }
 
     #[test]
-    fn usable_answer_rejects_truncated_prose_without_think_close() {
-        // The corrupted lib.rs failure mode: the reasoning budget ran out
-        // mid-thought and no conclusion was ever written.
+    fn usable_answer_accepts_bare_content_without_think_close() {
+        // Thinking-off content carries no reasoning wrapper; the trimmed
+        // body is the answer and downstream syntax gates judge it honestly.
         let response = "We need answer user's request. Need write lib.rs with vec functions. But wait";
         let answer = self::usable_answer(response);
-        ::std::assert!(answer.is_empty(), "prose must be rejected, got: {answer}");
+        ::std::assert!(!answer.is_empty(), "bare content must be surfaced: {answer}");
+    }
+
+    #[test]
+    fn response_text_of_prefers_content_over_reasoning() {
+        let body = self::ChatCompletionsBody {
+            choices: ::std::vec![self::ChatCompletionsChoice {
+                message: ::core::option::Option::Some(self::ChatCompletionsMessage {
+                    content: ::core::option::Option::Some("function f() { return 1 }".to_string()),
+                    reasoning_content: ::core::option::Option::Some("We need answer user.".to_string()),
+                    refusal: ::core::option::Option::None,
+                }),
+            }],
+            raw: ::serde_json::Value::Null,
+        };
+        let text = self::response_text_of(&body);
+        ::std::assert_eq!(text, "function f() { return 1 }");
+    }
+
+    #[test]
+    fn response_text_of_never_surfaces_reasoning_as_answer() {
+        let body = self::ChatCompletionsBody {
+            choices: ::std::vec![self::ChatCompletionsChoice {
+                message: ::core::option::Option::Some(self::ChatCompletionsMessage {
+                    content: ::core::option::Option::None,
+                    reasoning_content: ::core::option::Option::Some(
+                        "We need answer user's request. Need think through rules.".to_string(),
+                    ),
+                    refusal: ::core::option::Option::None,
+                }),
+            }],
+            raw: ::serde_json::Value::Null,
+        };
+        let text = self::response_text_of(&body);
+        ::std::assert!(text.is_empty(), "reasoning leaked as answer: {text}");
+    }
+
+    #[test]
+    fn usable_answer_accepts_fenced_javascript() {
+        let response = "Sure!\n```js\nfunction f() { return 1 }\n```";
+        let answer = self::usable_answer(response);
+        ::std::assert!(answer.contains("function f()"), "fenced JS rejected: {answer}");
+    }
+
+    #[test]
+    fn usable_answer_accepts_bare_json_array() {
+        // Rule extraction returns strict JSON with no fence by contract.
+        let response = "[{\"rule_id\": \"EXPORTS\", \"given\": \"x\"}]";
+        let answer = self::usable_answer(response);
+        ::std::assert!(answer.contains("EXPORTS"), "JSON answer rejected: {answer}");
+    }
+
+    #[test]
+    fn usable_answer_accepts_single_label_answer() {
+        // Fault distillation answers with exactly one bare label.
+        let answer = self::usable_answer("INTRINSIC");
+        ::std::assert_eq!(answer, "INTRINSIC");
+    }
+
+    #[test]
+    fn usable_answer_rejects_unicode_ellipsis_sketch() {
+        let response = "```js\nfunction BinarySearchTree() {\u{2026}\n} else {\u{2026}\n}\n```";
+        let answer = self::usable_answer(response);
+        ::std::assert!(answer.is_empty(), "unicode sketch must be rejected, got: {answer}");
+    }
+
+    #[test]
+    fn usable_answer_keeps_spread_operator_code() {
+        // Rest/spread `...args` is legitimate JavaScript, not a placeholder.
+        let response = "```js\nfunction f(...args) { return args.length }\n```";
+        let answer = self::usable_answer(response);
+        ::std::assert!(answer.contains("...args"), "spread code rejected: {answer}");
+    }
+
+    #[test]
+    fn usable_answer_extracts_tail_after_think_close() {
+        let response = "reasoning here </think\n> function f() { return 1 }";
+        let answer = self::usable_answer(response);
+        ::std::assert_eq!(answer, "function f() { return 1 }");
+    }
+
+    #[test]
+    fn is_retryable_status_accepts_transient_server_statuses() {
+        let server_error = self::is_retryable_status(500);
+        let bad_gateway = self::is_retryable_status(502);
+        let service_unavailable = self::is_retryable_status(503);
+        let gateway_timeout = self::is_retryable_status(504);
+        let rate_limited = self::is_retryable_status(429);
+        ::std::assert!(server_error);
+        ::std::assert!(bad_gateway);
+        ::std::assert!(service_unavailable);
+        ::std::assert!(gateway_timeout);
+        ::std::assert!(rate_limited);
+    }
+
+    #[test]
+    fn is_retryable_status_rejects_client_statuses_and_success() {
+        let bad_request = self::is_retryable_status(400);
+        let unauthorized = self::is_retryable_status(401);
+        let not_found = self::is_retryable_status(404);
+        let success = self::is_retryable_status(200);
+        ::std::assert!(!bad_request);
+        ::std::assert!(!unauthorized);
+        ::std::assert!(!not_found);
+        ::std::assert!(!success);
+    }
+
+    #[test]
+    fn retry_delay_doubles_per_attempt_up_to_the_cap() {
+        let expected_base = ::std::time::Duration::from_millis(500);
+        let expected_mid = ::std::time::Duration::from_millis(1000);
+        let expected_top = ::std::time::Duration::from_millis(2000);
+        let actual_base = self::retry_delay(0);
+        let actual_mid = self::retry_delay(1);
+        let actual_top = self::retry_delay(2);
+        let actual_saturated = self::retry_delay(3);
+        let actual_far_beyond = self::retry_delay(99);
+        ::std::assert_eq!(actual_base, expected_base);
+        ::std::assert_eq!(actual_mid, expected_mid);
+        ::std::assert_eq!(actual_top, expected_top);
+        ::std::assert_eq!(actual_saturated, expected_top);
+        ::std::assert_eq!(actual_far_beyond, expected_top);
+    }
+
+    #[test]
+    fn jittered_delay_stays_within_twenty_percent_band() {
+        let base = ::std::time::Duration::from_millis(1000);
+        for _sample in 0..64 {
+            let jittered = self::jittered_delay(base);
+            let millis = jittered.as_millis();
+            let inside_band = (800..=1200).contains(&millis);
+            ::std::assert!(inside_band, "jittered delay {millis}ms outside band");
+        }
     }
 }
