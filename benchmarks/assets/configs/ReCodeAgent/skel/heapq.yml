@@ -20,7 +20,7 @@ inference:
   max_shards: 2
   inference_max_tokens: 32768
   inference_temperature: 0.2
-  inference_timeout_secs: 600
+  inference_timeout_secs: 900
   build_timeout_secs: 120
   test_timeout_secs: 120
 verification:

@@ -2,12 +2,17 @@
 //! Exposes one Rig agent with the strategy preamble wired, plus the domain
 //! call that prompts it and parses hypothesis records from the response.
 
-/// System prompt steering the model toward candidate strategy hypotheses.
-pub const STRATEGY_SYSTEM_PROMPT: &::core::primitive::str = "You are an architectural strategy analyst for a Rust modernization pipeline. \
+/// System prompt steering the model toward candidate strategy hypotheses for
+/// the configured target language.
+pub fn strategy_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are an architectural strategy analyst for a {target_language} modernization pipeline. \
 Read the problem model and propose competing translation strategies as a JSON array. \
 Every element carries exactly the fields strategy_id, description and prior_utility. \
 The prior_utility value is a decimal between 0.10 and 0.95. \
-Return the JSON array and nothing else. No commentary.";
+Return the JSON array and nothing else. No commentary."
+    )
+}
 
 /// Builder assembling the strategy Rig agent with role defaults wired.
 #[derive(::core::fmt::Debug)]
@@ -15,6 +20,7 @@ pub struct HolonStrategyAgentBuilder<M: ::rig::completion::CompletionModel> {
     model: ::core::option::Option<M>,
     temperature: ::core::option::Option<::core::primitive::f64>,
     max_tokens_override: ::core::option::Option<::core::primitive::u64>,
+    target_language: ::std::string::String,
 }
 
 impl<M: ::rig::completion::CompletionModel> self::HolonStrategyAgentBuilder<M> {
@@ -36,14 +42,21 @@ impl<M: ::rig::completion::CompletionModel> self::HolonStrategyAgentBuilder<M> {
         self
     }
 
+    /// Set the target language the strategy preamble advertises.
+    pub fn target_language(mut self, language: ::std::string::String) -> Self {
+        self.target_language = language;
+        self
+    }
+
     /// Build the Rig agent with the strategy preamble and token budget wired.
     pub fn build(self) -> ::rig::agent::Agent<M> {
         let wired_model = match self.model {
             ::core::option::Option::Some(found_model) => found_model,
             ::core::option::Option::None => ::core::panic!("strategy model must be wired before build"),
         };
+        let preamble_text = self::strategy_system_prompt(&self.target_language);
         let mut agent_builder = ::rig::agent::AgentBuilder::new(wired_model)
-            .preamble(self::STRATEGY_SYSTEM_PROMPT)
+            .preamble(&preamble_text)
             .max_tokens(4096);
         if let ::core::option::Option::Some(temperature_value) = self.temperature {
             agent_builder = agent_builder.temperature(temperature_value);
@@ -81,6 +94,7 @@ impl self::HolonStrategyAgent {
             model: ::core::option::Option::None,
             temperature: ::core::option::Option::None,
             max_tokens_override: ::core::option::Option::None,
+            target_language: "rust".to_string(),
         }
     }
 

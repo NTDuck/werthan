@@ -10,7 +10,10 @@ pub mod cargo_harness;
 pub mod llm_distiller;
 
 pub use self::cargo_harness::CargoHarness;
-pub use self::llm_distiller::{HolonEvaluatorAgent, HolonEvaluatorAgentBuilder, RigDiagnosticDistiller};
+pub use self::llm_distiller::{
+    audit_system_prompt, distill_system_prompt, HolonEvaluatorAgent, HolonEvaluatorAgentBuilder,
+    RigDiagnosticDistiller,
+};
 
 /// Execution output from the execution harness.
 #[derive(::core::clone::Clone, ::core::fmt::Debug, ::core::default::Default, ::serde::Serialize, ::serde::Deserialize)]
@@ -40,11 +43,14 @@ pub struct EvaluationResult {
 pub trait ExecutionHarness: ::core::marker::Send + ::core::marker::Sync {
     /// Execute candidate code against characterization tests.
     /// The module identifier locates the target source file inside the workspace.
+    /// The target language gates language-specific static checks. Non-Rust
+    /// candidates never receive Rust tooling as a measurement.
     fn execute_candidate(
         &self,
         module_id: &::core::primitive::str,
         candidate_code: &::core::primitive::str,
         test_suite: &[::std::string::String],
+        target_language: &::core::primitive::str,
     ) -> self::HarnessExecutionOutput;
 }
 
@@ -65,9 +71,10 @@ impl self::ExecutionHarness for self::DefaultExecutionHarness {
         module_id: &::core::primitive::str,
         candidate_code: &::core::primitive::str,
         test_suite: &[::std::string::String],
+        target_language: &::core::primitive::str,
     ) -> self::HarnessExecutionOutput {
         let _ = module_id;
-        self::execute_harness_impl(candidate_code, test_suite)
+        self::execute_harness_impl(candidate_code, test_suite, target_language)
     }
 }
 impl<H: self::ExecutionHarness + ?::core::marker::Sized> self::ExecutionHarness for ::std::boxed::Box<H> {
@@ -76,15 +83,17 @@ impl<H: self::ExecutionHarness + ?::core::marker::Sized> self::ExecutionHarness 
         module_id: &::core::primitive::str,
         candidate_code: &::core::primitive::str,
         test_suite: &[::std::string::String],
+        target_language: &::core::primitive::str,
     ) -> self::HarnessExecutionOutput {
-        (**self).execute_candidate(module_id, candidate_code, test_suite)
+        (**self).execute_candidate(module_id, candidate_code, test_suite, target_language)
     }
 }
 fn execute_harness_impl(
     candidate_code: &::core::primitive::str,
     test_suite: &[::std::string::String],
+    target_language: &::core::primitive::str,
 ) -> self::HarnessExecutionOutput {
-    let syntax_check = self::check_syntax_and_compilation(candidate_code);
+    let syntax_check = self::check_syntax_and_compilation(candidate_code, target_language);
     if let ::core::result::Result::Err(err_msg) = syntax_check {
         return self::HarnessExecutionOutput {
             compiles: false,
@@ -95,8 +104,15 @@ fn execute_harness_impl(
     self::evaluate_suite(candidate_code, test_suite)
 }
 
+/// Syntax gate over candidate code. The SYNTAX_ERROR and compile_error
+/// markers are the language-neutral failure channels from the synthesis and
+/// repair agents. The proc_macro2 tokenization checks Rust syntax only.
+/// The gate runs the tokenization when the target language is rust or unset.
+/// The rust default matches the unset case. Other languages skip the
+/// tokenization. Their own toolchain measures them through the harness.
 fn check_syntax_and_compilation(
     candidate_code: &::core::primitive::str,
+    target_language: &::core::primitive::str,
 ) -> ::core::result::Result<(), ::std::string::String> {
     let has_compile_error = candidate_code.contains("compile_error!");
     if has_compile_error {
@@ -108,10 +124,13 @@ fn check_syntax_and_compilation(
         let err_text = ::std::string::String::from("error: explicit SYNTAX_ERROR tag detected");
         return ::core::result::Result::Err(err_text);
     }
-    let token_res = candidate_code.parse::<::proc_macro2::TokenStream>();
-    if let ::core::result::Result::Err(parse_err) = token_res {
-        let err_text = ::std::format!("error: syntax tokenization failed: {parse_err}");
-        return ::core::result::Result::Err(err_text);
+    let is_rust_target = target_language.is_empty() || target_language == "rust";
+    if is_rust_target {
+        let token_res = candidate_code.parse::<::proc_macro2::TokenStream>();
+        if let ::core::result::Result::Err(parse_err) = token_res {
+            let err_text = ::std::format!("error: syntax tokenization failed: {parse_err}");
+            return ::core::result::Result::Err(err_text);
+        }
     }
     ::core::result::Result::Ok(())
 }
@@ -479,7 +498,13 @@ impl<H: self::ExecutionHarness, D: self::DiagnosticDistiller> self::TwoStageEval
         test_suite: &[::std::string::String],
         problem_model: &::holon_blackboard::ProblemModelSlice,
     ) -> self::EvaluationResult {
-        let harness_output = self.harness.execute_candidate(module_id, candidate_code, test_suite);
+        let target_language = &problem_model.target_language;
+        let harness_output = self.harness.execute_candidate(
+            module_id,
+            candidate_code,
+            test_suite,
+            target_language,
+        );
         let does_compile = harness_output.compiles;
         if !does_compile {
             let fault = self.distiller.distill_failure(&harness_output.raw_logs, candidate_code, problem_model);
@@ -528,6 +553,7 @@ mod tests {
             _module_id: &::core::primitive::str,
             _candidate_code: &::core::primitive::str,
             _test_suite: &[::std::string::String],
+            _target_language: &::core::primitive::str,
         ) -> self::HarnessExecutionOutput {
             let logs_text = ::std::string::String::new();
             self::HarnessExecutionOutput {

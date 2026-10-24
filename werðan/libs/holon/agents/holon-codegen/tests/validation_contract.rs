@@ -29,7 +29,7 @@ fn contract_val_agen_01_complete_candidate_from_hypothesis() {
 
 #[test]
 fn contract_val_agen_02_honest_failure_sentinel() {
-    // On inference failure the agent returns a compile_error sentinel
+    // On inference failure the agent returns a SYNTAX_ERROR sentinel
     // candidate, so the failure stays visible to the evaluator.
     let problem_model = ::holon_blackboard::ProblemModelSlice::new();
     let hypothesis = ::holon_blackboard::StrategyHypothesis {
@@ -44,7 +44,8 @@ fn contract_val_agen_02_honest_failure_sentinel() {
         &problem_model,
         &hypothesis,
     );
-    ::std::assert!(candidate.contains("compile_error!"));
+    ::std::assert!(candidate.contains("SYNTAX_ERROR"));
+    ::std::assert!(candidate.contains("ariadne llm synthesis fault"));
     ::std::assert!(!candidate.contains("pub fn"));
 }
 

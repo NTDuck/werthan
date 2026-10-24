@@ -255,3 +255,33 @@ fn rule_card(rule_id: &::core::primitive::str) -> ::holon_blackboard::BusinessRu
         citation: "legacy/source.c:12".to_string(),
     }
 }
+
+/// Contract: external test toolchains map a zero exit code to a full pass
+/// rate instead of parsing cargo result lines.
+#[test]
+fn contract_val_daemon_06_external_test_success_maps_full_rate() {
+    let scratch_root = ::std::env::temp_dir();
+    let bench_config = external_command_config("true");
+    let validation = ::daemon::bench_validation::validate_workspace(&bench_config, &scratch_root);
+    ::std::assert!(validation.check_ok);
+    ::std::assert_eq!(validation.test_pass_rate, 1.0);
+}
+
+/// Contract: external test toolchains map a nonzero exit code to zero.
+#[test]
+fn contract_val_daemon_07_external_test_failure_maps_zero_rate() {
+    let scratch_root = ::std::env::temp_dir();
+    let bench_config = external_command_config("false");
+    let validation = ::daemon::bench_validation::validate_workspace(&bench_config, &scratch_root);
+    ::std::assert_eq!(validation.test_pass_rate, 0.0);
+}
+
+/// Build a config whose build and test commands exit with the given status.
+fn external_command_config(test_program: &'static ::core::primitive::str) -> ::daemon::bench_config::CampaignConfig {
+    let mut bench_config = ::daemon::bench_config::CampaignConfig::default();
+    bench_config.inference.build_timeout_secs = 30;
+    bench_config.inference.test_timeout_secs = 30;
+    bench_config.stack.target_build_cmd = "true".to_string();
+    bench_config.stack.target_test_cmd = test_program.to_string();
+    bench_config
+}

@@ -1566,8 +1566,8 @@ impl self::InteractiveCockpit {
             }
         }
 
-        if lower.contains("rust") {
-            self.draft_config.stack.target_language = "rust".to_string();
+        if let ::core::option::Option::Some(language) = self::match_language_token(text) {
+            self.draft_config.stack.target_language = language.to_string();
             modified = true;
         }
 
@@ -1874,10 +1874,72 @@ impl self::InteractiveCockpit {
     }
 }
 
+/// Known target-language tokens recognized in conversational input.
+const KNOWN_LANGUAGE_TOKENS: &[&::core::primitive::str] = &[
+    "rust",
+    "javascript",
+    "typescript",
+    "python",
+    "java",
+    "go",
+    "c",
+    "cpp",
+];
+
+/// Find the first known language token in the text, whole-word only.
+fn match_language_token(
+    text: &::core::primitive::str,
+) -> ::core::option::Option<&'static ::core::primitive::str> {
+    let lower_text = text.to_lowercase();
+    KNOWN_LANGUAGE_TOKENS
+        .iter()
+        .copied()
+        .find(|&token| lower_text.split_whitespace().any(|word| word == token))
+}
+
 /// Build the status telemetry text from the persisted state vector. The
 /// rendering layer consumes this single source of truth (VAL-INTERACTIVE-01).
 pub fn telemetry_state_text(state_vector: &self::mock::RunnerStateVector) -> ::std::string::String {
     let state_text = state_vector.macro_state.to_string();
     let event_count = state_vector.event_log.len();
     ::std::format!("{state_text} | events: {event_count}")
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn rust_token_selects_rust_language() {
+        let mut cockpit = super::InteractiveCockpit::default();
+        let runtime = ::tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime builds");
+        runtime.block_on(cockpit.handle_user_input("use rust please"));
+        ::std::assert_eq!(cockpit.draft_config.stack.target_language, "rust");
+    }
+
+    #[test]
+    fn python_token_selects_python_language() {
+        let mut cockpit = super::InteractiveCockpit::default();
+        let runtime = ::tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime builds");
+        runtime.block_on(cockpit.handle_user_input("please target python instead"));
+        ::std::assert_eq!(cockpit.draft_config.stack.target_language, "python");
+    }
+
+    #[test]
+    fn c_token_requires_standalone_word() {
+        let language = super::match_language_token("i code in objc daily");
+        ::std::assert_eq!(
+            language,
+            ::core::option::Option::<&::core::primitive::str>::None
+        );
+        let standalone = super::match_language_token("i code in C now");
+        ::std::assert_eq!(
+            standalone,
+            ::core::option::Option::<&::core::primitive::str>::Some("c")
+        );
+    }
 }

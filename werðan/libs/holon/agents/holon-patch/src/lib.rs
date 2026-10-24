@@ -2,11 +2,16 @@
 //! Exposes one Rig agent with the repair preamble wired, plus the domain
 //! call that prompts it and extracts the repaired module source.
 
-/// System prompt steering the model toward repaired Rust module code.
-pub const PATCH_SYSTEM_PROMPT: &::core::primitive::str = "You are a Rust code repair engine for a legacy modernization pipeline. \
-Output only the repaired complete Rust source for one module with no markdown and no commentary. \
+/// System prompt steering the model toward repaired module code in the
+/// configured target language.
+pub fn patch_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are a {target_language} code repair engine for a legacy modernization pipeline. \
+Output only the repaired complete {target_language} source for one module with no markdown and no commentary. \
 Keep every public signature from the candidate unchanged unless a contract requires otherwise. \
-The repaired code must compile and must satisfy every rule card. Return only repaired source.";
+The repaired code must compile and must satisfy every rule card. Return only repaired source."
+    )
+}
 
 /// Builder assembling the surgical repair Rig agent with role defaults wired.
 #[derive(::core::fmt::Debug)]
@@ -14,6 +19,7 @@ pub struct HolonPatchAgentBuilder<M: ::rig::completion::CompletionModel> {
     model: ::core::option::Option<M>,
     temperature: ::core::option::Option<::core::primitive::f64>,
     max_tokens_override: ::core::option::Option<::core::primitive::u64>,
+    target_language: ::std::string::String,
 }
 
 impl<M: ::rig::completion::CompletionModel> self::HolonPatchAgentBuilder<M> {
@@ -35,14 +41,21 @@ impl<M: ::rig::completion::CompletionModel> self::HolonPatchAgentBuilder<M> {
         self
     }
 
+    /// Set the target language the repair preamble advertises.
+    pub fn target_language(mut self, language: ::std::string::String) -> Self {
+        self.target_language = language;
+        self
+    }
+
     /// Build the Rig agent with the repair preamble and token budget wired.
     pub fn build(self) -> ::rig::agent::Agent<M> {
         let wired_model = match self.model {
             ::core::option::Option::Some(found_model) => found_model,
             ::core::option::Option::None => ::core::panic!("patch model must be wired before build"),
         };
+        let preamble_text = self::patch_system_prompt(&self.target_language);
         let mut agent_builder = ::rig::agent::AgentBuilder::new(wired_model)
-            .preamble(self::PATCH_SYSTEM_PROMPT)
+            .preamble(&preamble_text)
             .max_tokens(16384);
         if let ::core::option::Option::Some(temperature_value) = self.temperature {
             agent_builder = agent_builder.temperature(temperature_value);
@@ -64,6 +77,7 @@ impl self::HolonPatchAgent {
             model: ::core::option::Option::None,
             temperature: ::core::option::Option::None,
             max_tokens_override: ::core::option::Option::None,
+            target_language: "rust".to_string(),
         }
     }
 
@@ -74,6 +88,14 @@ impl self::HolonPatchAgent {
         fault: &::holon_blackboard::FaultRecord,
         problem_model: &::holon_blackboard::ProblemModelSlice,
     ) -> ::std::string::String {
+        // A candidate that is already a fault sentinel carries no repairable
+        // code. Re-prompting would nest sentinels and churn the repair loop,
+        // so the existing marker propagates unchanged.
+        let candidate_is_sentinel = candidate_code.contains("SYNTAX_ERROR:")
+            || candidate_code.contains("compile_error!");
+        if candidate_is_sentinel {
+            return candidate_code.to_string();
+        }
         let user_prompt = self::render_repair_prompt(candidate_code, fault, problem_model);
         let response_text = self::prompt_blocking(agent, user_prompt);
         match self::fault_sentinel_of(&response_text) {
@@ -92,8 +114,9 @@ pub fn render_repair_prompt(
     let context_block = problem_model.render_prompt_context();
     let fault_summary = &fault.summary;
     let diagnostic_trace = &fault.diagnostic_trace;
+    let target_language = &problem_model.target_language;
     ::std::format!(
-        "[PROBLEM CONTEXT]\n{context_block}\n\n[CANDIDATE CODE]\n{candidate_code}\n\n[FAULT SUMMARY]\n{fault_summary}\n\n[DIAGNOSTIC TRACE]\n{diagnostic_trace}\n\nReturn the repaired complete Rust module now.",
+        "[PROBLEM CONTEXT]\n{context_block}\n\n[CANDIDATE CODE]\n{candidate_code}\n\n[FAULT SUMMARY]\n{fault_summary}\n\n[DIAGNOSTIC TRACE]\n{diagnostic_trace}\n\nReturn the repaired complete {target_language} module now.",
     )
 }
 
@@ -157,15 +180,20 @@ fn fault_sentinel_of(response_text: &::core::primitive::str) -> ::core::option::
     ::core::option::Option::Some(sentinel_text)
 }
 
-/// Encode an inference failure as a compile_error sentinel candidate.
+/// Encode an inference failure as a language-neutral SYNTAX_ERROR sentinel candidate.
 pub fn fault_candidate(failure_reason: &::core::primitive::str) -> ::std::string::String {
+    // A reason that already embeds a sentinel marker would nest markers on
+    // every retry cycle. Collapse to the existing sentinel text instead.
+    let reason_is_sentinel = failure_reason.contains("SYNTAX_ERROR:")
+        || failure_reason.contains("compile_error!");
+    if reason_is_sentinel {
+        return failure_reason.to_string();
+    }
     let sanitized_reason = failure_reason
         .replace('"', "'")
         .replace('\n', " ")
         .replace(';', "");
-    ::std::format!(
-        "::core::compile_error!(\"ariadne llm repair fault: {sanitized_reason}\")"
-    )
+    ::std::format!("SYNTAX_ERROR: ariadne llm repair fault: {sanitized_reason}")
 }
 
 /// Extract the first fenced Rust code block from a model response.
@@ -208,11 +236,12 @@ mod tests {
     }
 
     #[test]
-    fn test_fault_candidate_sanitizes_and_compiles_as_sentinel() {
+    fn test_fault_candidate_sanitizes_and_encodes_marker() {
         let sentinel = self::fault_candidate("boom\nnext \"line\"");
-        ::std::assert!(sentinel.contains("compile_error!"));
-        let token_outcome = sentinel.parse::<::proc_macro2::TokenStream>();
-        ::std::assert!(token_outcome.is_ok());
+        ::std::assert!(sentinel.contains("SYNTAX_ERROR"));
+        ::std::assert!(sentinel.contains("ariadne llm repair fault"));
+        ::std::assert!(!sentinel.contains('\n'));
+        ::std::assert!(!sentinel.contains('"'));
     }
 
     #[test]

@@ -6,6 +6,29 @@
 use crate::ExecutionHarness;
 use crate::HarnessExecutionOutput;
 
+/// Explicit toolchain commands for an external (non-cargo) target stack.
+/// Field names mirror `global-blackboard::HarnessConfig`.
+#[derive(::core::clone::Clone, ::core::fmt::Debug, ::core::cmp::PartialEq, ::core::cmp::Eq)]
+pub struct HarnessCommands {
+    /// Target build command.
+    pub build_cmd: ::std::string::String,
+    /// Target test command.
+    pub test_cmd: ::std::string::String,
+    /// Legacy harness execution command.
+    pub legacy_harness_cmd: ::std::string::String,
+}
+
+impl ::core::default::Default for self::HarnessCommands {
+    /// Default commands reproduce the built-in cargo behavior.
+    fn default() -> Self {
+        Self {
+            build_cmd: ::std::string::String::from("cargo check --all-targets"),
+            test_cmd: ::std::string::String::from("cargo test --all-targets"),
+            legacy_harness_cmd: ::std::string::String::new(),
+        }
+    }
+}
+
 #[derive(::core::clone::Clone, ::core::fmt::Debug)]
 pub struct CargoHarness {
     /// Absolute path of the target cargo workspace root.
@@ -14,14 +37,15 @@ pub struct CargoHarness {
     pub build_timeout_secs: ::core::primitive::u64,
     /// Test command timeout in seconds.
     pub test_timeout_secs: ::core::primitive::u64,
+    /// Explicit toolchain commands, defaulting to the built-in cargo behavior.
+    pub commands: self::HarnessCommands,
 }
 
 #[::bon::bon]
 impl self::CargoHarness {
-    /// Construct a harness over the given workspace with explicit configuration.
+    /// Construct a harness over the given workspace with explicit timeouts.
     /// The harness derives the target source file from the executed module
     /// identifier, so one harness instance serves every module vertex.
-    /// Construct a harness over the given workspace with explicit timeouts.
     pub fn with_timeouts(
         workspace_root: ::std::path::PathBuf,
         _source_file: ::std::path::PathBuf,
@@ -38,21 +62,59 @@ impl self::CargoHarness {
     /// Construct a harness over the given workspace with explicit configuration.
     /// The harness derives the target source file from the executed module
     /// identifier, so one harness instance serves every module vertex.
+    /// `commands` overrides the build and test commands, defaulting to cargo.
     #[builder]
     pub fn builder(
         workspace_root: ::std::path::PathBuf,
         build_timeout_secs: ::core::primitive::u64,
         test_timeout_secs: ::core::primitive::u64,
+        commands: ::core::option::Option<self::HarnessCommands>,
     ) -> Self {
+        let commands = commands.unwrap_or_default();
         Self {
             workspace_root,
             build_timeout_secs,
             test_timeout_secs,
+            commands,
         }
     }
 }
 
 impl self::CargoHarness {
+    /// Split one configured command string into program and argument tokens.
+    /// Tokens separate on ASCII whitespace, matching shell word splitting
+    /// closely enough for toolchain invocation strings.
+    pub fn parse_command(
+        command_text: &::core::primitive::str,
+    ) -> (::std::string::String, ::std::vec::Vec<::std::string::String>) {
+        let mut token_iter = command_text.split_whitespace();
+        let program_name = token_iter.next().unwrap_or("").to_string();
+        let argument_tokens = token_iter
+            .map(::std::string::ToString::to_string)
+            .collect::<::std::vec::Vec<::std::string::String>>();
+        (program_name, argument_tokens)
+    }
+
+    /// Resolve the workspace-relative candidate file for one module identifier.
+    /// Cargo toolchains keep the flat `src/{stem}.rs` layout. External
+    /// toolchains derive the target file from the last build argument that
+    /// contains a dot. When no argument names a file, the derivation fails.
+    fn candidate_file_for(
+        &self,
+        module_id: &::core::primitive::str,
+        build_program: &::core::primitive::str,
+        build_args: &[::std::string::String],
+    ) -> ::core::option::Option<::std::path::PathBuf> {
+        if build_program == "cargo" {
+            return ::core::option::Option::Some(self.source_file_for(module_id));
+        }
+        build_args
+            .iter()
+            .rev()
+            .find(|token_text| token_text.contains('.'))
+            .map(::std::path::PathBuf::from)
+    }
+
     /// Resolve the workspace-relative source file for one module identifier.
     /// Module ids are legacy-relative paths, so the final segment's stem names
     /// the flat target file `src/{stem}.rs`. A `mod` stem names the parent
@@ -200,7 +262,17 @@ impl self::ExecutionHarness for self::CargoHarness {
         module_id: &::core::primitive::str,
         candidate_code: &::core::primitive::str,
         test_suite: &[::std::string::String],
+        _target_language: &::core::primitive::str,
     ) -> self::HarnessExecutionOutput {
+        let (build_program, build_tokens) = Self::parse_command(&self.commands.build_cmd);
+        if build_program != "cargo" {
+            return self.execute_external_candidate(
+                &build_program,
+                &build_tokens,
+                candidate_code,
+                test_suite,
+            );
+        }
         let source_relative = self.source_file_for(module_id);
         let source_path = self.workspace_root.join(&source_relative);
         if let ::core::result::Result::Err(write_error) =
@@ -300,6 +372,109 @@ impl self::ExecutionHarness for self::CargoHarness {
     }
 }
 
+impl self::CargoHarness {
+    /// Execute one candidate with an external (non-cargo) toolchain.
+    /// The candidate lands in the file named by the build command args.
+    /// When no build argument names a file, execution fails without writing
+    /// or running anything. A successful build command gates compilation.
+    /// The test command exit code decides the pass rate.
+    /// External stacks lack cargo test counts, so the harness writes no test file.
+    fn execute_external_candidate(
+        &self,
+        build_program: &::core::primitive::str,
+        build_tokens: &[::std::string::String],
+        candidate_code: &::core::primitive::str,
+        test_suite: &[::std::string::String],
+    ) -> self::HarnessExecutionOutput {
+        let target_relative = match self.candidate_file_for("", build_program, build_tokens) {
+            ::core::option::Option::Some(derived_path) => derived_path,
+            ::core::option::Option::None => {
+                return self::HarnessExecutionOutput {
+                    compiles: false,
+                    pass_rate: 0.0,
+                    raw_logs: ::std::string::String::from(
+                        "harness could not derive the candidate file from the configured build command args. Add the target file path to the build command",
+                    ),
+                };
+            }
+        };
+        let target_path = self.workspace_root.join(&target_relative);
+        if let ::core::result::Result::Err(write_error) =
+            ::std::fs::write(&target_path, candidate_code)
+        {
+            return self::HarnessExecutionOutput {
+                compiles: false,
+                pass_rate: 0.0,
+                raw_logs: ::std::format!("harness failed to write candidate source: {write_error}"),
+            };
+        }
+        let build_arg_refs = build_tokens
+            .iter()
+            .map(::std::string::String::as_str)
+            .collect::<::std::vec::Vec<&::core::primitive::str>>();
+        let build_output = self.run_command(build_program, &build_arg_refs, self.build_timeout_secs);
+        let build_log = match build_output {
+            ::core::result::Result::Ok(output) => {
+                let merged_log = Self::merge_logs(&output);
+                if !output.status.success() {
+                    return self::HarnessExecutionOutput {
+                        compiles: false,
+                        pass_rate: 0.0,
+                        raw_logs: { merged_log },
+                    };
+                }
+                merged_log
+            }
+            ::core::result::Result::Err(timeout_text) => {
+                return self::HarnessExecutionOutput {
+                    compiles: false,
+                    pass_rate: 0.0,
+                    raw_logs: { timeout_text },
+                };
+            }
+        };
+        if test_suite.is_empty() {
+            return self::HarnessExecutionOutput {
+                compiles: true,
+                pass_rate: 0.0,
+                raw_logs: { build_log },
+            };
+        }
+        let (test_program, test_tokens) = Self::parse_command(&self.commands.test_cmd);
+        let test_arg_refs = test_tokens
+            .iter()
+            .map(::std::string::String::as_str)
+            .collect::<::std::vec::Vec<&::core::primitive::str>>();
+        let test_output = self.run_command(&test_program, &test_arg_refs, self.test_timeout_secs);
+        let test_log = match test_output {
+            ::core::result::Result::Ok(output) => {
+                let merged_test_log = Self::merge_logs(&output);
+                if output.status.success() {
+                    let full_log = ::std::format!("{build_log}\n{merged_test_log}");
+                    return self::HarnessExecutionOutput {
+                        compiles: true,
+                        pass_rate: 1.0,
+                        raw_logs: { full_log },
+                    };
+                }
+                merged_test_log
+            }
+            ::core::result::Result::Err(timeout_text) => {
+                return self::HarnessExecutionOutput {
+                    compiles: true,
+                    pass_rate: 0.0,
+                    raw_logs: ::std::format!("{build_log}\n{timeout_text}"),
+                };
+            }
+        };
+        self::HarnessExecutionOutput {
+            compiles: true,
+            pass_rate: 0.0,
+            raw_logs: ::std::format!("{build_log}\n{test_log}"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod cargo_harness_tests {
     use super::*;
@@ -316,7 +491,7 @@ mod cargo_harness_tests {
         let candidate_code = "pub fn probe_add(value_x: i32, value_y: i32) -> i32 {\n    value_x + value_y\n}";
         let test_entry = "#[test]\nfn t_probe_add() {\n    ::core::assert_eq!(probe_add(2, 2), 4)\n}";
         let test_suite = ::std::vec![test_entry.to_string()];
-        let outcome = harness.execute_candidate("src/lib.rs", candidate_code, &test_suite);
+        let outcome = harness.execute_candidate("src/lib.rs", candidate_code, &test_suite, "rust");
         ::core::assert!(outcome.compiles, "logs: {}", outcome.raw_logs);
         ::core::assert!(outcome.pass_rate > 0.99, "logs: {}", outcome.raw_logs);
         ::core::assert!(outcome.raw_logs.contains("test result:"));
@@ -334,7 +509,7 @@ mod cargo_harness_tests {
         let candidate_code = "pub fn probe_add(value_x: i32, value_y: i32) -> i32 {\n    value_x + value_y\n}";
         let test_entry = "#[test]\nfn t_probe_add() {\n    ::core::assert_eq!(probe_add(2, 2), 5)\n}";
         let test_suite = ::std::vec![test_entry.to_string()];
-        let outcome = harness.execute_candidate("src/lib.rs", candidate_code, &test_suite);
+        let outcome = harness.execute_candidate("src/lib.rs", candidate_code, &test_suite, "rust");
         ::core::assert!(outcome.compiles);
         ::core::assert!(outcome.pass_rate < 0.01, "logs: {}", outcome.raw_logs);
         let _ = ::std::fs::remove_dir_all(workspace_root);
@@ -350,7 +525,7 @@ mod cargo_harness_tests {
             .build();
         let candidate_code = "::core::compile_error!(\"sentinel\")";
         let empty_suite = ::std::vec::Vec::<::std::string::String>::new();
-        let outcome = harness.execute_candidate("src/lib.rs", candidate_code, &empty_suite);
+        let outcome = harness.execute_candidate("src/lib.rs", candidate_code, &empty_suite, "rust");
         ::core::assert!(!outcome.compiles);
         let _ = ::std::fs::remove_dir_all(workspace_root);
     }
@@ -383,6 +558,101 @@ mod cargo_harness_tests {
         ::core::assert_eq!(harness.source_file_for("parser/lexer/mod.rs"), mod_file_module);
         let bare_stem_module = ::std::path::PathBuf::from("src/lexer.rs");
         ::core::assert_eq!(harness.source_file_for("lexer.rs"), bare_stem_module);
+    }
+
+    #[test]
+    fn test_external_js_toolchain_valid_candidate_compiles() {
+        if !self::node_is_available() {
+            return;
+        }
+        let workspace_root = self::make_temp_js_workspace("js-valid");
+        let harness = self::CargoHarness::builder()
+            .workspace_root(workspace_root.clone())
+            .build_timeout_secs(30)
+            .test_timeout_secs(30)
+            .commands(self::HarnessCommands {
+                build_cmd: ::std::string::String::from("node -c translated.js"),
+                test_cmd: ::std::string::String::from("node translated.js"),
+                legacy_harness_cmd: ::std::string::String::new(),
+            })
+            .build();
+        let candidate_code = "function probe_add(value_x, value_y) {\n    return value_x + value_y\n}";
+        let empty_suite = ::std::vec::Vec::<::std::string::String>::new();
+        let outcome = harness.execute_candidate("source.py", candidate_code, &empty_suite, "javascript");
+        ::core::assert!(outcome.compiles, "logs: {}", outcome.raw_logs);
+        ::core::assert!(workspace_root.join("translated.js").exists());
+        let _ = ::std::fs::remove_dir_all(workspace_root);
+    }
+
+    #[test]
+    fn test_external_toolchain_without_dotted_arg_fails_honestly() {
+        let workspace_root = self::make_temp_js_workspace("no-dotted-arg");
+        let harness = self::CargoHarness::builder()
+            .workspace_root(workspace_root.clone())
+            .build_timeout_secs(30)
+            .test_timeout_secs(30)
+            .commands(self::HarnessCommands {
+                build_cmd: ::std::string::String::from("make build"),
+                test_cmd: ::std::string::String::from("make test"),
+                legacy_harness_cmd: ::std::string::String::new(),
+            })
+            .build();
+        let candidate_code = "function probe_add(value_x, value_y) {\n    return value_x + value_y\n}";
+        let empty_suite = ::std::vec::Vec::<::std::string::String>::new();
+        let outcome = harness.execute_candidate("source.py", candidate_code, &empty_suite, "javascript");
+        ::core::assert!(!outcome.compiles);
+        ::core::assert_eq!(outcome.pass_rate, 0.0);
+        ::core::assert!(
+            outcome.raw_logs.contains("could not derive"),
+            "logs: {}",
+            outcome.raw_logs
+        );
+        ::core::assert!(!workspace_root.join("make").exists());
+        let _ = ::std::fs::remove_dir_all(workspace_root);
+    }
+
+    #[test]
+    fn test_external_js_toolchain_invalid_candidate_fails_build() {
+        if !self::node_is_available() {
+            return;
+        }
+        let workspace_root = self::make_temp_js_workspace("js-broken");
+        let harness = self::CargoHarness::builder()
+            .workspace_root(workspace_root.clone())
+            .build_timeout_secs(30)
+            .test_timeout_secs(30)
+            .commands(self::HarnessCommands {
+                build_cmd: ::std::string::String::from("node -c translated.js"),
+                test_cmd: ::std::string::String::from("node translated.js"),
+                legacy_harness_cmd: ::std::string::String::new(),
+            })
+            .build();
+        let candidate_code = "function broken( {\n    return";
+        let empty_suite = ::std::vec::Vec::<::std::string::String>::new();
+        let outcome = harness.execute_candidate("source.py", candidate_code, &empty_suite, "javascript");
+        ::core::assert!(!outcome.compiles);
+        ::core::assert_eq!(outcome.pass_rate, 0.0);
+        let _ = ::std::fs::remove_dir_all(workspace_root);
+    }
+
+    /// Skip guard for machines without a node runtime on PATH.
+    fn node_is_available() -> ::core::primitive::bool {
+        ::std::process::Command::new("node")
+            .arg("--version")
+            .output()
+            .map(|version_output| version_output.status.success())
+            .unwrap_or(false)
+    }
+
+    /// Build a plain throwaway directory (no Cargo.toml) for JS runs.
+    fn make_temp_js_workspace(tag_text: &::core::primitive::str) -> ::std::path::PathBuf {
+        let unique_suffix = ::std::time::SystemTime::now()
+            .duration_since(::std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.subsec_nanos())
+            .unwrap_or(0);
+        let root_dir = ::std::env::temp_dir().join(::std::format!("ariadne-js-harness-{tag_text}-{unique_suffix}"));
+        let _ = ::std::fs::create_dir_all(&root_dir);
+        root_dir
     }
 
     /// Build a tiny throwaway cargo workspace under the system temp dir.

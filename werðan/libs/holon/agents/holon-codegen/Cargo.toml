@@ -17,7 +17,6 @@ turbofish.workspace = true
 
 [dependencies]
 holon-blackboard = { workspace = true }
-proc-macro2 = { workspace = true }
 rig-core = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

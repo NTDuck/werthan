@@ -65,8 +65,9 @@ fn contract_val_astr_03_single_completion_with_system_prompt() {
     let prompts = observed.lock().expect("prompt lock");
     ::std::assert_eq!(prompts.len(), 1, "exactly one completion per call");
     // The published strategy preamble carries the system prompt role.
-    ::std::assert!(::holon_strategy::STRATEGY_SYSTEM_PROMPT.contains("strategy analyst"));
-    ::std::assert!(::holon_strategy::STRATEGY_SYSTEM_PROMPT.contains("JSON array"));
+    let rust_preamble = ::holon_strategy::strategy_system_prompt("rust");
+    ::std::assert!(rust_preamble.contains("strategy analyst"));
+    ::std::assert!(rust_preamble.contains("JSON array"));
 }
 
 #[test]

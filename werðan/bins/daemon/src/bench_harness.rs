@@ -53,7 +53,7 @@ pub fn seed_board(
             legacy_dir.display()
         ));
     }
-    let dag = self::build_dag(&entries);
+    let dag = self::build_dag(&entries, &bench_config.stack.source_language);
     let mut board = ::global_blackboard::GlobalBlackboard::default();
     // The S0 INTENT gate requires the verified harness configuration on the
     // board. The target commands come from the campaign stack section.
@@ -62,11 +62,16 @@ pub fn seed_board(
         test_cmd: ::core::clone::Clone::clone(&bench_config.stack.target_test_cmd),
         legacy_harness_cmd: ::core::clone::Clone::clone(&bench_config.stack.legacy_test_harness_cmd),
     };
+    board.inventory.dialect = ::global_blackboard::DialectProfile {
+        source_language: ::core::clone::Clone::clone(&bench_config.stack.source_language),
+        target_language: ::core::clone::Clone::clone(&bench_config.stack.target_language),
+        target_edition: ::core::clone::Clone::clone(&bench_config.stack.target_edition_or_framework),
+    };
     // The S2 guard requires every inventory entry to be covered by a DAG
     // vertex, so the board inventory carries module files only. Header and
     // test-tree files still feed the size metrics and the rule prompts.
     for entry in &entries {
-        let is_header = self::is_header_path(&entry.relative_path);
+        let is_header = self::is_header_path(&entry.relative_path, &bench_config.stack.source_language);
         let test_tree = self::is_test_tree_path(&entry.relative_path);
         let non_test = !test_tree || is_header;
         if non_test {
@@ -76,12 +81,11 @@ pub fn seed_board(
     board.dag = dag;
     self::seed_contracts(&mut board, &legacy_dir);
     for entry in &entries {
-        let header_file = self::is_header_path(&entry.relative_path);
+        let header_file = self::is_header_path(&entry.relative_path, &bench_config.stack.source_language);
         let test_tree = self::is_test_tree_path(&entry.relative_path);
         if test_tree && !header_file {
             continue;
         }
-        let header_file = self::is_header_path(&entry.relative_path);
         if header_file {
             let header_path = legacy_dir.join(&entry.relative_path);
             let header_text = ::std::fs::read_to_string(&header_path).unwrap_or_default();
@@ -221,12 +225,15 @@ fn relative_text(
 /// maps to a ContractConflict no real parent can satisfy. That wedges the
 /// module in M3ContractNegotiate forever. Edges stay empty. Header content
 /// reaches codegen through the rule extraction prompt instead.
-pub fn build_dag(entries: &[self::InventoryEntry]) -> ::global_blackboard::CondensedDag {
+pub fn build_dag(
+    entries: &[self::InventoryEntry],
+    source_language: &::core::primitive::str,
+) -> ::global_blackboard::CondensedDag {
     let mut dag = ::global_blackboard::CondensedDag::new();
     let mut headers = ::std::vec::Vec::new();
     let mut modules = ::std::vec::Vec::new();
     for entry in entries {
-        let header_file = self::is_header_path(&entry.relative_path);
+        let header_file = self::is_header_path(&entry.relative_path, source_language);
         let test_tree = self::is_test_tree_path(&entry.relative_path);
         if test_tree && !header_file {
             continue;
@@ -250,13 +257,33 @@ pub fn build_dag(entries: &[self::InventoryEntry]) -> ::global_blackboard::Conde
     dag
 }
 /// Report whether one inventory entry refers to a header file.
-pub fn is_header(entry: &self::InventoryEntry) -> ::core::primitive::bool {
-    self::is_header_path(&entry.relative_path)
+pub fn is_header(
+    entry: &self::InventoryEntry,
+    source_language: &::core::primitive::str,
+) -> ::core::primitive::bool {
+    self::is_header_path(&entry.relative_path, source_language)
 }
 
 /// Report whether the extension marks a header file.
-fn is_header_path(relative_path: &::core::primitive::str) -> ::core::primitive::bool {
+///
+/// Header detection follows the legacy source language. C-family campaigns
+/// treat `.h`, `.hpp`, and `.hxx` as headers. Every other language, including
+/// rust, python, and java, declares no header extensions, so header-dependent
+/// logic falls through to plain implementation-module handling.
+fn is_header_path(
+    relative_path: &::core::primitive::str,
+    source_language: &::core::primitive::str,
+) -> ::core::primitive::bool {
+    let c_family_selected = ::core::matches!(
+        source_language,
+        "c" | "cpp" | "c++" | "cxx"
+    );
+    if !c_family_selected {
+        return false;
+    }
     relative_path.ends_with(".h")
+        || relative_path.ends_with(".hpp")
+        || relative_path.ends_with(".hxx")
 }
 
 /// Report whether one relative path lives inside a test tree directory.
@@ -341,7 +368,19 @@ pub fn cocomo_duration_months(effort_pm: ::core::primitive::f64) -> ::core::prim
 }
 
 /// Count the remaining `unimplemented!()` markers under the workspace src tree.
-pub fn count_unimplemented(workspace_root: &::std::path::Path) -> ::core::primitive::usize {
+///
+/// The stub-count metric is a Rust-target concept by definition: it measures
+/// how many `unimplemented!()` markers the modernized crate still carries.
+/// Other target languages define no such marker convention, so this reports
+/// zero immediately instead of scanning for a Rust-only token.
+pub fn count_unimplemented(
+    workspace_root: &::std::path::Path,
+    target_language: &::core::primitive::str,
+) -> ::core::primitive::usize {
+    let rust_target_selected = target_language.eq_ignore_ascii_case("rust");
+    if !rust_target_selected {
+        return 0;
+    }
     let src_dir = workspace_root.join("src");
     let walk = ::ignore::WalkBuilder::new(src_dir).build();
     let mut marker_count = 0;
@@ -380,8 +419,20 @@ pub fn count_unimplemented(workspace_root: &::std::path::Path) -> ::core::primit
 /// keeps compiling. Every compiled artifact lands in the one file the harness
 /// replaces. Returns the inlined module names. Test-only today. The campaign
 /// pipeline wires this in when the workspace-overwrite path lands.
+///
+/// The `pub mod` declaration inlining follows a Rust workspace convention, so
+/// the normalization only runs for rust targets. Non-rust targets define no
+/// `src/lib.rs` module layout to collapse, and the normalization leaves their
+/// workspace unchanged.
 #[cfg(test)]
-pub fn normalize_workspace_layout(workspace_root: &::std::path::Path) -> ::std::vec::Vec<::std::string::String> {
+pub fn normalize_workspace_layout(
+    workspace_root: &::std::path::Path,
+    target_language: &::core::primitive::str,
+) -> ::std::vec::Vec<::std::string::String> {
+    let rust_target_selected = target_language.eq_ignore_ascii_case("rust");
+    if !rust_target_selected {
+        return ::std::vec::Vec::new();
+    }
     let lib_path = workspace_root.join("src/lib.rs");
     let read_res = ::std::fs::read_to_string(&lib_path);
     let lib_text = match read_res {
@@ -468,7 +519,8 @@ mod tests {
         ::std::fs::write(&lib_path, stub_declaration).expect("stub lib writes");
         let module_source = "pub fn spin() -> u8 {\n    unimplemented!()\n}\n";
         ::std::fs::write(&module_path, module_source).expect("stub module writes");
-        let removed = super::normalize_workspace_layout(&workspace);
+        let removed =
+            super::normalize_workspace_layout(&workspace, "rust");
         ::std::assert_eq!(removed, ::std::vec!["widget".to_string()]);
         let normalized = ::std::fs::read_to_string(&lib_path).expect("normalized lib reads");
         ::std::assert!(normalized.contains("pub fn spin"));
@@ -477,7 +529,7 @@ mod tests {
         let stale_declaration = "pub mod widget\x3b";
         ::std::assert!(!normalized.contains(stale_declaration));
         ::std::assert!(!module_path.exists(), "inlined stub module file must go");
-        let marker_count = super::count_unimplemented(&workspace);
+        let marker_count = super::count_unimplemented(&workspace, "rust");
         ::std::assert_eq!(marker_count, 1, "markers survive inside lib.rs");
         let _ = ::std::fs::remove_dir_all(&workspace);
     }
@@ -492,7 +544,7 @@ mod tests {
         let lib_path = src_dir.join("lib.rs");
         let original = "pub fn ready() -> bool {\n    true\n}\n";
         ::std::fs::write(&lib_path, original).expect("plain lib writes");
-        let removed = super::normalize_workspace_layout(&workspace);
+        let removed = super::normalize_workspace_layout(&workspace, "rust");
         ::std::assert!(removed.is_empty());
         let after = ::std::fs::read_to_string(&lib_path).expect("plain lib rereads");
         ::std::assert_eq!(after, original);

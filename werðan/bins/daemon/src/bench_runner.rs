@@ -36,9 +36,11 @@ fn run_campaign_blocking(
     let campaign_started = ::std::time::Instant::now();
     let campaign_id = bench_config.campaign_id.clone();
     let workspace_root = self::workspace_root_of(bench_config);
-    let unimplemented_before = super::bench_harness::count_unimplemented(&workspace_root);
+    let unimplemented_before =
+        super::bench_harness::count_unimplemented(&workspace_root, &bench_config.stack.target_language);
     let reset_error = self::reset_workspace(bench_config, &workspace_root);
-    let unimplemented_after_reset = super::bench_harness::count_unimplemented(&workspace_root);
+    let unimplemented_after_reset =
+        super::bench_harness::count_unimplemented(&workspace_root, &bench_config.stack.target_language);
     if let ::core::option::Option::Some(reset_failure) = reset_error {
         let mut failed = self::failed_result(&campaign_id, &reset_failure);
         failed.wall_time_ms =
@@ -46,7 +48,7 @@ fn run_campaign_blocking(
         return failed;
     }
     let api_surface_text =
-        super::bench_rules::target_api_surface(&workspace_root);
+        super::bench_rules::target_api_surface(&workspace_root, &bench_config.stack.target_language);
     let seed_res = super::bench_harness::seed_board(bench_config);
     let seed_output = match seed_res {
         ::core::result::Result::Ok(value) => value,
@@ -142,7 +144,8 @@ fn run_campaign_blocking(
         },
     };
     let validation = super::bench_validation::validate_workspace(bench_config, &workspace_root);
-    let unimplemented_remaining = super::bench_harness::count_unimplemented(&workspace_root);
+    let unimplemented_remaining =
+        super::bench_harness::count_unimplemented(&workspace_root, &bench_config.stack.target_language);
     let llm_requests = request_count.load(::std::sync::atomic::Ordering::SeqCst);
     ::tracing::info!(
         "campaign {}: llm requests {}, engine wall {} ms",
@@ -394,21 +397,31 @@ fn build_solver(
     let build_timeout_secs = bench_config.inference.build_timeout_secs;
     let test_timeout_secs = bench_config.inference.test_timeout_secs;
 
+    let campaign_target_language =
+        ::core::clone::Clone::clone(&bench_config.stack.target_language);
+    let strategy_language = ::core::clone::Clone::clone(&campaign_target_language);
     let strategy_agent = ::holon_strategy::HolonStrategyAgent::builder()
         .model(counting_model.clone())
         .temperature(base_temperature)
+        .target_language(strategy_language)
         .build();
     let codegen_agent = ::holon_codegen::HolonCodeGenAgent::builder()
         .model(counting_model.clone())
         .temperature(base_temperature)
+        .target_language(campaign_target_language)
         .build();
+    let testgen_language = ::core::clone::Clone::clone(&bench_config.stack.target_language);
     let testgen_agent = ::holon_testgen::HolonTestGenAgent::builder()
         .model(counting_model.clone())
         .temperature(base_temperature)
+        .target_language(testgen_language)
         .build();
+    let campaign_language_for_patch =
+        ::core::clone::Clone::clone(&bench_config.stack.target_language);
     let patch_agent = ::holon_patch::HolonPatchAgent::builder()
         .model(counting_model.clone())
         .temperature(base_temperature)
+        .target_language(campaign_language_for_patch)
         .build();
     let strategy_handle = ::std::sync::Arc::new(strategy_agent);
     let codegen_handle = ::std::sync::Arc::new(codegen_agent);
@@ -420,22 +433,34 @@ fn build_solver(
         .test_gen_agent(testgen_handle)
         .patch_agent(patch_handle)
         .build();
+    let classifier_language = ::core::clone::Clone::clone(&bench_config.stack.target_language);
     let classifier_agent = ::holon_evaluator::HolonEvaluatorAgent::classifier_builder()
         .model(counting_model.clone())
         .temperature(base_temperature)
+        .target_language(classifier_language)
         .build();
+    let auditor_language = ::core::clone::Clone::clone(&bench_config.stack.target_language);
     let auditor_agent = ::holon_evaluator::HolonEvaluatorAgent::auditor_builder()
         .model(counting_model.clone())
         .temperature(base_temperature)
+        .target_language(auditor_language)
         .build();
     let distiller = ::holon_evaluator::RigDiagnosticDistiller::builder()
         .classifier(classifier_agent)
         .auditor(auditor_agent)
         .build();
+    let harness_commands = ::holon_evaluator::cargo_harness::HarnessCommands {
+        build_cmd: ::core::clone::Clone::clone(&bench_config.stack.target_build_cmd),
+        test_cmd: ::core::clone::Clone::clone(&bench_config.stack.target_test_cmd),
+        legacy_harness_cmd: ::core::clone::Clone::clone(
+            &bench_config.stack.legacy_test_harness_cmd,
+        ),
+    };
     let harness = ::holon_evaluator::cargo_harness::CargoHarness::builder()
         .workspace_root(closure_root)
         .build_timeout_secs(build_timeout_secs)
         .test_timeout_secs(test_timeout_secs)
+        .commands(harness_commands)
         .build();
 
     let solver = ::holon_engine::solver::AriadneSolver::<

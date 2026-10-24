@@ -5,16 +5,24 @@
 use crate::DiagnosticDistiller;
 
 /// System prompt steering the model toward fault cause classification.
-pub const DISTILL_SYSTEM_PROMPT: &::core::primitive::str = "You are a fault diagnosis engine for a Rust modernization pipeline. \
+pub fn distill_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are a fault diagnosis engine for a {target_language} modernization pipeline. \
 Answer with exactly one label from this list and nothing else. \
 INTRINSIC means the candidate code itself carries the defect. \
 EXTRINSIC_CONTRACT means an upstream parent contract is insufficient. \
-EXTRINSIC_CYCLE means an undocumented dependency cycle blocks progress.";
+EXTRINSIC_CYCLE means an undocumented dependency cycle blocks progress."
+    )
+}
 
 /// System prompt steering the model toward rule compliance scoring.
-pub const AUDIT_SYSTEM_PROMPT: &::core::primitive::str = "You are a business rule audit engine for a Rust modernization pipeline. \
+pub fn audit_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are a business rule audit engine for a {target_language} modernization pipeline. \
 Read every rule card and answer with one decimal fraction between 0.0 and 1.0 and nothing else. \
-The fraction states how many rules the candidate code satisfies.";
+The fraction states how many rules the candidate code satisfies."
+    )
+}
 
 /// Builder assembling one evaluator Rig agent with its role preamble wired.
 #[derive(::core::fmt::Debug)]
@@ -22,7 +30,8 @@ pub struct HolonEvaluatorAgentBuilder<M: ::rig::completion::CompletionModel> {
     model: ::core::option::Option<M>,
     temperature: ::core::option::Option<::core::primitive::f64>,
     max_tokens_override: ::core::option::Option<::core::primitive::u64>,
-    role_preamble: &'static ::core::primitive::str,
+    role_prompt_fn: fn(&::core::primitive::str) -> ::std::string::String,
+    target_language: ::std::string::String,
     role_default_tokens: ::core::primitive::u64,
 }
 
@@ -45,14 +54,21 @@ impl<M: ::rig::completion::CompletionModel> self::HolonEvaluatorAgentBuilder<M> 
         self
     }
 
+    /// Set the target language the role preamble advertises.
+    pub fn target_language(mut self, language: ::std::string::String) -> Self {
+        self.target_language = language;
+        self
+    }
+
     /// Build the Rig agent with the role preamble and token budget wired.
     pub fn build(self) -> ::rig::agent::Agent<M> {
         let wired_model = match self.model {
             ::core::option::Option::Some(found_model) => found_model,
             ::core::option::Option::None => ::core::panic!("evaluator model must be wired before build"),
         };
+        let preamble_text = (self.role_prompt_fn)(&self.target_language);
         let mut agent_builder = ::rig::agent::AgentBuilder::new(wired_model)
-            .preamble(self.role_preamble)
+            .preamble(&preamble_text)
             .max_tokens(self.role_default_tokens);
         if let ::core::option::Option::Some(temperature_value) = self.temperature {
             agent_builder = agent_builder.temperature(temperature_value);
@@ -76,7 +92,8 @@ impl self::HolonEvaluatorAgent {
             model: ::core::option::Option::None,
             temperature: ::core::option::Option::None,
             max_tokens_override: ::core::option::Option::None,
-            role_preamble: self::DISTILL_SYSTEM_PROMPT,
+            role_prompt_fn: self::distill_system_prompt,
+            target_language: "rust".to_string(),
             role_default_tokens: 512,
         }
     }
@@ -87,7 +104,8 @@ impl self::HolonEvaluatorAgent {
             model: ::core::option::Option::None,
             temperature: ::core::option::Option::None,
             max_tokens_override: ::core::option::Option::None,
-            role_preamble: self::AUDIT_SYSTEM_PROMPT,
+            role_prompt_fn: self::audit_system_prompt,
+            target_language: "rust".to_string(),
             role_default_tokens: 512,
         }
     }

@@ -33,7 +33,7 @@ Chosen option: "daemon-owned reqwest transport inside `bench_llm::OpenAiCompatMo
 * The client builder applies `.timeout(inference_timeout_secs)` and `.connect_timeout(inference_timeout_secs)`; every exchange reports `inference timeout after N seconds` on expiry via `reqwest::Error::is_timeout`.
 * Request bodies serialize from Rig's `CompletionRequest` (preamble → system, documents → user turns, history and prompt through Rig's OpenAI wire conversion); the payload carries explicit `temperature` and `max_tokens` resolved from the defaults.
 * Responses parse the OpenAI chat-completions shape with the extra `reasoning_content` channel that OpenAI-compatible reasoning backends fill; text extraction falls back through `content` → `reasoning_content` → `refusal`, then the strict `usable_answer` gate (fenced code or post-`</think` conclusion) applies as before.
-* Non-2xx responses surface the status plus a bounded body snippet; parse failures surface verbatim.
+* Non-2xx responses surface the status plus a bounded body snippet; parse failures surface verbatim. Retryable statuses (500/502/503/504/429) and non-timeout transport errors retry up to 3 times with jittered exponential backoff (500 ms doubling) before the error surfaces; timeouts and other 4xx never retry, and exhausted retries emit the same error text so downstream sentinel detection is unchanged.
 * `raw_response` is the parsed JSON value, consumed by honesty auditing.
 
 ### Consequences

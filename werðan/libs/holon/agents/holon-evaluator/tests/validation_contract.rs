@@ -28,6 +28,7 @@ impl ::holon_evaluator::ExecutionHarness for self::RecordingHarness {
         _module_id: &::core::primitive::str,
         _candidate_code: &::core::primitive::str,
         _test_suite: &[::std::string::String],
+        _target_language: &::core::primitive::str,
     ) -> ::holon_evaluator::HarnessExecutionOutput {
         self.call_count.fetch_add(1, ::std::sync::atomic::Ordering::SeqCst);
         match self.output {
@@ -159,7 +160,7 @@ fn contract_val_aeval_02_harness_reports_toolchain_honestly() {
     );
     let syntax_broken = ::std::string::String::from("pub fn broken( { unclosed");
     let suite = ::std::vec![::std::string::String::from("assert: broken")];
-    let output = ::holon_evaluator::ExecutionHarness::execute_candidate(&configured, "module_eval", &syntax_broken, &suite);
+    let output = ::holon_evaluator::ExecutionHarness::execute_candidate(&configured, "module_eval", &syntax_broken, &suite, "rust");
     // A missing workspace cannot fabricate a pass.
     ::std::assert!(!output.compiles);
     ::std::assert_eq!(output.pass_rate, 0.0);

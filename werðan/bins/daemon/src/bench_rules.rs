@@ -50,8 +50,10 @@ pub fn extract_rules_for_board(
     let runtime = runtime_res.expect("current thread runtime builds");
     let repo_root = super::bench_config::repo_root();
     let legacy_dir = repo_root.join(&bench_config.paths.input_legacy_dir);
+    let source_language = ::core::clone::Clone::clone(&bench_config.stack.source_language);
+    let target_language = ::core::clone::Clone::clone(&bench_config.stack.target_language);
     for entry in entries {
-        let header_file = super::bench_harness::is_header(entry);
+        let header_file = super::bench_harness::is_header(entry, &source_language);
         let test_tree = self::is_test_tree_entry(entry);
         let non_module = header_file || test_tree;
         if non_module {
@@ -70,15 +72,16 @@ pub fn extract_rules_for_board(
                 continue;
             },
         };
-        let header_text = self::sibling_header_text(&legacy_dir, entries, entry);
+        let header_text = self::sibling_header_text(&legacy_dir, entries, entry, &source_language);
         let prompt = self::render_rule_prompt(
             &entry.relative_path,
             &source_text,
             &header_text,
             api_surface_text,
         );
+        let system_prompt = self::rule_system_prompt(&target_language);
         let completion_request = ::rig::completion::CompletionRequest {
-            preamble: ::core::option::Option::Some(self::RULE_SYSTEM_PROMPT.to_string()),
+            preamble: ::core::option::Option::Some(system_prompt),
             prompt: self::user_message_of(&prompt),
             chat_history: ::std::vec::Vec::new(),
             documents: ::std::vec::Vec::new(),
@@ -118,10 +121,17 @@ fn is_test_tree_entry(entry: &super::bench_harness::InventoryEntry) -> ::core::p
 
 /// Read the target workspace API surface text for the extraction prompt.
 ///
-/// The pristine stub sources declare the exact Rust signatures the
-/// modernized crate must expose. Capturing them here grounds the extracted
-/// rule cards in the real required API instead of guessed signatures.
-pub fn target_api_surface(workspace_root: &::std::path::Path) -> ::std::string::String {
+/// The pristine stub sources declare the exact signatures the modernized
+/// target must expose. The walk selects files by the target language
+/// extension, so rust campaigns read `.rs` sources while other targets read
+/// their own source extension. Capturing the surface here grounds the
+/// extracted rule cards in the real required API instead of guessed
+/// signatures.
+pub fn target_api_surface(
+    workspace_root: &::std::path::Path,
+    target_language: &::core::primitive::str,
+) -> ::std::string::String {
+    let target_extension = self::target_source_extension(target_language);
     let src_dir = workspace_root.join("src");
     let walk = ::ignore::WalkBuilder::new(src_dir).build();
     let mut surfaces = ::std::vec::Vec::new();
@@ -132,8 +142,8 @@ pub fn target_api_surface(workspace_root: &::std::path::Path) -> ::std::string::
             continue;
         }
         let path_text = path.to_string_lossy();
-        let is_rust = path_text.ends_with(".rs");
-        if !is_rust {
+        let matches_target = path_text.ends_with(target_extension);
+        if !matches_target {
             continue;
         }
         let read_res = ::std::fs::read_to_string(path);
@@ -147,17 +157,30 @@ pub fn target_api_surface(workspace_root: &::std::path::Path) -> ::std::string::
     surfaces.join("\n")
 }
 
+/// Return the source file extension the target language uses.
+///
+/// Unknown or unset target languages fall back to the rust extension, which
+/// preserves the historical default behavior.
+fn target_source_extension(target_language: &::core::primitive::str) -> &'static ::core::primitive::str {
+    match target_language {
+        "javascript" | "js" => ".js",
+        "python" | "py" => ".py",
+        _ => ".rs",
+    }
+}
+
 /// Collect header file texts that share the stem of one implementation entry.
 fn sibling_header_text(
     legacy_dir: &::std::path::Path,
     entries: &[super::bench_harness::InventoryEntry],
     implementation_entry: &super::bench_harness::InventoryEntry,
+    source_language: &::core::primitive::str,
 ) -> ::std::string::String {
     let stem_end = implementation_entry.relative_path.rfind('.').unwrap_or(implementation_entry.relative_path.len());
     let implementation_stem = &implementation_entry.relative_path[..stem_end];
     let mut header_texts = ::std::vec::Vec::new();
     for candidate in entries {
-        let candidate_is_header = super::bench_harness::is_header(candidate);
+        let candidate_is_header = super::bench_harness::is_header(candidate, source_language);
         if !candidate_is_header {
             continue;
         }
@@ -176,24 +199,13 @@ fn sibling_header_text(
     header_texts.join("\n\n")
 }
 
-/// System prompt steering the model toward strict JSON rule cards.
-const RULE_SYSTEM_PROMPT: &::core::primitive::str = "You are a business rule extractor for a legacy code modernization pipeline. \
-Read the legacy source and emit behavioral rules as strict JSON. \
-Output only a JSON array, no markdown fences, no commentary. \
-Each element must have exactly these keys: rule_id, given, when, then, citation. \
-rule_id is a short uppercase identifier. given is the precondition state plus the exact target Rust function signature from the API surface that the behavior applies to. \
-when is the triggering action, phrased using the exact function and field names from the legacy source. \
-then is the observable outcome, also phrased with those exact identifiers. \
-citation is file path plus line span such as src/vec.c:9-24. \
-The first rule must state the crate-level export obligation implied by the API surface, naming every public item the modernized crate root must expose. \
-Extract at most 12 rules covering the most important behaviors.";
-
 /// Render the per-file user prompt with the full legacy source.
 ///
-/// Header text supplies the declared C interface, and the target workspace
-/// stub sources supply the exact Rust signatures the modernized crate must
-/// expose. Both flow into rule cards so code generation inherits the real
-/// API surface through the standard problem-model prompt context.
+/// Header text supplies the declared legacy interface, and the target
+/// workspace stub sources supply the exact target-language signatures the
+/// modernized target must expose. Both flow into rule cards so code
+/// generation inherits the real API surface through the standard
+/// problem-model prompt context.
 fn render_rule_prompt(
     relative_path: &::core::primitive::str,
     source_text: &::core::primitive::str,
@@ -208,6 +220,25 @@ fn render_rule_prompt(
     };
     ::std::format!(
         "[LEGACY FILE {relative_path}]\n{source_text}\n\n{header_block}[TARGET API SURFACE]\n{api_surface_text}\n\nEmit the JSON array of behavioral rule cards now."
+    )
+}
+
+/// Build the system prompt steering the model toward strict JSON rule cards.
+///
+/// The target language appears in two guidance fragments so the extractor
+/// requests signatures in the target language rather than assuming rust.
+fn rule_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are a business rule extractor for a legacy code modernization pipeline. \
+Read the legacy source and emit behavioral rules as strict JSON. \
+Output only a JSON array, no markdown fences, no commentary. \
+Each element must have exactly these keys: rule_id, given, when, then, citation. \
+rule_id is a short uppercase identifier. given is the precondition state plus the exact target {target_language} function signature from the API surface that the behavior applies to. \
+when is the triggering action, phrased using the exact function and field names from the legacy source. \
+then is the observable outcome, also phrased with those exact identifiers. \
+citation is file path plus line span such as src/vec.c:9-24. \
+The first rule must state the module-level export obligation implied by the API surface, naming every public item the modernized target must expose. \
+Extract at most 12 rules covering the most important behaviors."
     )
 }
 

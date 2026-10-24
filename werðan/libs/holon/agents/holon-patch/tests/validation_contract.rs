@@ -53,8 +53,8 @@ fn contract_val_apatch_02_fault_informed_prompt() {
 
 #[test]
 fn contract_val_apatch_03_honest_failure_sentinel() {
-    // Inference failure surfaces a compile_error sentinel, never a silent
-    // success. The sentinel tokenizes and names the repair fault.
+    // Inference failure surfaces a SYNTAX_ERROR sentinel, never a silent
+    // success. The sentinel is language neutral and names the repair fault.
     let problem_model = ::holon_blackboard::ProblemModelSlice::new();
     let fault = ::holon_blackboard::FaultRecord::default();
     let agent = build_failing_patch_agent();
@@ -64,11 +64,8 @@ fn contract_val_apatch_03_honest_failure_sentinel() {
         &fault,
         &problem_model,
     );
-    ::std::assert!(repaired.contains("compile_error!"));
+    ::std::assert!(repaired.contains("SYNTAX_ERROR"));
     ::std::assert!(repaired.contains("ariadne llm repair fault"));
-    // The sentinel parses as valid Rust tokens.
-    let token_outcome = repaired.parse::<::proc_macro2::TokenStream>();
-    ::std::assert!(token_outcome.is_ok());
     ::std::assert!(!repaired.contains("pub fn broken"));
 }
 

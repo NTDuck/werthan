@@ -6,44 +6,68 @@
 pub mod workers;
 
 /// System prompt for the assessment critic auditing S1 inventory shards.
-pub const ASSESSMENT_SYSTEM_PROMPT: &::core::primitive::str = "You are a semantic critic auditing \
-inventory shard outputs for a Rust modernization pipeline. Given the batch entries, check for \
+pub fn assessment_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are a semantic critic auditing \
+inventory shard outputs for a {target_language} modernization pipeline. Given the batch entries, check for \
 missing duplicate inventory entries and uncovered import or export edges. \
 Answer with exactly one label on the first line: PASS, REMEDIATE, or REGRESS. \
-On the next lines list each violated invariant name, then a one sentence remediation note.";
+On the next lines list each violated invariant name, then a one sentence remediation note."
+    )
+}
 
 /// System prompt for the topology critic auditing S2 coupling maps.
-pub const TOPOLOGY_SYSTEM_PROMPT: &::core::primitive::str = "You are a semantic critic auditing \
-implicit coupling maps for a Rust modernization pipeline. Given the batch entries, check the \
+pub fn topology_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are a semantic critic auditing \
+implicit coupling maps for a {target_language} modernization pipeline. Given the batch entries, check the \
 DAG acyclicity and shard boundary coverage invariants. \
 Answer with exactly one label on the first line: PASS, REMEDIATE, or REGRESS. \
-On the next lines list each violated invariant name, then a one sentence remediation note.";
+On the next lines list each violated invariant name, then a one sentence remediation note."
+    )
+}
 
 /// System prompt for the rule auditor auditing S3 mined rule cards.
-pub const RULE_AUDITOR_SYSTEM_PROMPT: &::core::primitive::str = "You are a semantic critic auditing \
-mined business rule cards for a Rust modernization pipeline. Given the batch entries, check that \
+pub fn rule_auditor_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are a semantic critic auditing \
+mined business rule cards for a {target_language} modernization pipeline. Given the batch entries, check that \
 every rule card carries a verifiable Given When Then triple and cites its source vertex. \
 Answer with exactly one label on the first line: PASS, REMEDIATE, or REGRESS. \
-On the next lines list each violated invariant name, then a one sentence remediation note.";
+On the next lines list each violated invariant name, then a one sentence remediation note."
+    )
+}
 
 /// System prompt for the architecture critic auditing S4 contract stubs.
-pub const ARCHITECTURE_SYSTEM_PROMPT: &::core::primitive::str = "You are a semantic critic auditing \
-interface contract stubs for a Rust modernization pipeline. Given the batch entries, check that \
+pub fn architecture_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are a semantic critic auditing \
+interface contract stubs for a {target_language} modernization pipeline. Given the batch entries, check that \
 every cross-shard dependency edge carries a stubbed contract with preconditions. \
 Answer with exactly one label on the first line: PASS, REMEDIATE, or REGRESS. \
-On the next lines list each violated invariant name, then a one sentence remediation note.";
+On the next lines list each violated invariant name, then a one sentence remediation note."
+    )
+}
 
 /// System prompt for the release auditor auditing S6 integration sign-off.
-pub const RELEASE_SYSTEM_PROMPT: &::core::primitive::str = "You are a release auditor auditing \
-hardened module sign-offs for a Rust modernization pipeline. Given the batch entries, check that \
+pub fn release_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are a release auditor auditing \
+hardened module sign-offs for a {target_language} modernization pipeline. Given the batch entries, check that \
 every module carries a test suite and a compilation verdict before release. \
 Answer with exactly one label on the first line: PASS, REMEDIATE, or REGRESS. \
-On the next lines list each violated invariant name, then a one sentence remediation note.";
+On the next lines list each violated invariant name, then a one sentence remediation note."
+    )
+}
 
 /// System prompt for the LLM arbiter adjudicating ambiguous traces.
-pub const ARBITER_SYSTEM_PROMPT: &::core::primitive::str = "You are the arbiter of a modernization \
+pub fn arbiter_system_prompt() -> ::std::string::String {
+    ::std::string::String::from(
+        "You are the arbiter of a modernization \
 pipeline. You receive a subject and a proof trace. Judge whether the trace supports the subject \
-claim. Answer with exactly one word: ACCEPT or REJECT.";
+claim. Answer with exactly one word: ACCEPT or REJECT.",
+    )
+}
 
 /// Rig-backed critic crew dispatching one phase critic per audit batch.
 ///
@@ -105,21 +129,22 @@ impl<M: ::rig::completion::CompletionModel + 'static> self::RigCriticCrew<M> {
     pub fn from_model(
         model: M,
         temperature: ::core::option::Option<::core::primitive::f64>,
+        target_language: &::core::primitive::str,
     ) -> Self
     where
         M: ::core::clone::Clone,
     {
         let phase_labels = ::std::vec![
-            (::std::string::String::from("S1Assess"), self::ASSESSMENT_SYSTEM_PROMPT),
-            (::std::string::String::from("S2MapDag"), self::TOPOLOGY_SYSTEM_PROMPT),
-            (::std::string::String::from("S3ExtractRules"), self::RULE_AUDITOR_SYSTEM_PROMPT),
-            (::std::string::String::from("S4BriefContracts"), self::ARCHITECTURE_SYSTEM_PROMPT),
-            (::std::string::String::from("S6SystemVerify"), self::RELEASE_SYSTEM_PROMPT),
+            (::std::string::String::from("S1Assess"), self::assessment_system_prompt(target_language)),
+            (::std::string::String::from("S2MapDag"), self::topology_system_prompt(target_language)),
+            (::std::string::String::from("S3ExtractRules"), self::rule_auditor_system_prompt(target_language)),
+            (::std::string::String::from("S4BriefContracts"), self::architecture_system_prompt(target_language)),
+            (::std::string::String::from("S6SystemVerify"), self::release_system_prompt(target_language)),
         ];
         let mut phase_agents = ::std::collections::BTreeMap::new();
         for (phase_label, preamble) in phase_labels {
             let mut agent_builder = ::rig::agent::AgentBuilder::new(model.clone())
-                .preamble(preamble)
+                .preamble(&preamble)
                 .max_tokens(2048);
             if let ::core::option::Option::Some(temperature_value) = temperature {
                 agent_builder = agent_builder.temperature(temperature_value);
@@ -212,7 +237,7 @@ impl<M: ::rig::completion::CompletionModel + 'static> self::RigArbiter<M> {
         temperature: ::core::option::Option<::core::primitive::f64>,
     ) -> ::rig::agent::Agent<M> {
         let mut agent_builder = ::rig::agent::AgentBuilder::new(model)
-            .preamble(self::ARBITER_SYSTEM_PROMPT)
+            .preamble(&self::arbiter_system_prompt())
             .max_tokens(512);
         if let ::core::option::Option::Some(temperature_value) = temperature {
             agent_builder = agent_builder.temperature(temperature_value);

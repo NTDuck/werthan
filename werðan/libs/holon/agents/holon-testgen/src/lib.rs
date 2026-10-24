@@ -3,10 +3,14 @@
 //! domain call that prompts it and splits the suite into test entries.
 
 /// System prompt steering the model toward self-contained characterization tests.
-pub const TESTGEN_SYSTEM_PROMPT: &::core::primitive::str = "You are a Rust characterization test generator for a legacy modernization pipeline. \
+pub fn testgen_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are a {target_language} characterization test generator for a legacy modernization pipeline. \
 Output only complete test functions with no markdown and no commentary. \
-Every function carries its own test attribute and every function is self contained. \
-Tests reference only public items passed in the prompt and use no external crates beyond ::core and ::std. Return only tests.";
+Every test follows the idiomatic {target_language} test conventions and every test is self contained. \
+Tests reference only public items passed in the prompt and use no external dependencies. Return only tests."
+    )
+}
 
 /// Builder assembling the test generation Rig agent with role defaults wired.
 #[derive(::core::fmt::Debug)]
@@ -14,6 +18,7 @@ pub struct HolonTestGenAgentBuilder<M: ::rig::completion::CompletionModel> {
     model: ::core::option::Option<M>,
     temperature: ::core::option::Option<::core::primitive::f64>,
     max_tokens_override: ::core::option::Option<::core::primitive::u64>,
+    target_language: ::std::string::String,
 }
 
 impl<M: ::rig::completion::CompletionModel> self::HolonTestGenAgentBuilder<M> {
@@ -35,14 +40,21 @@ impl<M: ::rig::completion::CompletionModel> self::HolonTestGenAgentBuilder<M> {
         self
     }
 
+    /// Set the target language the test-generation preamble advertises.
+    pub fn target_language(mut self, language: ::std::string::String) -> Self {
+        self.target_language = language;
+        self
+    }
+
     /// Build the Rig agent with the test-generation preamble and token budget wired.
     pub fn build(self) -> ::rig::agent::Agent<M> {
         let wired_model = match self.model {
             ::core::option::Option::Some(found_model) => found_model,
             ::core::option::Option::None => ::core::panic!("testgen model must be wired before build"),
         };
+        let preamble_text = self::testgen_system_prompt(&self.target_language);
         let mut agent_builder = ::rig::agent::AgentBuilder::new(wired_model)
-            .preamble(self::TESTGEN_SYSTEM_PROMPT)
+            .preamble(&preamble_text)
             .max_tokens(8192);
         if let ::core::option::Option::Some(temperature_value) = self.temperature {
             agent_builder = agent_builder.temperature(temperature_value);
@@ -64,6 +76,7 @@ impl self::HolonTestGenAgent {
             model: ::core::option::Option::None,
             temperature: ::core::option::Option::None,
             max_tokens_override: ::core::option::Option::None,
+            target_language: "rust".to_string(),
         }
     }
 
@@ -82,7 +95,7 @@ impl self::HolonTestGenAgent {
         {
             return ::std::vec::Vec::new();
         }
-        self::split_test_entries(&response_text)
+        self::split_test_entries_for(&response_text, &problem_model.target_language)
     }
 }
 
@@ -97,21 +110,42 @@ pub fn render_test_prompt(
 }
 
 /// Split a model response into individual test function entries.
-/// A response carrying no test attribute yields zero entries so the
-/// suite fabricates no non-test content.
-pub fn split_test_entries(response_text: &::core::primitive::str) -> ::std::vec::Vec<::std::string::String> {
+/// The rust branch splits on the test attribute and yields zero entries when
+/// the response carries none so the suite fabricates no non-test content.
+/// Other languages split on top-level declaration openers.
+pub fn split_test_entries_for(
+    response_text: &::core::primitive::str,
+    target_language: &::core::primitive::str,
+) -> ::std::vec::Vec<::std::string::String> {
+    let rust_language_selected = target_language == "rust";
+    let opener_prefixes: &[&::core::primitive::str] = if rust_language_selected {
+        &["#[test]"]
+    } else {
+        &["fn ", "function ", "def ", "func "]
+    };
     let mut split_entries = ::std::vec::Vec::<::std::string::String>::new();
     let mut current_entry = ::std::string::String::new();
     for source_line in response_text.lines() {
-        let trimmed_line = source_line.trim();
-        if trimmed_line.starts_with("#[test]") && !current_entry.trim().is_empty() {
+        // The rust branch splits on the attribute wherever it appears after
+        // indentation, while other languages split only on column-zero openers.
+        let boundary_hit = if rust_language_selected {
+            source_line.trim().starts_with("#[test]")
+        } else {
+            opener_prefixes.iter().any(|opener_prefix| source_line.starts_with(opener_prefix))
+        };
+        if boundary_hit && !current_entry.trim().is_empty() {
             split_entries.push(current_entry.trim().to_string());
             current_entry = ::std::string::String::new();
         }
         current_entry.push_str(source_line);
         current_entry.push('\n');
     }
-    if !current_entry.trim().is_empty() && current_entry.contains("#[test]") {
+    let final_entry_guard = if rust_language_selected {
+        current_entry.contains("#[test]")
+    } else {
+        opener_prefixes.iter().any(|opener_prefix| current_entry.contains(opener_prefix))
+    };
+    if !current_entry.trim().is_empty() && final_entry_guard {
         split_entries.push(current_entry.trim().to_string());
     }
     split_entries
@@ -166,22 +200,43 @@ mod tests {
     #[test]
     fn test_split_entries_separates_test_functions() {
         let response_text = "#[test]\nfn t_empty() {\n    ::core::assert!(true)\n}\n\n#[test]\nfn t_basic() {\n    ::core::assert_eq!(2 + 2, 4)\n}";
-        let suite = self::split_test_entries(response_text);
+        let suite = self::split_test_entries_for(response_text, "rust");
         ::std::assert_eq!(suite.len(), 2);
         ::std::assert!(suite.first().is_some_and(|entry| entry.contains("t_empty")));
         ::std::assert!(suite.last().is_some_and(|entry| entry.contains("t_basic")));
     }
 
     #[test]
+    fn test_split_entries_preserves_attribute_entry_shape() {
+        let suite = self::split_test_entries_for("#[test]\nfn a() {}", "rust");
+        ::std::assert_eq!(suite, ::std::vec!["#[test]\nfn a() {}".to_string()]);
+    }
+
+    #[test]
     fn test_split_entries_drops_non_test_response() {
         let response_text = "fn helper() {\n    ::core::assert!(true)\n}";
-        let suite = self::split_test_entries(response_text);
+        let suite = self::split_test_entries_for(response_text, "rust");
         ::std::assert!(suite.is_empty());
     }
 
     #[test]
     fn test_split_entries_yields_empty_for_blank_response() {
-        let suite = self::split_test_entries("   \n  \n");
+        let suite = self::split_test_entries_for("   \n  \n", "rust");
+        ::std::assert!(suite.is_empty());
+    }
+
+    #[test]
+    fn test_split_entries_generic_language_splits_on_declarations() {
+        let response_text = "def test_one():\n    assert True\n\ndef test_two():\n    assert 1 + 1 == 2";
+        let suite = self::split_test_entries_for(response_text, "python");
+        ::std::assert_eq!(suite.len(), 2);
+        ::std::assert!(suite.first().is_some_and(|entry| entry.contains("test_one")));
+        ::std::assert!(suite.last().is_some_and(|entry| entry.contains("test_two")));
+    }
+
+    #[test]
+    fn test_split_entries_generic_language_drops_declarative_free_text() {
+        let suite = self::split_test_entries_for("Some prose without declarations", "python");
         ::std::assert!(suite.is_empty());
     }
 }

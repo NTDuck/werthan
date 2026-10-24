@@ -47,6 +47,7 @@ Decision records live in [`../decisions/`](../decisions/). The ledger is append-
 | [ADR-0014](../decisions/0014-cucumber-bdd-verification.md) | Gherkin cucumber suites verify behavior parity with METHODOLOGY. Superseded by [ADR-0015](../decisions/0015-methodology-validation-contracts.md). |
 | [ADR-0015](../decisions/0015-methodology-validation-contracts.md) | Methodology validation contracts (`VAL-*`) replace cucumber BDD suites; contracts outrank implementation tests. Accepted. |
 | [ADR-0016](../decisions/0016-daemon-owned-transport-deadlines.md) | Daemon-owned reqwest transport with client-level deadlines inside `bench_llm::OpenAiCompatModel`. Accepted. |
+| [ADR-0017](../decisions/0017-language-agnostic-pipeline.md) | Language-agnostic pipeline: config-driven `target_language` plumbing, neutral fault sentinels, dialect-gated post-processing; `rust` is the sanctioned default. Accepted. |
 
 ## Change Protocol
 

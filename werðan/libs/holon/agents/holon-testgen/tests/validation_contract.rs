@@ -52,13 +52,13 @@ fn contract_val_atest_03_split_semantics_no_fabricated_tests() {
     // Multiple test functions split into individual entries. A response with
     // no test functions yields zero entries, so the agent fabricates none.
     let multi_test = "#[test]\nfn t_first() {\n}\n\n#[test]\nfn t_second() {\n}";
-    let split = ::holon_testgen::split_test_entries(multi_test);
+    let split = ::holon_testgen::split_test_entries_for(multi_test, "rust");
     ::std::assert_eq!(split.len(), 2);
     ::std::assert!(split[0].contains("t_first"));
     ::std::assert!(split[1].contains("t_second"));
     // No test functions in the response means zero entries.
     let no_tests = "struct Config {\n    field: u32\n}";
-    let empty_split = ::holon_testgen::split_test_entries(no_tests);
+    let empty_split = ::holon_testgen::split_test_entries_for(no_tests, "rust");
     ::std::assert!(empty_split.is_empty());
 }
 

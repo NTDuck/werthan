@@ -2,12 +2,16 @@
 //! Exposes one Rig agent with the synthesis preamble wired, plus the domain
 //! call that prompts it and extracts the candidate module source.
 
-/// System prompt steering the model toward compilable module code.
-pub const CODEGEN_SYSTEM_PROMPT: &::core::primitive::str =
-    "You are a Rust code synthesis engine for a legacy modernization pipeline. \
-Output only Rust source code for one module with no markdown and no commentary. \
+/// System prompt steering the model toward compilable module code in the
+/// configured target language.
+pub fn codegen_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are a {target_language} code synthesis engine for a legacy modernization pipeline. \
+Output only {target_language} source code for one module with no markdown and no commentary. \
 The code must define every item the contracts and rule cards require. \
-The code must compile on its own and must not reference crates outside ::core and ::std.";
+The code must compile on its own and must not reference crates outside ::core and ::std."
+    )
+}
 
 /// Builder assembling the code generation Rig agent with role defaults wired.
 #[derive(::core::fmt::Debug)]
@@ -15,6 +19,7 @@ pub struct HolonCodeGenAgentBuilder<M: ::rig::completion::CompletionModel> {
     model: ::core::option::Option<M>,
     temperature: ::core::option::Option<::core::primitive::f64>,
     max_tokens_override: ::core::option::Option<::core::primitive::u64>,
+    target_language: ::std::string::String,
 }
 
 impl<M: ::rig::completion::CompletionModel> self::HolonCodeGenAgentBuilder<M> {
@@ -36,14 +41,21 @@ impl<M: ::rig::completion::CompletionModel> self::HolonCodeGenAgentBuilder<M> {
         self
     }
 
+    /// Set the target language the synthesis preamble advertises.
+    pub fn target_language(mut self, language: ::std::string::String) -> Self {
+        self.target_language = language;
+        self
+    }
+
     /// Build the Rig agent with the synthesis preamble and token budget wired.
     pub fn build(self) -> ::rig::agent::Agent<M> {
         let wired_model = match self.model {
             ::core::option::Option::Some(found_model) => found_model,
             ::core::option::Option::None => ::core::panic!("codegen model must be wired before build"),
         };
+        let preamble_text = self::codegen_system_prompt(&self.target_language);
         let mut agent_builder = ::rig::agent::AgentBuilder::new(wired_model)
-            .preamble(self::CODEGEN_SYSTEM_PROMPT)
+            .preamble(&preamble_text)
             .max_tokens(16384);
         if let ::core::option::Option::Some(temperature_value) = self.temperature {
             agent_builder = agent_builder.temperature(temperature_value);
@@ -65,6 +77,7 @@ impl self::HolonCodeGenAgent {
             model: ::core::option::Option::None,
             temperature: ::core::option::Option::None,
             max_tokens_override: ::core::option::Option::None,
+            target_language: "rust".to_string(),
         }
     }
 
@@ -89,8 +102,9 @@ pub fn render_codegen_prompt(
     hypothesis: &::holon_blackboard::StrategyHypothesis,
 ) -> ::std::string::String {
     let context_block = problem_model.render_prompt_context();
+    let target_language = &problem_model.target_language;
     ::std::format!(
-        "[PROBLEM CONTEXT]\n{context_block}\n\n[STRATEGY]\n{} - {}\n\nWrite the complete Rust implementation of the target module now.",
+        "[PROBLEM CONTEXT]\n{context_block}\n\n[STRATEGY]\n{} - {}\n\nWrite the complete {target_language} implementation of the target module now. Never return source-language code. The output must be valid {target_language}.",
         hypothesis.strategy_id,
         hypothesis.description,
     )
@@ -145,7 +159,7 @@ fn prompt_blocking<M: ::rig::completion::CompletionModel + 'static>(
     }
 }
 /// Detect an inference failure carried by the transport error text and
-/// encode it as a compile_error sentinel candidate. The sentinel keeps
+/// encode it as a SYNTAX_ERROR sentinel candidate. The sentinel keeps
 /// failure propagation honest through the evaluator.
 fn fault_sentinel_of(response_text: &::core::primitive::str) -> ::core::option::Option<::std::string::String> {
     let fault_marker = "strategy inference";
@@ -162,15 +176,20 @@ fn fault_sentinel_of(response_text: &::core::primitive::str) -> ::core::option::
     ::core::option::Option::Some(sentinel_text)
 }
 
-/// Encode an inference failure as a compile_error sentinel candidate.
+/// Encode an inference failure as a language-neutral SYNTAX_ERROR sentinel candidate.
 pub fn fault_candidate(failure_reason: &::core::primitive::str) -> ::std::string::String {
+    // A reason that already embeds a sentinel marker would nest markers on
+    // every retry cycle. Collapse to the existing sentinel text instead.
+    let reason_is_sentinel = failure_reason.contains("SYNTAX_ERROR:")
+        || failure_reason.contains("compile_error!");
+    if reason_is_sentinel {
+        return failure_reason.to_string();
+    }
     let sanitized_reason = failure_reason
         .replace('"', "'")
         .replace('\n', " ")
         .replace(';', "");
-    ::std::format!(
-        "::core::compile_error!(\"ariadne llm synthesis fault: {sanitized_reason}\")"
-    )
+    ::std::format!("SYNTAX_ERROR: ariadne llm synthesis fault: {sanitized_reason}")
 }
 
 /// Extract the first fenced Rust code block from a model response.
@@ -215,11 +234,12 @@ mod tests {
     }
 
     #[test]
-    fn test_fault_candidate_sanitizes_and_compiles_as_sentinel() {
+    fn test_fault_candidate_sanitizes_and_encodes_marker() {
         let sentinel = self::fault_candidate("boom\nwith \"quotes\"");
-        ::std::assert!(sentinel.contains("compile_error!"));
-        let token_outcome = sentinel.parse::<::proc_macro2::TokenStream>();
-        ::std::assert!(token_outcome.is_ok());
+        ::std::assert!(sentinel.contains("SYNTAX_ERROR"));
+        ::std::assert!(sentinel.contains("ariadne llm synthesis fault"));
+        ::std::assert!(!sentinel.contains('\n'));
+        ::std::assert!(!sentinel.contains('"'));
     }
 
     #[test]

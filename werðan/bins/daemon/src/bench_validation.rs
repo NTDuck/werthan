@@ -1,16 +1,20 @@
-//! Target workspace verification via the cargo toolchain.
+//! Target workspace verification via the configured toolchain commands.
 //! Extracts test pass rates and check status for migration campaigns.
 
-/// Target workspace outcome after cargo check and cargo test.
+/// Target workspace outcome after the configured build and test commands.
 #[derive(::core::clone::Clone, ::core::fmt::Debug)]
 pub struct WorkspaceValidation {
-    /// Whether cargo check exited zero.
+    /// Whether the configured build command exited zero.
     pub check_ok: ::core::primitive::bool,
-    /// Parsed test pass rate from cargo test.
+    /// Parsed test pass rate from the configured test command.
     pub test_pass_rate: ::core::primitive::f64,
 }
 
-/// Run cargo check and cargo test in the target workspace and parse outcomes.
+/// Run the configured build and test commands and parse outcomes.
+///
+/// Cargo test commands use terse-output counting from `test result:` lines.
+/// External toolchains use the test command exit code: success maps to a 1.0
+/// pass rate, failure to 0.0.
 pub fn validate_workspace(
     bench_config: &super::bench_config::CampaignConfig,
     workspace_root: &::std::path::Path,
@@ -32,7 +36,30 @@ pub fn validate_workspace(
         build_timeout,
         test_timeout,
     );
-    let check_res = harness.run_command("cargo", &["check"], build_timeout);
+    let harness_commands = ::holon_evaluator::cargo_harness::HarnessCommands {
+        build_cmd: ::core::clone::Clone::clone(&bench_config.stack.target_build_cmd),
+        test_cmd: ::core::clone::Clone::clone(&bench_config.stack.target_test_cmd),
+        legacy_harness_cmd: ::core::clone::Clone::clone(
+            &bench_config.stack.legacy_test_harness_cmd,
+        ),
+    };
+    let (check_program, check_args) =
+        ::holon_evaluator::cargo_harness::CargoHarness::parse_command(
+            &harness_commands.build_cmd,
+        );
+    let (test_program, test_args) =
+        ::holon_evaluator::cargo_harness::CargoHarness::parse_command(
+            &harness_commands.test_cmd,
+        );
+    let check_arg_refs = check_args
+        .iter()
+        .map(::std::string::String::as_str)
+        .collect::<::std::vec::Vec<&::core::primitive::str>>();
+    let test_arg_refs = test_args
+        .iter()
+        .map(::std::string::String::as_str)
+        .collect::<::std::vec::Vec<&::core::primitive::str>>();
+    let check_res = harness.run_command(&check_program, &check_arg_refs, build_timeout);
     let check_ok = match check_res {
         ::core::result::Result::Ok(output) => {
             let code = output.status.code();
@@ -40,18 +67,30 @@ pub fn validate_workspace(
         },
         ::core::result::Result::Err(_) => false,
     };
-    let test_res = harness.run_command("cargo", &["test"], test_timeout);
+    let test_res = harness.run_command(&test_program, &test_arg_refs, test_timeout);
+    let is_cargo_test = test_program == "cargo";
     let test_pass_rate = match test_res {
         ::core::result::Result::Ok(output) => {
-            let stdout_text = ::std::string::String::from_utf8_lossy(&output.stdout);
-            let stderr_text = ::std::string::String::from_utf8_lossy(&output.stderr);
-            let mut combined = stdout_text.into_owned();
-            combined.push('\n');
-            combined.push_str(&stderr_text);
-            let counts = self::parse_test_counts(&combined);
-            let passed = counts.0;
-            let failed = counts.1;
-            self::compute_pass_rate(passed, failed)
+            let exit_zero = output.status.code() == ::core::option::Option::Some(0);
+            if !is_cargo_test {
+                // External toolchains report pass/fail through the exit code.
+                // Their output uses no cargo result-line format.
+                if exit_zero {
+                    1.0
+                } else {
+                    0.0
+                }
+            } else {
+                let stdout_text = ::std::string::String::from_utf8_lossy(&output.stdout);
+                let stderr_text = ::std::string::String::from_utf8_lossy(&output.stderr);
+                let mut combined = stdout_text.into_owned();
+                combined.push('\n');
+                combined.push_str(&stderr_text);
+                let counts = self::parse_test_counts(&combined);
+                let passed = counts.0;
+                let failed = counts.1;
+                self::compute_pass_rate(passed, failed)
+            }
         },
         ::core::result::Result::Err(_) => 0.0,
     };

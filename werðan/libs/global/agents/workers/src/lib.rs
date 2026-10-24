@@ -17,7 +17,8 @@ const KNOWN_SOURCE_EXTENSIONS: &[&::core::primitive::str] = &[
     ".yml", ".yaml", ".json", ".lock",
 ];
 
-/// Token scanned inside hardened target code by the deterministic security audit.
+/// Token scanned inside hardened Rust target code by the deterministic
+/// security audit. The scan gates on the dialect target language.
 const UNSAFE_TOKEN: &::core::primitive::str = "unsafe ";
 
 /// Typed activation envelope hydrated by the deterministic context assembler
@@ -377,6 +378,10 @@ impl self::DeterministicWorkers {
     }
 
     /// Verify one vertex artifact for test coverage and unsafe code blocks.
+    /// The unsafe-block scan is a Rust-only security audit: it runs when the
+    /// dialect target language is rust or unset (the rust default). Non-Rust
+    /// targets skip it until the critic pipeline grows a language-agnostic
+    /// security equivalent (see the language-agnostic mandate in METHODOLOGY).
     fn verify_module(
         &self,
         vertex: &::core::primitive::str,
@@ -386,17 +391,21 @@ impl self::DeterministicWorkers {
             ::core::option::Option::Some(inner) => ::core::clone::Clone::clone(inner),
             ::core::option::Option::None => ::core::option::Option::None,
         };
+        let dialect_language = &board.inventory.dialect.target_language;
+        let is_rust_target = dialect_language.is_empty() || dialect_language == "rust";
         let mut security_findings = ::std::vec::Vec::new();
         let mut tests_pass = false;
         if let ::core::option::Option::Some(artifact) = artifact_option {
             tests_pass = !artifact.test_suite.is_empty();
-            let mut cursor = 0;
-            while let ::core::option::Option::Some(offset) =
-                artifact.target_code[cursor..].find(self::UNSAFE_TOKEN)
-            {
-                let finding = ::std::format!("unsafe block in {vertex}");
-                security_findings.push(finding);
-                cursor += offset + self::UNSAFE_TOKEN.len();
+            if is_rust_target {
+                let mut cursor = 0;
+                while let ::core::option::Option::Some(offset) =
+                    artifact.target_code[cursor..].find(self::UNSAFE_TOKEN)
+                {
+                    let finding = ::std::format!("unsafe block in {vertex}");
+                    security_findings.push(finding);
+                    cursor += offset + self::UNSAFE_TOKEN.len();
+                }
             }
         }
         let module_id = vertex.to_string();
@@ -772,6 +781,36 @@ mod tests {
                 ::std::assert!(verdicts[0].tests_pass);
                 ::std::assert_eq!(verdicts[0].security_findings.len(), 1);
                 ::std::assert!(!sign_off);
+            }
+            _ => ::std::panic!("expected verification output"),
+        }
+    }
+
+    #[test]
+    fn verification_skips_unsafe_scan_for_non_rust_target() {
+        let workers = self::DeterministicWorkers::new();
+        let mut board = self::sample_board();
+        board.inventory.dialect.target_language = "javascript".to_string();
+        board.artifacts.commit(
+            "alpha",
+            ::global_blackboard::ModuleArtifact {
+                target_code: "const risky = 'unsafe literal'\nfunction a() { return 1 }".to_string(),
+                test_suite: ::std::vec!["test_alpha".to_string()],
+            },
+        );
+        let envelope = self::sample_envelope();
+        let output = workers.execute(
+            ::global_fsm::MacroState::S6SystemVerify,
+            "alpha",
+            &envelope,
+            &board,
+        );
+        match output {
+            self::PhaseWorkOutput::Verification { verdicts, sign_off } => {
+                ::std::assert_eq!(verdicts.len(), 1);
+                ::std::assert!(verdicts[0].tests_pass);
+                ::std::assert!(verdicts[0].security_findings.is_empty());
+                ::std::assert!(sign_off);
             }
             _ => ::std::panic!("expected verification output"),
         }
