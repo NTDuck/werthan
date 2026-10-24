@@ -392,12 +392,6 @@ struct ChatCompletionsMessage {
     /// Primary answer channel.
     #[serde(default)]
     content: ::core::option::Option<::std::string::String>,
-    /// Reasoning trace channel some OpenAI-compatible backends fill instead.
-    /// Kept for wire deserialization completeness; never surfaced as an
-    /// answer because deliberation is not output.
-    #[serde(default, rename = "reasoning_content")]
-    #[allow(dead_code)]
-    reasoning_content: ::core::option::Option<::std::string::String>,
     /// Refusal channel.
     #[serde(default)]
     refusal: ::core::option::Option<::std::string::String>,
@@ -512,10 +506,9 @@ fn chat_payload_value(
 
 /// Parse the raw chat-completions JSON into its raw value and answer text.
 ///
-/// The text channel prefers assistant text `content` and only falls back to
-/// the `reasoning_content` field when content is empty. The refusal channel
-/// appends when present. Concatenating reasoning with content would corrupt
-/// downstream code extraction.
+/// The text channel is assistant `content` only. Unknown channels such as
+/// `reasoning_content` deserialize as ignored raw JSON: deliberation is
+/// never surfaced as an answer. The refusal channel appends when present.
 fn response_text_of(body: &self::ChatCompletionsBody) -> ::std::string::String {
     let mut collected = ::std::string::String::new();
     for choice in &body.choices {
@@ -679,35 +672,14 @@ mod tests {
     }
 
     #[test]
-    fn response_text_of_prefers_content_over_reasoning() {
-        let body = self::ChatCompletionsBody {
-            choices: ::std::vec![self::ChatCompletionsChoice {
-                message: ::core::option::Option::Some(self::ChatCompletionsMessage {
-                    content: ::core::option::Option::Some("function f() { return 1 }".to_string()),
-                    reasoning_content: ::core::option::Option::Some("We need answer user.".to_string()),
-                    refusal: ::core::option::Option::None,
-                }),
-            }],
-            raw: ::serde_json::Value::Null,
-        };
-        let text = self::response_text_of(&body);
-        ::std::assert_eq!(text, "function f() { return 1 }");
-    }
-
-    #[test]
-    fn response_text_of_never_surfaces_reasoning_as_answer() {
-        let body = self::ChatCompletionsBody {
-            choices: ::std::vec![self::ChatCompletionsChoice {
-                message: ::core::option::Option::Some(self::ChatCompletionsMessage {
-                    content: ::core::option::Option::None,
-                    reasoning_content: ::core::option::Option::Some(
-                        "We need answer user's request. Need think through rules.".to_string(),
-                    ),
-                    refusal: ::core::option::Option::None,
-                }),
-            }],
-            raw: ::serde_json::Value::Null,
-        };
+    fn response_text_of_ignores_unknown_reasoning_channel() {
+        // Wire-level honesty contract: a backend that fills
+        // `reasoning_content` instead of `content` yields an empty answer.
+        // Deserialization must tolerate the unknown channel without
+        // surfacing it as text.
+        let body_text = r#"{"choices":[{"message":{"reasoning_content":"We need answer user's request. Need think through rules."}}]}"#;
+        let body = ::serde_json::from_str::<self::ChatCompletionsBody>(body_text)
+            .expect("reasoning-only payload must deserialize");
         let text = self::response_text_of(&body);
         ::std::assert!(text.is_empty(), "reasoning leaked as answer: {text}");
     }

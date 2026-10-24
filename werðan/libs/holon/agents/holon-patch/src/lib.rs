@@ -253,4 +253,67 @@ mod tests {
         let no_sentinel = self::fault_sentinel_of(normal_text);
         ::std::assert!(no_sentinel.is_none());
     }
+
+    /// Counting completion model: records every call and answers with a
+    /// marker that would corrupt the candidate if a call ever happened.
+    #[derive(::core::clone::Clone)]
+    struct CountingFakeModel {
+        call_count: ::std::sync::Arc<::std::sync::atomic::AtomicU64>,
+    }
+
+    impl ::rig::completion::CompletionModel for self::CountingFakeModel {
+        type Response = ::std::string::String;
+
+        fn completion(
+            &self,
+            _request: ::rig::completion::CompletionRequest,
+        ) -> impl ::core::future::Future<
+            Output = ::core::result::Result<
+                ::rig::completion::CompletionResponse<Self::Response>,
+                ::rig::completion::CompletionError,
+            >,
+        > + ::core::marker::Send {
+            self.call_count
+                .fetch_add(1, ::std::sync::atomic::Ordering::SeqCst);
+            let content_item = ::rig::message::AssistantContent::text(
+                "SYNTAX_ERROR: ariadne llm repair fault: nested marker would prove inference ran",
+            );
+            let outcome = ::rig::completion::CompletionResponse {
+                choice: ::rig::OneOrMany::one(content_item),
+                raw_response: ::std::string::String::from("counting-fake"),
+            };
+            ::core::future::ready(::core::result::Result::Ok(outcome))
+        }
+    }
+
+    #[test]
+    fn test_repair_code_on_sentinel_candidate_makes_zero_calls() {
+        // A candidate that is already a fault marker carries no repairable
+        // code. Re-prompting would nest sentinels and churn the repair
+        // loop, so repair_code must propagate it without any inference.
+        let zero_calls = ::std::sync::atomic::AtomicU64::new(0);
+        let call_count = ::std::sync::Arc::new(zero_calls);
+        let patch_agent = self::HolonPatchAgent::builder::<self::CountingFakeModel>()
+            .model(self::CountingFakeModel {
+                call_count: ::std::sync::Arc::clone(&call_count),
+            })
+            .build();
+        let agent = ::std::sync::Arc::new(patch_agent);
+        let sentinel_candidate = self::fault_candidate("prior synthesis failure");
+        let fault = ::holon_blackboard::FaultRecord {
+            summary: ::std::string::String::from("prior failure"),
+            diagnostic_trace: ::std::string::String::new(),
+            cause: ::core::option::Option::None,
+        };
+        let problem_model = ::holon_blackboard::ProblemModelSlice::new();
+        let outcome = self::HolonPatchAgent::repair_code(
+            &agent,
+            &sentinel_candidate,
+            &fault,
+            &problem_model,
+        );
+        ::std::assert_eq!(outcome, sentinel_candidate);
+        let observed = call_count.load(::std::sync::atomic::Ordering::SeqCst);
+        ::std::assert_eq!(observed, 0, "sentinel candidate must not trigger inference");
+    }
 }
