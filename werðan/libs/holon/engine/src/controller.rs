@@ -247,7 +247,8 @@ impl<
 
             if let ::core::option::Option::Some(::holon_blackboard::FaultCause::ExtrinsicCycle) = fault.cause {
                 let parent_id = self.resolve_parent_id();
-                let edge = (parent_id, "module".to_string());
+                let reporter_id = ::core::clone::Clone::clone(&self.blackboard.module_id);
+                let edge = (parent_id, reporter_id);
                 let cycle_edges = ::std::vec![edge];
                 let proof_trace = fault.diagnostic_trace.clone();
                 let res = self::StepResult::CycleFound {

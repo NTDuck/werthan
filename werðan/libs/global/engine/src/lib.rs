@@ -90,6 +90,10 @@ pub struct MacroEngine {
     /// Contract deltas awaiting hydration into the owning parent problem model.
     pending_parent_deltas:
         ::std::collections::BTreeMap<::std::string::String, ::std::vec::Vec<::std::string::String>>,
+    /// Futile dispatch count per module (park back into the pre-dispatch state).
+    futile_dispatches: ::std::collections::BTreeMap<::std::string::String, ::core::primitive::usize>,
+    /// Cap on consecutive futile dispatches per module before termination.
+    futile_dispatch_cap: ::core::primitive::usize,
     /// S0 preflight intent gate failure deferred until after the structural guard retry round.
     intent_gate_error: ::core::option::Option<self::MacroEngineError>,
     step_budget: ::core::primitive::usize,
@@ -120,6 +124,7 @@ impl self::MacroEngine {
         workers: ::core::option::Option<::std::boxed::Box<dyn ::global_workers::PhaseWorker>>,
         hitl: ::core::option::Option<self::HitlGates>,
         step_budget: ::core::option::Option<::core::primitive::usize>,
+        futile_dispatch_cap: ::core::option::Option<::core::primitive::usize>,
     ) -> Self {
         let board = board.unwrap_or_default();
         let statechart = statechart.unwrap_or_default();
@@ -152,6 +157,7 @@ impl self::MacroEngine {
             }
         };
         let step_budget = step_budget.unwrap_or(256);
+        let futile_dispatch_cap = futile_dispatch_cap.unwrap_or(3);
         let hitl = hitl.unwrap_or_default();
         Self {
             board,
@@ -167,6 +173,8 @@ impl self::MacroEngine {
             pending_gate: ::core::option::Option::None,
             approved_gates: ::std::collections::BTreeSet::new(),
             pending_parent_deltas: ::std::collections::BTreeMap::new(),
+            futile_dispatches: ::std::collections::BTreeMap::new(),
+            futile_dispatch_cap,
             intent_gate_error: ::core::option::Option::None,
             step_budget,
             steps_used: 0,
@@ -183,6 +191,7 @@ impl self::MacroEngine {
         for vertex in self.board.dag.vertices.clone() {
             self.board.state.module_states.insert(vertex, ::global_blackboard::ModuleMicroState::M0Blocked);
         }
+        self.futile_dispatches.clear();
     }
 
     /// Borrow the global blackboard.
@@ -205,6 +214,11 @@ impl self::MacroEngine {
     /// Return total solver dispatch count.
     pub fn solver_dispatches(&self) -> ::core::primitive::usize {
         self.solver_dispatches
+    }
+
+    /// Return the macro loop step count consumed by the latest run.
+    pub fn steps_used(&self) -> ::core::primitive::usize {
+        self.steps_used
     }
 
     /// Return total worker execution count across phase shards.
@@ -305,10 +319,11 @@ impl self::MacroEngine {
                     self.handle_contract_conflict(parent_id, module_id, delta_spec, proof_trace);
                 }
                 ::global_blackboard::MacroEvent::CyclicDependencyFound {
+                    module_id,
                     cycle_edges,
                     proof_trace,
                 } => {
-                    self.handle_cycle_found(cycle_edges, proof_trace)?;
+                    self.handle_cycle_found(::core::option::Option::Some(module_id), cycle_edges, proof_trace)?;
                 }
                 ::global_blackboard::MacroEvent::TaskDone { .. } => {
                     // Zero-traffic acknowledgement: the worker committed its
@@ -344,6 +359,8 @@ impl self::MacroEngine {
         };
         self.board.artifacts.insert(module_id.clone(), ::core::option::Option::Some(artifact));
         self.set_module_state(&module_id, ::global_blackboard::ModuleMicroState::M4Hardened);
+        // Real progress clears the futile-dispatch counter.
+        self.futile_dispatches.remove(&module_id);
         ::core::result::Result::Ok(())
     }
 
@@ -433,13 +450,23 @@ impl self::MacroEngine {
     }
 
     /// Apply the Tier C cycle regression with deep history capture and SCC condensation.
+    /// An invalid report must not orphan the reporting module in M1/M2/M3.
+    /// Invalid means empty trace, non-traversable edges, or arbiter rejection.
+    /// compute_ready_set skips M1/M2/M3 states. An orphaned reporter would
+    /// therefore deadlock the wave scheduler. The reporter parks in M0_Blocked
+    /// so the scheduler can re-ready it.
     fn handle_cycle_found(
         &mut self,
+        module_id: ::core::option::Option<::std::string::String>,
         cycle_edges: ::std::vec::Vec<(::std::string::String, ::std::string::String)>,
         proof_trace: ::std::string::String,
     ) -> ::core::result::Result<(), self::MacroEngineError> {
+        // Legacy persisted events carry no reporter. Fall back to the sole
+        // stalled-module inference used before the field existed.
+        let reporter = module_id.filter(|id| self.board.dag.vertices.contains(id));
         let trace_empty = proof_trace.is_empty();
         if trace_empty {
+            self.park_cycle_reporter(&reporter);
             return ::core::result::Result::Ok(());
         }
         let joined = cycle_edges
@@ -455,13 +482,14 @@ impl self::MacroEngine {
             let end_known = self.board.dag.vertices.contains(&edge_pair.1);
             start_known && end_known
         });
-        let trace_empty = proof_trace.is_empty();
-        if trace_empty || !edges_traversable {
+        if !edges_traversable {
+            self.park_cycle_reporter(&reporter);
             return ::core::result::Result::Ok(());
         }
         let arbiter = &self.arbiter;
         let accepted = arbiter.adjudicate(subject, &proof_trace);
         if !accepted {
+            self.park_cycle_reporter(&reporter);
             return ::core::result::Result::Ok(());
         }
         // Human-in-the-loop gate before rolling S5 back to S2. The cycle event
@@ -472,6 +500,7 @@ impl self::MacroEngine {
             .contains(&self::HitlGateKind::MacroRegression);
         if gate_enabled && !gate_approved {
             let cycle_event = ::global_blackboard::MacroEvent::CyclicDependencyFound {
+                module_id: { reporter.unwrap_or_default() },
                 cycle_edges,
                 proof_trace,
             };
@@ -515,6 +544,24 @@ impl self::MacroEngine {
         self.statechart = regressed;
         self.board.state.macro_state = self.statechart.state();
         ::core::result::Result::Ok(())
+    }
+
+    /// Park the cycle reporter in M0_Blocked so the wave scheduler can re-ready
+    /// it after an invalid/unaccepted regression report. Without this the
+    /// reporter stalls in M1/M2/M3, which compute_ready_set never re-selects
+    /// (pre-fd48337 WaveDeadlock root cause).
+    ///
+    /// A park is the futile-dispatch signal: the dispatch burned a full solver
+    /// rollout budget and produced no progress. The counter increments here and
+    /// resets on hardening. run_transform_phase terminates the campaign once a
+    /// module exhausts the cap.
+    fn park_cycle_reporter(&mut self, reporter: &::core::option::Option<::std::string::String>) {
+        if let ::core::option::Option::Some(vertex_id) = reporter {
+            let target_state = ::global_blackboard::ModuleMicroState::M0Blocked;
+            self.set_module_state(vertex_id, target_state);
+            let counter = self.futile_dispatches.entry(vertex_id.clone()).or_insert(0);
+            *counter += 1;
+        }
     }
 
 
@@ -963,6 +1010,19 @@ impl self::MacroEngine {
             let detail = "no ready module while unhardened modules remain".to_string();
             return ::core::result::Result::Err(self::MacroEngineError::WaveDeadlock { detail });
         }
+        // Futile dispatch cap: a module parked back into the same unhardened
+        // state it held before its last dispatch made no progress. Re-dispatch
+        // burns a full solver rollout budget, so terminate once a module
+        // exhausts the cap instead of cycling park, re-ready, re-dispatch.
+        for vertex in &ready {
+            let exhausted = self.futile_dispatches.get(vertex).copied().unwrap_or(0);
+            if exhausted >= self.futile_dispatch_cap {
+                return ::core::result::Result::Err(self::MacroEngineError::ModuleRetryExhausted {
+                    module_id: { vertex.clone() },
+                    attempts: { exhausted },
+                });
+            }
+        }
         for vertex in ready {
             self.dispatch_module(&vertex);
         }
@@ -1073,6 +1133,12 @@ impl self::MacroEngine {
                     .module_states
                     .insert(module_id.to_string(), ::global_blackboard::ModuleMicroState::M3ContractNegotiate);
                 self.transition_log.push((module_id.to_string(), ::global_blackboard::ModuleMicroState::M3ContractNegotiate));
+                // A conflict dispatch burned a full solver rollout budget and
+                // parks the dispatcher back into a re-dispatchable state. It
+                // therefore counts toward the futile cap exactly like a parked
+                // cycle reporter. Hardening clears the counter.
+                let counter = self.futile_dispatches.entry(module_id.to_string()).or_insert(0);
+                *counter += 1;
                 let conflict_event = ::global_blackboard::MacroEvent::ContractConflict {
                     parent_id,
                     module_id: { module_id.to_string() },
@@ -1085,7 +1151,12 @@ impl self::MacroEngine {
                 cycle_edges,
                 proof_trace,
             } => {
+                // The engine invokes the solver per dispatch. The dispatcher's
+                // module id therefore names the cycle reporter. The engine parks
+                // that vertex when the report proves invalid, preventing a wave
+                // scheduler deadlock.
                 let cycle_event = ::global_blackboard::MacroEvent::CyclicDependencyFound {
+                    module_id: { module_id.to_string() },
                     cycle_edges,
                     proof_trace,
                 };
@@ -1117,6 +1188,13 @@ impl self::MacroEngine {
             self.board.artifacts.get(module_id)
         {
             model.legacy_source_slices.push(artifact.target_code.clone());
+        }
+        // The dialect profile seeds empty strings when the campaign sets no
+        // language, so the rust default in the slice must survive.
+        let dialect_language_empty = self.board.inventory.dialect.target_language.is_empty();
+        if !dialect_language_empty {
+            model.target_language =
+                ::core::clone::Clone::clone(&self.board.inventory.dialect.target_language);
         }
         model
     }

@@ -41,12 +41,17 @@ pub struct ProblemModelSlice {
     pub legacy_source_slices: ::std::vec::Vec<::std::string::String>,
     /// Downstream export requirements.
     pub export_obligations: ::std::vec::Vec<::std::string::String>,
+    /// Target language name the translation must emit, defaulting to rust.
+    pub target_language: ::std::string::String,
 }
 
 impl self::ProblemModelSlice {
-    /// Create empty problem model slice.
+    /// Create empty problem model slice with the rust target default.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            target_language: "rust".to_string(),
+            ..Self::default()
+        }
     }
 
     /// Add verified business rule card to slice.
@@ -79,6 +84,8 @@ impl self::ProblemModelSlice {
     /// and legacy source excerpts in a deterministic serial order.
     pub fn render_prompt_context(&self) -> ::std::string::String {
         let mut context_lines = ::std::vec::Vec::<::std::string::String>::new();
+        context_lines.push("[TARGET LANGUAGE]".to_string());
+        context_lines.push(self.target_language.clone());
         context_lines.push("[BUSINESS RULES]".to_string());
         if self.rules.is_empty() {
             context_lines.push("(none extracted)".to_string());
@@ -145,6 +152,14 @@ mod prompt_context_tests {
         ::core::assert!(rendered.contains("RULE_PHRI_001"));
         ::core::assert!(rendered.contains("[PARENT CONTRACTS]"));
         ::core::assert!(rendered.contains("[LEGACY SOURCE EXCERPTS]"));
+    }
+
+    #[test]
+    fn test_render_prompt_context_target_language() {
+        let mut problem_model = self::ProblemModelSlice::new();
+        problem_model.target_language = "javascript".to_string();
+        let rendered = problem_model.render_prompt_context();
+        ::core::assert!(rendered.contains("[TARGET LANGUAGE]\njavascript"));
     }
 
     #[test]

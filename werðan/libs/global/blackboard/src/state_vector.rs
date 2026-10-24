@@ -45,6 +45,10 @@ pub enum MacroEvent {
     },
     /// Undocumented cyclic dependency. Tier C macro-regression with deep history H*.
     CyclicDependencyFound {
+        /// Reporting module identifier (the cluster that proved the cycle).
+        /// Defaults for state vectors persisted before the field existed.
+        #[serde(default)]
+        module_id: ::std::string::String,
         /// Cyclic edge pairs.
         cycle_edges: ::std::vec::Vec<(::std::string::String, ::std::string::String)>,
         /// Failure proof trace.

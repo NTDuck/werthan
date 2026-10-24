@@ -33,6 +33,15 @@ pub enum MacroEngineError {
         /// Detail about the stuck module set.
         detail: ::std::string::String,
     },
+    /// One module re-dispatched without observable progress up to the futile
+    /// dispatch cap. Each futile dispatch burns a full solver rollout budget,
+    /// so the engine terminates instead of cycling park, re-ready, re-dispatch.
+    ModuleRetryExhausted {
+        /// Module whose dispatches proved futile.
+        module_id: ::std::string::String,
+        /// Futile dispatch count at the cap.
+        attempts: ::core::primitive::usize,
+    },
     /// Macro state transition error.
     MacroStateError(::global_fsm::MacroStateError),
 }
@@ -60,6 +69,12 @@ impl ::core::fmt::Display for self::MacroEngineError {
             }
             Self::WaveDeadlock { detail } => {
                 ::core::write!(formatter, "wave dispatch deadlock: {detail}")
+            }
+            Self::ModuleRetryExhausted { module_id, attempts } => {
+                ::core::write!(
+                    formatter,
+                    "module {module_id} exhausted the futile dispatch cap after {attempts} attempts"
+                )
             }
             Self::MacroStateError(error) => {
                 let formatted = ::core::format_args!("macro statechart transition error: {error}");

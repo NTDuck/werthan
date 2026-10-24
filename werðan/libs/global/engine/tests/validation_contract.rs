@@ -414,8 +414,10 @@ fn contract_val_macro_13_arbiter_gated_regressions() {
     let cycle_campaign = cycle_board();
     engine.configure(cycle_campaign);
     let outcome = engine.run();
-    let error = outcome.expect_err("the unhardened cycle member deadlocks the wave");
-    ::std::assert!(::core::matches!(error, ::global_engine::MacroEngineError::WaveDeadlock { .. }));
+    // A rejected interrupt leaves the state unchanged and drops the event.
+    // The reporter parks in M0, so the wave re-readies it and the campaign
+    // completes instead of deadlocking.
+    ::std::assert!(outcome.is_ok(), "the parked cycle reporter re-dispatches instead of deadlocking the wave");
     ::std::assert!(engine.state_vector().deep_history.is_none(), "no checkpoint without a validated interrupt");
     ::std::assert!(
         !engine.board().dag.vertices.iter().any(|vertex| vertex == "a+b"),
@@ -457,6 +459,112 @@ fn contract_val_macro_13_arbiter_gated_regressions() {
             "the wave completed after parking"
         );
     }
+}
+
+/// Contract VAL-MACRO-17: a Tier C cycle report that fails validation parks
+/// the reporting module in M0_Blocked. compute_ready_set never re-selects
+/// M1/M2/M3 states, so an unparked reporter deadlocks the wave scheduler.
+#[test]
+fn contract_val_macro_17_invalid_cycle_report_parks_reporter() {
+    // Variant 1: empty proof trace fails g_struct on the report itself.
+    let empty_trace = crate::InvalidCycleThenHardenSolver {
+        mode: crate::InvalidCycleMode::EmptyTrace,
+        cycle_fired: false,
+    };
+    let boxed = ::std::boxed::Box::new(empty_trace);
+    let mut engine = ::global_engine::MacroEngine::new(boxed);
+    let board = cycle_board();
+    engine.configure(board);
+    let outcome = engine.run();
+    ::std::assert!(outcome.is_ok(), "the parked reporter re-dispatches instead of deadlocking the wave");
+    let parked = engine
+        .transition_log()
+        .iter()
+        .any(|entry| entry.0 == "b" && entry.1 == ::global_blackboard::ModuleMicroState::M0Blocked);
+    ::std::assert!(parked, "the empty-trace reporter parked in M0_Blocked");
+    ::std::assert_eq!(
+        engine.state_vector().module_states.get("b"),
+        ::core::option::Option::Some(&::global_blackboard::ModuleMicroState::M4Hardened),
+        "the parked reporter re-dispatched and hardened"
+    );
+    ::std::assert!(engine.state_vector().deep_history.is_none(), "an invalid report saves no checkpoint");
+    let s2_count = positions_of(engine.macro_history(), ::global_fsm::MacroState::S2MapDag).len();
+    ::std::assert_eq!(s2_count, 1, "an invalid report triggers no S2 regression");
+
+    // Variant 2: cycle edge endpoints outside the DAG fail g_struct.
+    let ghost_edge = crate::InvalidCycleThenHardenSolver {
+        mode: crate::InvalidCycleMode::GhostEdge,
+        cycle_fired: false,
+    };
+    let boxed = ::std::boxed::Box::new(ghost_edge);
+    let mut engine = ::global_engine::MacroEngine::new(boxed);
+    let board = cycle_board();
+    engine.configure(board);
+    let outcome = engine.run();
+    ::std::assert!(outcome.is_ok(), "the parked reporter re-dispatches instead of deadlocking the wave");
+    let parked = engine
+        .transition_log()
+        .iter()
+        .any(|entry| entry.0 == "b" && entry.1 == ::global_blackboard::ModuleMicroState::M0Blocked);
+    ::std::assert!(parked, "the ghost-edge reporter parked in M0_Blocked");
+}
+
+/// Contract VAL-MACRO-18: repeated futile dispatches (park without progress)
+/// terminate the campaign once a module exhausts the cap. The engine returns
+/// ModuleRetryExhausted instead of cycling park, re-ready, re-dispatch forever.
+#[test]
+fn contract_val_macro_18_futile_dispatch_cap_terminates() {
+    let always_cycle = crate::AlwaysCycleSolver;
+    let boxed = ::std::boxed::Box::new(always_cycle);
+    let rejecting = crate::RejectingArbiter;
+    let arbiter = ::std::boxed::Box::new(rejecting);
+    let mut engine = ::global_engine::MacroEngine::builder().solver(boxed).arbiter(arbiter).build();
+    let board = cycle_board();
+    engine.configure(board);
+    let outcome = engine.run();
+    let error = outcome.expect_err("the always-futile module exhausts the cap");
+    ::std::assert!(
+        ::core::matches!(
+            error,
+            ::global_engine::MacroEngineError::ModuleRetryExhausted { .. }
+        ),
+        "the campaign terminated on the futile dispatch cap: {error:?}"
+    );
+}
+
+/// Contract VAL-MACRO-19: the campaign deadlock regression. A module whose
+/// solver rollout exhausts its budget surfaces as a ContractConflict against
+/// its hardened parent. The Tier B warm-start regression parks the child back
+/// into M0_Blocked and re-dispatches it, so a permanently unhardenable module
+/// would cycle park, re-ready, re-dispatch forever. The futile-dispatch cap
+/// terminates the campaign deterministically instead, and the termination
+/// arrives well inside the macro step budget.
+#[test]
+fn contract_val_macro_19_budget_exhausted_ping_pong_terminates() {
+    let always_conflict = crate::AlwaysConflictSolver;
+    let boxed = ::std::boxed::Box::new(always_conflict);
+    let mut engine = ::global_engine::MacroEngine::builder()
+        .solver(boxed)
+        .step_budget(256)
+        .build();
+    let board = conflict_board();
+    engine.configure(board);
+    let outcome = engine.run();
+    let error = outcome.expect_err("the unhardenable child exhausts the futile cap");
+    let cap_reached = ::core::matches!(
+        error,
+        ::global_engine::MacroEngineError::ModuleRetryExhausted { ref module_id, attempts }
+            if module_id == "b" && attempts >= 3
+    );
+    ::std::assert!(
+        cap_reached,
+        "the campaign terminated on the futile dispatch cap: {error:?}"
+    );
+    ::std::assert!(
+        engine.steps_used() <= 64,
+        "termination bounded the ping-pong inside the step budget: {} steps",
+        engine.steps_used()
+    );
 }
 
 /// Contract VAL-MACRO-14: every worker activation carries a typed envelope
@@ -674,6 +782,12 @@ struct CycleThenHardenSolver {
     cycle_fired: ::core::primitive::bool,
 }
 
+/// Solver modeling a permanently unhardenable module: every dispatch reports
+/// a contract conflict against the hardened parent. This is the shape the
+/// ARIADNE adapter emits for a BudgetExhausted controller outcome.
+#[derive(::core::fmt::Debug)]
+struct AlwaysConflictSolver;
+
 /// Solver that reports one contract conflict against parent a, then hardens.
 #[derive(::core::fmt::Debug)]
 struct ConflictThenHardenSolver {
@@ -683,6 +797,22 @@ struct ConflictThenHardenSolver {
 /// Solver that reports an undocumented cycle on every dispatch.
 #[derive(::core::fmt::Debug)]
 struct AlwaysCycleSolver;
+
+/// Mode of the structurally invalid cycle report emitted by the fixture.
+#[derive(::core::fmt::Debug, ::core::clone::Clone, ::core::marker::Copy)]
+enum InvalidCycleMode {
+    /// The report carries an empty proof trace.
+    EmptyTrace,
+    /// The report references vertices outside the DAG.
+    GhostEdge,
+}
+
+/// Solver that emits one invalid cycle report from module b, then hardens.
+#[derive(::core::fmt::Debug)]
+struct InvalidCycleThenHardenSolver {
+    mode: crate::InvalidCycleMode,
+    cycle_fired: ::core::primitive::bool,
+}
 
 /// Build a shared empty recording worker log handle.
 fn recording_workers(
@@ -1086,5 +1216,56 @@ impl ::global_engine::ModuleSolver for crate::AlwaysCycleSolver {
             cycle_edges: ::std::vec![("a".to_string(), "b".to_string())],
             proof_trace: "cycle".to_string(),
         }
+    }
+}
+
+impl ::global_engine::ModuleSolver for crate::InvalidCycleThenHardenSolver {
+    fn solve(
+        &mut self,
+        module_id: &::core::primitive::str,
+        problem_model: &::holon_blackboard::ProblemModelSlice,
+        mode: ::holon_fsm::ActivationMode,
+    ) -> ::global_engine::SolverOutcome {
+        let module_is_b = module_id == "b";
+        let hydrated = !problem_model.parent_contracts.is_empty();
+        if module_is_b && hydrated && !self.cycle_fired {
+            self.cycle_fired = true;
+            let outcome = match self.mode {
+                crate::InvalidCycleMode::EmptyTrace => ::global_engine::SolverOutcome::CycleFound {
+                    cycle_edges: ::std::vec![("b".to_string(), "a".to_string())],
+                    proof_trace: ::std::string::String::new(),
+                },
+                crate::InvalidCycleMode::GhostEdge => ::global_engine::SolverOutcome::CycleFound {
+                    cycle_edges: ::std::vec![("ghost_x".to_string(), "ghost_y".to_string())],
+                    proof_trace: "cycle spanning unknown vertices".to_string(),
+                },
+            };
+            return outcome;
+        }
+        let mut stub = ::global_engine::StubModuleSolver::default();
+        stub.solve(module_id, problem_model, mode)
+    }
+}
+
+impl ::global_engine::ModuleSolver for crate::AlwaysConflictSolver {
+    fn solve(
+        &mut self,
+        module_id: &::core::primitive::str,
+        problem_model: &::holon_blackboard::ProblemModelSlice,
+        mode: ::holon_fsm::ActivationMode,
+    ) -> ::global_engine::SolverOutcome {
+        // The root hardens. The downstream child reports the same extrinsic
+        // contract conflict on every dispatch. This models a controller whose
+        // rollout budget exhausts without reaching unit reward.
+        let module_is_b = module_id == "b";
+        if module_is_b {
+            return ::global_engine::SolverOutcome::ContractConflict {
+                parent_id: "a".to_string(),
+                delta_spec: "budget_exhausted_delta".to_string(),
+                proof_trace: "trace names b and parent a".to_string(),
+            };
+        }
+        let mut stub = ::global_engine::StubModuleSolver::default();
+        stub.solve(module_id, problem_model, mode)
     }
 }

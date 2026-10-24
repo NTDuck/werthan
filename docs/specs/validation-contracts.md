@@ -51,6 +51,8 @@ ID scheme: `VAL-<COMPONENT>-<NN>`. Components: `MACRO` (global engine/statechart
 - **VAL-MACRO-14 (Phase dispatch via typed activation envelopes).** Every worker activation carries an envelope with (activation mode, scoped blackboard slice, delta directive, tool bindings); the scoped slice contains exactly the target ref's 1-hop neighborhood.
 - **VAL-MACRO-15 (Push-based, no polling).** The engine consumes a FIFO event queue; agents are ephemeral. There is no API by which an agent can block-poll the blackboard; completion is signaled exclusively by typed events (ev_TaskDone / ev_ShardDone / regression interrupts / ev_ModuleHardened).
 - **VAL-MACRO-16 (Termination artifact).** On termination, the produced artifact set R_tgt equals the accumulated artifacts on G (A_artifacts), and the final macro-state is terminal.
+- **VAL-MACRO-17 (Invalid cycle report parking).** A Tier C cycle report that fails validation (empty proof trace, edge endpoints outside the DAG, or arbiter rejection) parks the reporting module in M0_Blocked instead of leaving it in M1/M2/M3. compute_ready_set never re-selects M1/M2/M3 states, so an unparked reporter deadlocks the wave scheduler.
+- **VAL-MACRO-18 (Futile dispatch cap).** Each park of a cycle reporter or a contract-conflict dispatcher increments the module's futile-dispatch counter; hardening resets it. When a module re-reaches the cap of futile dispatches, the engine terminates with `ModuleRetryExhausted` instead of cycling park, re-ready, re-dispatch and burning unbounded solver rollout budgets.
 
 ### 4.2 BLACKBOARD-G — Global Blackboard G (Definitions 1)
 
@@ -129,7 +131,7 @@ ID scheme: `VAL-<COMPONENT>-<NN>`. Components: `MACRO` (global engine/statechart
 ### 4.12 AEVAL — Two-Stage Hybrid Evaluator
 
 - **VAL-AEVAL-01 (Stage order is fixed).** Stage 3a (deterministic execution harness: compile + characterize tests) runs strictly before Stage 3b (diagnostic distiller); Stage 3b runs only on Stage 3a failure or for harden-scoring on success.
-- **VAL-AEVAL-02 (Stage 3a determinism).** The execution harness computes compile indicator + characterization pass rate from actual cargo invocation (compile + test commands, timed out); with an inaccessible toolchain the harness reports failure honestly (no fabricated pass).
+- **VAL-AEVAL-02 (Stage 3a determinism).** The execution harness computes compile indicator + characterization pass rate from the configured toolchain invocation (`stack.target_build_cmd` / `target_test_cmd`; the cargo default covers Rust targets, arbitrary commands cover other targets), each command timed out. With an inaccessible toolchain the harness reports failure honestly (no fabricated pass).
 - **VAL-AEVAL-03 (Distiller fault taxonomy).** The distiller classifies every failure into exactly one of INTRINSIC | EXTRINSIC_CONTRACT | EXTRINSIC_CYCLE, writing a distilled fault record to B_PR; unrecognized labels are INTRINSIC.
 - **VAL-AEVAL-04 (Business rule audit).** On candidate success, the distiller's parity critic verifies Given/When/Then rule coverage and yields Score_harden ∈ [0,1] (fraction of rules satisfied; 0.0 when no rules, 1.0 when all terms present).
 - **VAL-AEVAL-05 (Unified result).** The evaluator composes harness output + distiller output into a single EvaluationResult carrying compile indicator, pass rate, harden score, fault records.

@@ -28,8 +28,14 @@ pub struct LocalBlackboard {
 
 impl self::LocalBlackboard {
     /// Initialize fresh four-slice local blackboard.
+    /// The problem model gets the rust target default: a blank target language
+    /// routes the test splitter to the non-rust opener branch and fragments
+    /// rust suites.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            problem_model: self::problem_model::ProblemModelSlice::new(),
+            ..Self::default()
+        }
     }
 
     /// Check if blackboard problem model contains required domain context.

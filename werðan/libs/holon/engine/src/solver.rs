@@ -255,18 +255,22 @@ mod tests {
         let strategy_agent = ::holon_strategy::HolonStrategyAgent::builder()
             .model(model.clone())
             .temperature(0.2)
+            .target_language("rust".to_string())
             .build();
         let codegen_agent = ::holon_codegen::HolonCodeGenAgent::builder()
             .model(model.clone())
             .temperature(0.2)
+            .target_language("rust".to_string())
             .build();
         let testgen_agent = ::holon_testgen::HolonTestGenAgent::builder()
             .model(model.clone())
             .temperature(0.2)
+            .target_language("rust".to_string())
             .build();
         let patch_agent = ::holon_patch::HolonPatchAgent::builder()
             .model(model.clone())
             .temperature(0.2)
+            .target_language("rust".to_string())
             .build();
         let strategy_handle = ::std::sync::Arc::new(strategy_agent);
         let codegen_handle = ::std::sync::Arc::new(codegen_agent);

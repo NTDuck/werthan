@@ -574,6 +574,7 @@ fn build_engine(
         .build();
     let testgen_agent = ::holon_testgen::HolonTestGenAgent::builder()
         .model(model.clone())
+        .target_language("rust".to_string())
         .build();
     let patch_agent = ::holon_patch::HolonPatchAgent::builder()
         .model(model.clone())
