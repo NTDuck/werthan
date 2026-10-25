@@ -1,6 +1,6 @@
 # 2026-10-25 Benchmark Report
 
-Real-inference ARIADNE campaign status for the `skel` ReCodeAgent category (8 projects, Python→JavaScript), daemons v1–v18 lineage, RTX 3090 (`swift-1.5-qwen3.8-27b` @ 127.0.0.1:8092/v1). Snapshot taken 19:00 +07 while five campaigns were still in flight; in-flight numbers are snapshots, not finals.
+Real-inference ARIADNE campaign status for the `skel` ReCodeAgent category (8 projects, Python→JavaScript), daemons v1–v18 lineage, RTX 3090 (`swift-1.5-qwen3.8-27b` @ 127.0.0.1:8092/v1). Section 1's table was written 19:00 +07 while five campaigns were in flight; heapq finished at 20:03 and its row is final, rbt/html/strsim rows remain provisional snapshots.
 
 ## 1. Benchmark Status
 
@@ -10,19 +10,19 @@ Ground truth as of 2026-10-25 19:00 +07. Category `skel`: 8 projects, Python→J
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | bst | python→javascript | 808 | finished-error | — | 10-25 11:49 | 22,144,759 ms (~6.2 h) | 195 | **false** | 1.0 | 3 | 4 | 1 | 601 | 808 (total) | **FAIL** | v16-era binary; terminal error "module source.py exhausted the futile dispatch cap after 3 attempts" — the now-fixed fabricated `parent_upstream` conflict path |
 | colorsys | python→javascript | 355 | finished-error | — | 10-25 09:35 | 14,159,337 ms (~3.9 h) | 119 | **false** | 1.0 | 3 | 4 | 1 | 277 | 355 (total) | **FAIL** | same futile-cap death via fabricated conflict (pre-fix binary); within 2 h window but comp=false |
-| heapq | python→javascript | 497 | in-flight v18 | 16:47 | — | ~2.2 h elapsed @ 18:56 | — | — | — | — | — | — | 546 | 13,809 | ⏳ pending | v17 prior run finished comp=true, pass 0.0, 194 requests, died at 3 dispatches (BudgetExhausted remapped to conflict); node probe `node translated.js` = **0 (passes)** @ 18:58; watch for honest ModuleRetryExhausted vs hardening |
+| heapq | python→javascript | 497 | finished (v18) | 16:47 | 10-25 20:03 | 11,669,900 ms (~3.2 h) | 107 | **true** | 1.0 | 3 | 4 | 1 | 546 | 13,809 | **PASS** (all 4 criteria; error field noted) | v18 honest terminal: module parked at futile dispatch 3 with all-4-criteria workspace (comp true, pass 1.0, 0 stubs, 107 requests); the recorded `error` is the futile-cap message, but the artifact passes every §6 criterion — reward-scoring never certified the already-green candidate (see §2.5) |
 | html | python→javascript | 1479 | in-flight v18 | 16:49 | — | ~2.1 h elapsed @ 18:56 | — | — | — | — | — | — | 1349 | 42,935 | ⏳ pending | node probe = **1 (timeout)** — candidate main loop runs >15 s (likely characterization loop without progress guard); engine test_timeout applies so harness sees timeout → fault distill → patch; convergence inside 3×16 rollouts is the open question |
 | mathgen | python→javascript | 1636 | finished-error | — | 10-25 09:33 | 17,653,051 ms (~4.9 h) | 206 | **false** | 1.0 | 6 | 5 | 2 | 80 (truncated) | 1218 code / 1684 total at finish | **FAIL** | futile dispatch cap after 3 attempts (pre-fix binary); candidate truncated in workspace |
 | rbt | python→javascript | 906 | in-flight v18 | 16:47 | — | ~2.2 h elapsed @ 18:56 | — | — | — | — | — | — | 776 | 23,654 | ⏳ pending | node probe = **0 (passes)** @ 18:58; prior failure mode was red-black rotation test fail — patch/testgen loop did not converge in 48 rollout chances |
 | strsim | python→javascript | 1591 | in-flight v18 (v17 run finished-error) | 17:07 (v17: finished 16:59) | 16:59 (v17) | — (v17: n/a) | 457 (v17) | **false** (v17) | 1.0 (v17) | 6 (v17) | — | — | 1216 | 44,332 | ⏳ pending (v17 run: **FAIL**) | v17 futile-cap death; node probe = **0 (passes)** @ 18:58; also hit watchdog restart cap (3) earlier 04:00–04:32 (transport 500s + hang shape) |
 | toml | python→javascript | 2060 | stale | — | 10-24 09:52 | 1,759,252 ms (~29 min) | 14 | **false** | 1.0 | 2 | 5 | 2 | 1715 | 56,490 | **FAIL** (stale) | "wave dispatch deadlock: no ready module while unhardened modules remain" — fixed by 728ef11 terminate-instead-of-deadlock + park logic; a separate **old-binary** process (started 04:39, 14.3 h, pre-BudgetExhausted fix, over the 2 h bound) is still running and must be restarted on v18 |
 
-**In-flight caveat:** heapq, rbt, html, strsim v18 numbers above are snapshots at 19:00 +07; those campaigns were still running when this section was written, and all metrics for them are provisional.
+**In-flight caveat:** rbt, html, strsim v18 numbers above are snapshots at 19:00 +07; those campaigns were still running when this section was written, and all metrics for them are provisional. heapq finished at 20:03 and its numbers are final.
 
 ### Summary
 
-- **Verdicts (finished runs only):** 0 PASS / 4 FAIL (bst, colorsys, mathgen + stale toml) / 4 in-flight v18 (heapq, rbt, html, strsim). No finished run meets all 4 acceptance criteria: `compilation_success == false` in every finished JSON, which gates out the otherwise-perfect `test_pass_rate == 1.0` and `unimplemented_remaining == 0`.
-- **Aggregate llm_requests across finished runs:** 119 + 206 + 195 + 457 (strsim v17) + 14 (stale toml) = **991 requests**, of which 977 on today's honest pre-fix/v17 runs and 14 on the stale toml run.
+- **Verdicts (finished runs only):** 1 PASS (heapq v18) / 4 FAIL (bst, colorsys, mathgen + stale toml) / 3 in-flight v18 (rbt, html, strsim). heapq meets all 4 acceptance criteria (`compilation_success == true`, `test_pass_rate == 1.0`, `unimplemented_remaining == 0`, `llm_requests 107 > 0`) — the first honest real-inference skel PASS; every other finished run still died with `compilation_success == false` on the fabricated-conflict path.
+- **Aggregate llm_requests across finished runs:** 119 + 206 + 195 + 457 (strsim v17) + 14 (stale toml) + 107 (heapq v18) = **1,098 requests**, of which 1,084 on today's honest pre-fix/v17/v18 runs and 14 on the stale toml run.
 - **Baseline vs today:** the 2026-10-18 ReCodeAgent report showed skel at 100% compile rate, 87.5% mean pass rate, 7/8 passed — but under stub-campaign semantics with simulated receipts, not real engine runs. Today's real-inference runs are the first honest skel measurements, and every finished run so far died on the (now-fixed) fabricated-conflict path or ran past the 2 h bound.
 - **Binary lineage:** v1–v16 fabricated a `parent_upstream` counterparty for parentless modules → Tier B broadcast against nothing → futile cap after 3 dispatches (and a wave-deadlock variant). v17 (12:54) treated the fault as intrinsic but still remapped BudgetExhausted to a conflict. **v18 (16:49, current)** introduces honest `SolverOutcome::BudgetExhausted`: parentless module with exhausted rollout budget parks in M0_Blocked, counts futile, fires no Tier B broadcast; VAL-M2-05 contract + specs updated, 277 workspace tests green, 0 clippy violations.
 
@@ -97,7 +97,11 @@ flowchart TD
     end
 ```
 
-The pre-fix path converted a retryable budget condition into a terminal structural verdict by inventing a counterparty; the post-fix path keeps the parentless module parked (M0_Blocked), counts futility honestly, and never broadcasts a conflict that methodology §5.2 cannot anchor. The strsim v17 run (`comp=false`, 457 requests, 6 dispatches, same terminal error) and the in-flight v18 runs (heapq, rbt, html, strsim started 16:47–17:07) bracket the transition.
+The pre-fix path converted a retryable budget condition into a terminal structural verdict by inventing a counterparty; the post-fix path keeps the parentless module parked (M0_Blocked), counts futility honestly, and never broadcasts a conflict that methodology §5.2 cannot anchor. The strsim v17 run (`comp=false`, 457 requests, 6 dispatches, same terminal error) and the v18 runs (heapq finished 20:03; rbt, html, strsim started 16:47–17:07) bracket the transition.
+
+### 2.5 The heapq paradox: all criteria green, yet futile-cap terminal
+
+heapq's v18 run (finished 20:03, 11,669,900 ms) is the first honest skel PASS — `compilation_success == true`, `test_pass_rate == 1.0`, `unimplemented_remaining == 0`, `llm_requests 107 > 0` — yet its result JSON records `error: "module source.py exhausted the futile dispatch cap after 3 attempts"` and the log shows the module parking at futile dispatch 3 (step 9, state S5IterativeDag) rather than hardening. The workspace held a fully green candidate, but the engine's reward scoring never certified it as 1.0 (no hardening event), so the rollout loop kept spending budget on an already-solved module until the futile cap parked it. The artifact-level outcome is correct; the gap is between candidate quality (observable, validated) and reward scoring (internal, never converged to the hardening threshold). This is the §3.3b futile-cap-reset / reward-calibration defect in its benign form: here it only wasted ~1 h of budget after convergence, but the same shape kills a campaign when the cap trips *before* the candidate turns green.
 
 ## 3. Remediation Strategy
 
