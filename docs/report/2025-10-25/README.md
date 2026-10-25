@@ -97,7 +97,7 @@ flowchart TD
     end
 ```
 
-The pre-fix path converted a retryable budget condition into a terminal structural verdict by inventing a counterparty; the post-fix path keeps the parentless module parked (M0_Blocked), counts futility honestly, and never broadcasts a conflict that methodology §5.2 cannot anchor. The strsim v17 run (`comp=false`, 457 requests, 6 dispatches, same terminal error) and the v18 runs (heapq finished 20:03; rbt, html, strsim started 16:47–17:07) bracket the transition.
+The pre-fix path converted a retryable budget condition into a terminal structural verdict by inventing a counterparty; the post-fix path keeps the parentless module parked (M0_Blocked), counts futility honestly, and never broadcasts a conflict that methodology §5.2 cannot anchor. The strsim v17 and toml old-binary runs (`comp=false`, 457 and 774 requests, 6 dispatches each, same futile-cap terminal error) and the v18 runs (heapq finished 20:03 with an all-criteria PASS; rbt, html, strsim started 16:47–17:07) bracket the transition.
 
 ### 2.5 The heapq paradox: all criteria green, yet futile-cap terminal
 
