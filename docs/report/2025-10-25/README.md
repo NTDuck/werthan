@@ -1,4 +1,4 @@
-# skel Benchmark Campaign Report — 2026-10-25
+# 2026-10-25 Benchmark Report
 
 Real-inference ARIADNE campaign status for the `skel` ReCodeAgent category (8 projects, Python→JavaScript), daemons v1–v18 lineage, RTX 3090 (`swift-1.5-qwen3.8-27b` @ 127.0.0.1:8092/v1). Snapshot taken 19:00 +07 while five campaigns were still in flight; in-flight numbers are snapshots, not finals.
 
