@@ -146,12 +146,12 @@ Single read-only lens (`Wave4Audit`) over the eight wave-3 fix sites.
 
 | Finding | Verdict | Disposition |
 |---|---|---|
-| W4-1 (W3-1 recheck) | FIXED w/ risk — `11` R4 still carried the pre-W3-1 invariant; residual drain-latency risk named | **Fixed**: R4 synced to {M0-held} + Unreachable sweep (`11` R4); drain latency documented as accepted residual in `14` §6 note |
+| W4-1 (W3-1 recheck) | FIXED w/ risk — `11` R4 still carried the pre-W3-1 invariant; residual drain-latency risk named | **Fixed**: R4 synced to {M0-held} + Unreachable sweep (`11` R4); drain latency documented as accepted residual in `14` §6 (wave-5 correction: the note was initially claimed but not written; now inline) |
 | W4-2 (W3-2 recheck) | CLEAN | — |
 | W4-3 (W3-3 recheck) | STILL BROKEN — `12` A4 never received the spot-audit sync; retained refuted per-module gate | **Fixed**: A4 rewritten to campaign-level spot audit + escalation + named 95%-unaudited residual (`12` A4) |
 | W4-4 (W3-4 recheck) | CLEAN | — |
 | W4-5 (W3-5 recheck) | STILL BROKEN — ⌈0.15·|V|⌉ breaches the 1,608-step envelope (15×64+85×8=1,640); line self-contradicted its own parenthetical; `12` A8 never synced | **Fixed**: quota corrected to ⌈0.10·|V|⌉ with explicit arithmetic (10×64+90×8=1,360 ≤ 1,608, 248-step headroom); A8 carries the full admission policy (`12` A8, `14` §6) |
-| W4-6 (W3-6 recheck) | FIXED w/ risk — ≥0.95 normalized parity permits ≤5% divergence; normalization per-receipt, not a pinned grammar | Accepted-with-rationale: tolerance bounded + documented per receipt; a pinned normalization grammar is deferred to the harness ADR (edit-scope note in `14` §7) |
+| W4-6 (W3-6 recheck) | FIXED w/ risk — ≥0.95 normalized parity permits ≤5% divergence; normalization per-receipt, not a pinned grammar | Accepted-with-rationale: tolerance bounded + documented per receipt; a pinned normalization grammar is deferred to the harness ADR (edit-scope note added to `14` §7 in wave 5 — initially claimed, not written) |
 | W4-7 (W3-8 recheck) | FIXED w/ risk — no terminal variant for cancelled siblings; revival asymmetry | **Fixed**: `Failed(DownstreamTerminal)` variant + revival-symmetry clause (`14` §2, `11` R12) |
 | W4-8 (cross) | Phantom citations `12 M2` in ledger W3-1/W3-4 rows | **Fixed**: citations corrected to real targets (`11` R4, `12` interaction note) |
 | W4-9 (cross) | W3-7 `O_SYNC`/fsync text absent from `11` R9 and `14` §1 — ledger certified an unapplied edit (phantom disposition, third recurrence) | **Fixed**: `O_SYNC` append + fsync-per-5-s + supervisor receipt-finalizer CLI now in `11` R9 and `14` §1 Honesty row |
@@ -159,4 +159,18 @@ Single read-only lens (`Wave4Audit`) over the eight wave-3 fix sites.
 
 **Root cause of the recurring phantom dispositions:** fixes were applied by unasserted in-memory string replacement; from wave 4 onward every fix script asserts its anchor before writing.
 
-**Convergence (10 §3 rule: two consecutive clean waves):** wave 4 surfaced 2 STILL BROKEN (both now fixed in source with asserted anchors), 3 FIXED-with-residual-risk (2 fixed, 1 accepted-with-rationale), 3 CLEAN — not clean. Residual risks named and carried in `14` §8. **Status: wave-4 fixes applied; convergence remains provisional pending wave 5 on the wave-4 amendments.**
+## Wave 5 - re-audit of wave-4 amendments (executed)
+
+Single read-only lens (`Wave5Audit`) over the ten wave-4 fix sites.
+
+| Finding | Verdict | Disposition |
+|---|---|---|
+| W5-1 | `14` §6 cited "W4-6" for the arithmetic fix; correct index is W4-5 | **Fixed** (`14` §6) |
+| W5-2 | Ledger W4-1 claimed a drain-latency note in `14` §6 that was never written (phantom) | **Fixed**: drain-latency residual now written into `14` §6, bounded by longest in-flight dispatch |
+| W5-3 | Ledger W4-6 claimed an edit-scope note in `14` §7 that was never written (phantom) | **Fixed**: normalization-grammar deferral note now written into `14` §7 |
+| W5-4 | `12` interaction note still quoted the refuted flat 1.4% stub-sensitivity cost, contradicting `13` C4.2 / `14` §3 | **Fixed**: cost restated (skel ≤1.4%, compiled crates up to ~17% of $W$) |
+| W5-5 | Ledger claimed wave-4 residuals "carried in `14` §8" but §8 lacked them (phantom) | **Fixed**: four bounded residuals (drain latency, 95% un-audited mutation gap, ≤5% parity divergence, 5 s journal flush lag) appended to `14` §8 |
+| W5-6 | `11` R9 lacks the literal "receipt-finalizer CLI" token (14 §1 has it) | Accepted-with-rationale: R9's "finalized post-mortem by the supervisor" carries the same contract; the CLI token is the §1 interface form — no drift of meaning |
+| W5-7 | W4-2/W4-4/W4-8 rechecks | CLEAN (coupling-tier batching, progress quantum, ledger citations) |
+
+**Convergence (10 §3 rule: two consecutive clean waves):** wave 5 surfaced 0 FATAL / 0 STILL BROKEN on mechanism; all 5 new discrepancies were documentation-claim phantoms or a stale cost figure, all fixed above; 3 CLEAN rechecks. Wave 5 is therefore the first wave with **zero fatal/valid mechanism findings** — but the rule requires two consecutive clean waves, and wave 5's five documentation defects disqualify it from counting as clean under the strict reading. **Status: wave-5 fixes applied; convergence provisional pending wave 6 on the wave-5 amendments (expected scope: the five documentation corrections + the four §8 residuals).**

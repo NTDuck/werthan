@@ -58,3 +58,7 @@ Wave 3 re-audited only the wave-2 amendments and found that **three of the seven
 ## v6 - Wave-4 audit: arithmetic truth from re-derivation
 
 Wave 4 caught the wave-3 hard-tier quota breaching the very envelope it was written to protect (⌈0.15·|V|⌉ × 64 steps + patch remainder = 1,640 > 1,608 candidate-steps) — a fix that recreated the class of bug it fixed — plus a third phantom disposition (O_SYNC text certified but never written). Root causes: arithmetic asserted against a parenthetical instead of re-derived, and unasserted string replacement. Both process defects now have countermeasures: every fix script asserts its anchor; every quantitative claim is re-derived from the budget constants, not copied. The quota is corrected to ⌈0.10·|V|⌉ with the derivation inline (`14` §6).
+
+## v7 - Wave-5 audit: the mechanism/documentation split
+
+Wave 5 found zero defects in the audited mechanisms (liveness sweep, tier arithmetic, sibling cancellation, journaling, spot audit) — every remaining finding was a *documentation phantom*: the ledger claimed a note existed in `14` that had never been written (three instances), plus one stale cost figure the fix scripts missed because its anchor had different formatting than the greped variant. Distinction now explicit in the ledger: mechanism fixes require asserted anchors; documentation claims require a post-write grep for the claimed artifact. The report's own audit trail is the last thing standing between an honest claim and a certified fiction — and it caught all five.
