@@ -173,4 +173,21 @@ Single read-only lens (`Wave5Audit`) over the ten wave-4 fix sites.
 | W5-6 | `11` R9 lacks the literal "receipt-finalizer CLI" token (14 §1 has it) | Accepted-with-rationale: R9's "finalized post-mortem by the supervisor" carries the same contract; the CLI token is the §1 interface form — no drift of meaning |
 | W5-7 | W4-2/W4-4/W4-8 rechecks | CLEAN (coupling-tier batching, progress quantum, ledger citations) |
 
-**Convergence (10 §3 rule: two consecutive clean waves):** wave 5 surfaced 0 FATAL / 0 STILL BROKEN on mechanism; all 5 new discrepancies were documentation-claim phantoms or a stale cost figure, all fixed above; 3 CLEAN rechecks. Wave 5 is therefore the first wave with **zero fatal/valid mechanism findings** — but the rule requires two consecutive clean waves, and wave 5's five documentation defects disqualify it from counting as clean under the strict reading. **Status: wave-5 fixes applied; convergence provisional pending wave 6 on the wave-5 amendments (expected scope: the five documentation corrections + the four §8 residuals).**
+**Convergence (10 §3 rule: two consecutive clean waves):** wave 5 surfaced 0 FATAL / 0 STILL BROKEN on mechanism; all 5 new discrepancies were documentation-claim phantoms or a stale cost figure, all fixed above; 3 CLEAN rechecks. Wave 5 is therefore the first wave with **zero fatal/valid mechanism findings** — but the rule requires two consecutive clean waves, and wave 5's five documentation defects disqualify it from counting as clean under the strict reading. ## Wave 6 - convergence-deciding re-audit of wave-5 amendments (executed)
+
+Single read-only lens (`Wave6Audit`) over the wave-5 documentation corrections and the three new `14` notes.
+
+| Check | Verdict |
+|---|---|
+| W5-1 (citation index W4-5 in `14` §6) | CLEAN |
+| W5-2 (drain-latency note, `14` §6) | FIXED w/ residual — bounded by longest in-flight dispatch; consistent with `11` R4; carried in §8 |
+| W5-3 (normalization-grammar deferral, `14` §7) | FIXED w/ residual — ≤5% divergence until harness ADR pins the grammar; §7 ADR #4 owns it |
+| W5-4 (stub-cost restatement, `12`) | CLEAN — consistent with `13` C4.2 / `14` §3 |
+| W5-5 (four carried residuals, `14` §8) | CLEAN — all four verbatim, all cross-references resolve; §6 envelope arithmetic re-derived exact (248-step headroom) |
+| W5-6 (R9 vs §1 finalizer wording) | CLEAN (accepted-with-rationale holds) |
+| W5-7 rechecks (W4-2/W4-4/W4-8) | CLEAN — quantum uniform across 5 sites, no stale ε=0.05, citations real |
+| Phantom sweep | **Zero unapplied or phantom edits remain** (all five W5 ledger claims verified against source) |
+
+**Convergence (10 §3 rule: two consecutive waves with zero fatal findings): wave 5 (0 fatal) + wave 6 (0 FATAL, 0 STILL BROKEN, 0 phantoms) ⇒ CONVERGENCE ACHIEVED.**
+
+The proposal's status is final for this report: **audit-converged, with four bounded residual risks carried in `14` §8** and five edit-scope items deferred to ADRs (`14` §7). Waves 1-6 in total: 60+ findings, every one dispositioned in this ledger with a verifiable source anchor.

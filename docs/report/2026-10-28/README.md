@@ -56,4 +56,4 @@ Subfiles:
 
 ## Companion report (methodology optimization)
 
-This directory also hosts a second deliverable produced under the same ultrathink workflow: the **methodology-optimization report** (files `10`–`17`), which consumes this analysis (F/D/G ids) and produces the audit-surviving methodology proposal **PASIPHAE** (`14-final-methodology.md`), with meta-strategy (`10`), requirements R1–R13 (`11`), design space (`12`), candidate scoring (`13`), design journey (`15`), adversarial audit ledger (`16`), and verified bibliography (`17`).
+This directory also hosts a second deliverable produced under the same ultrathink workflow: the **methodology-optimization report** (files `10`–`17`), which consumes this analysis (F/D/G ids) and produces the audit-converged methodology proposal **PASIPHAE** (`14-final-methodology.md`), with meta-strategy (`10`), requirements R1–R13 (`11`), design space (`12`), candidate scoring (`13`), design journey (`15`), adversarial audit ledger (`16` — waves 1–6, converged per the two-consecutive-fatal-free-waves rule), and verified bibliography (`17`).
