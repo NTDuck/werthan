@@ -53,3 +53,7 @@ Subfiles:
 ## Reading order
 
 `04-failure-taxonomy.md` is the empirical core (what actually breaks); `03-skel-block-granularity.md` is the deepest single finding about the dataset's translation unit; `05-methodology-gaps.md` is the actionable synthesis.
+
+## Companion report (methodology optimization)
+
+This directory also hosts a second deliverable produced under the same ultrathink workflow: the **methodology-optimization report** (files `10`–`17`), which consumes this analysis (F/D/G ids) and produces the audit-surviving methodology proposal **PASIPHAE** (`14-final-methodology.md`), with meta-strategy (`10`), requirements R1–R13 (`11`), design space (`12`), candidate scoring (`13`), design journey (`15`), adversarial audit ledger (`16`), and verified bibliography (`17`).
