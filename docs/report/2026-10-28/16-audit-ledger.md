@@ -128,10 +128,10 @@ Single read-only lens (`Wave3Audit`) over the six wave-2 fix targets only.
 
 | Finding | Verdict | Disposition |
 |---|---|---|
-| W3-1 | FATAL — below-cap strategy-exhausted modules park in M0, invisible to the {M1–M3} liveness invariant; empty ReadySet deadlocks the campaign (F2 replay) | **Fixed**: park permitted only with a live unblock source, else direct `M_Failed(StrategyExhaustion)`; liveness invariant extended to M0-held vertices + dependents with an Unreachable sweep (`14` §2, §6; `12` M2) |
+| W3-1 | FATAL — below-cap strategy-exhausted modules park in M0, invisible to the {M1–M3} liveness invariant; empty ReadySet deadlocks the campaign (F2 replay) | **Fixed**: park permitted only with a live unblock source, else direct `M_Failed(StrategyExhaustion)`; liveness invariant extended to M0-held vertices + dependents with an Unreachable sweep (`14` §2, §6; `11` R4 synced wave-4) |
 | W3-2 | VALID — stale `≤ ~2× file` batching formula still in `12` A6 / `14` §1 while `13` C4.3 was amended | **Fixed**: both rewritten to coupling-tier grouping with explicit no-decompose-on-coupling clause (`12` A6, `14` §1) |
 | W3-3 | VALID — mutation spot-audit + generator escalation existed only in ledger/meta-strategy, not in `12`/`14` | **Fixed**: spot-audit orchestration (≤5 modules, ≤30 mutants, generator escalation) synced into `12` A4 + `14` §3; residual overfitting risk named |
-| W3-4 | VALID — stale $\epsilon_{prog}{=}0.05$ in `12`/`14` while `10`/`16` carried the $0.6/N_{suite}$ fix | **Fixed**: quantum redefined everywhere as $\Delta R \ge 0.6/N_{suite}$ absolute (`12` M2, `14` §1/§2/§6) |
+| W3-4 | VALID — stale $\epsilon_{prog}{=}0.05$ in `12`/`14` while `10`/`16` carried the $0.6/N_{suite}$ fix | **Fixed**: quantum redefined everywhere as $\Delta R \ge 0.6/N_{suite}$ absolute (`12` interaction note, `13` C4.1, `14` §1/§2/§6, `11` R5) |
 | W3-5 | VALID — no tier-assignment predicate, hard-tier admission cap, or re-balancing; unconstrained hard tier breaks the 1,608-step envelope | **Fixed**: deterministic blackboard predicate + hard-tier quota ⌈0.15·|V|⌉ + eviction/extension rules (`12` A8, `14` §6, `11` R10) |
 | W3-6 | MINOR — L2 parity gate threshold unquantified; non-executable legacy vacates L2 silently | **Fixed**: exact-match on byte-identical configs, ≥0.95 normalized otherwise, `parity: verdict_only` label for non-executable legacy (`10` §1, `14` §3) |
 | W3-7 | MINOR — supervisor journal has no O_SYNC/flush mandate; cgroup kill drops the tail | **Fixed**: O_SYNC append, fsync per 5 s sample mandated (`11` R9, `14` §1) |
@@ -140,4 +140,23 @@ Single read-only lens (`Wave3Audit`) over the six wave-2 fix targets only.
 
 Three of these (W3-2/3/4) were wave-2 fixes claimed in the wave-2 section that had not actually landed in `12`/`14` — phantom dispositions of dispositions, caught only because wave 3 re-read the sources. Cost of skipping the re-read: the ledger would have certified fixes that existed only here.
 
-**Convergence (10 §3 rule: two consecutive clean waves):** wave 3 surfaced 1 FATAL + 4 VALID + 3 MINOR — not clean. A wave-4 pass would re-run the lens on the wave-3 amendments (park-with-live-unblock-source semantics, tier admission quota, sibling cancellation, parity gate). **Status: wave-3 fixes applied; convergence remains provisional pending wave 4.**
+## Wave 4 - re-audit of wave-3 amendments (executed)
+
+Single read-only lens (`Wave4Audit`) over the eight wave-3 fix sites.
+
+| Finding | Verdict | Disposition |
+|---|---|---|
+| W4-1 (W3-1 recheck) | FIXED w/ risk — `11` R4 still carried the pre-W3-1 invariant; residual drain-latency risk named | **Fixed**: R4 synced to {M0-held} + Unreachable sweep (`11` R4); drain latency documented as accepted residual in `14` §6 note |
+| W4-2 (W3-2 recheck) | CLEAN | — |
+| W4-3 (W3-3 recheck) | STILL BROKEN — `12` A4 never received the spot-audit sync; retained refuted per-module gate | **Fixed**: A4 rewritten to campaign-level spot audit + escalation + named 95%-unaudited residual (`12` A4) |
+| W4-4 (W3-4 recheck) | CLEAN | — |
+| W4-5 (W3-5 recheck) | STILL BROKEN — ⌈0.15·|V|⌉ breaches the 1,608-step envelope (15×64+85×8=1,640); line self-contradicted its own parenthetical; `12` A8 never synced | **Fixed**: quota corrected to ⌈0.10·|V|⌉ with explicit arithmetic (10×64+90×8=1,360 ≤ 1,608, 248-step headroom); A8 carries the full admission policy (`12` A8, `14` §6) |
+| W4-6 (W3-6 recheck) | FIXED w/ risk — ≥0.95 normalized parity permits ≤5% divergence; normalization per-receipt, not a pinned grammar | Accepted-with-rationale: tolerance bounded + documented per receipt; a pinned normalization grammar is deferred to the harness ADR (edit-scope note in `14` §7) |
+| W4-7 (W3-8 recheck) | FIXED w/ risk — no terminal variant for cancelled siblings; revival asymmetry | **Fixed**: `Failed(DownstreamTerminal)` variant + revival-symmetry clause (`14` §2, `11` R12) |
+| W4-8 (cross) | Phantom citations `12 M2` in ledger W3-1/W3-4 rows | **Fixed**: citations corrected to real targets (`11` R4, `12` interaction note) |
+| W4-9 (cross) | W3-7 `O_SYNC`/fsync text absent from `11` R9 and `14` §1 — ledger certified an unapplied edit (phantom disposition, third recurrence) | **Fixed**: `O_SYNC` append + fsync-per-5-s + supervisor receipt-finalizer CLI now in `11` R9 and `14` §1 Honesty row |
+| W4-10 (cross) | `13` C4.2 still quoted the refuted ~1.4% stub-sensitivity cost | **Fixed**: cost restated (≤1.4% skel-class, up to ~17% of $W$ compiled crates; RecheckScale W2-S1.2) and mutation wording aligned to spot audit (`13` C4.2) |
+
+**Root cause of the recurring phantom dispositions:** fixes were applied by unasserted in-memory string replacement; from wave 4 onward every fix script asserts its anchor before writing.
+
+**Convergence (10 §3 rule: two consecutive clean waves):** wave 4 surfaced 2 STILL BROKEN (both now fixed in source with asserted anchors), 3 FIXED-with-residual-risk (2 fixed, 1 accepted-with-rationale), 3 CLEAN — not clean. Residual risks named and carried in `14` §8. **Status: wave-4 fixes applied; convergence remains provisional pending wave 5 on the wave-4 amendments.**
