@@ -15,7 +15,7 @@ LoC distribution (source side): crust min 125 / median 1,071.5 / max 29,489 (lib
 
 ## 2. Stub census — crust is a synthesis benchmark
 
-- **3,090 `unimplemented!()` occurrences** across 289 of 583 `.rs` files (3,097 total `unimplemented` token hits; 7 are prose in comments/prints).
+- **3,090 `unimplemented!()` macro occurrences** across 284 of 583 `.rs` files; 289 files mention `unimplemented` in total (the extra 5 are prose references in test comments/prints, e.g. `xopt/rust/src/bin/test.rs:107`).
 - Top 20 by stub count: libfor 415/432 fns (96%), tisp 102/105 (97%), kairocompiler 105/112 (94%), recordmanager 86/91 (95%), linear-algebra-c 168/193 (87%), impcheck 100/117 (85%), fslib 131/235 (56%), lambda-calculus-eval 72/95 (76%), libutf 69/88 (78%), skp 67/75 (89%), c-blind-rsa-signatures 48/52 (92%), ltre 63/69 (91%), jccc 56/73 (77%), libpgn 58/87 (67%), megalania 53/79 (67%), genetic-NN 64/110 (58%), c-aces 51/69 (74%), cset 46/64 (72%), blt 44/56 (79%), libm17 39/54 (72%).
 - In 96/100 projects the only stub-free files are ported test suites (`src/bin/test*.rs`) and 0–4-line `lib.rs` re-export shims. **Only 2 projects have any implemented library logic** (`bostree/rust/src/lib.rs` invariant-check traversal, `fslib/rust/src/lib.rs` assert helpers).
 - Head scaffolding is near-zero-doc-comment: `use` + derives + struct/enum scaffolding, then walls of signature-`unimplemented!()` bodies (~15–30% scaffolding lines). Typed idiomatic models exist (14 type decls in tisp, `Result<>` errors, `HashMap` instead of `void*`) — a human authored the type layer, the behavior layer is entirely absent.
