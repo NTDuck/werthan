@@ -1,0 +1,2 @@
+[benchmark] Campaign skel-mathgen-bench starting.
+[benchmark] skel-mathgen: check=failed rate=100.0% wall=25392.9s unimplemented=0 error=wave dispatch deadlock: no ready module while unhardened modules remain

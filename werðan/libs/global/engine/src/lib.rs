@@ -1147,6 +1147,29 @@ impl self::MacroEngine {
                 };
                 self.board.state.event_queue.push_back(conflict_event);
             }
+            self::solver::SolverOutcome::BudgetExhausted {
+                module_id,
+                proof_trace,
+            } => {
+                // Budget exhaustion with no real parent edge. METHODOLOGY.md
+                // §5 Tier B requires a block on e_pi. The module parks like a
+                // contract-conflict dispatcher, but no conflict broadcast and
+                // no parent invalidation fire because no counterparty exists.
+                // The park still counts toward the futile cap (VAL-MACRO-18).
+                // A module that can never harden therefore terminates the
+                // campaign honestly instead of burning unbounded budgets.
+                self.board
+                    .state
+                    .module_states
+                    .insert(module_id.to_string(), ::global_blackboard::ModuleMicroState::M0Blocked);
+                self.transition_log.push((module_id.to_string(), ::global_blackboard::ModuleMicroState::M0Blocked));
+                let counter = self.futile_dispatches.entry(module_id.to_string()).or_insert(0);
+                *counter += 1;
+                ::tracing::info!(
+                    "module {module_id} exhausted its rollout budget without a contract counterparty and parked at futile dispatch {counter}"
+                );
+                let _ = &proof_trace;
+            }
             self::solver::SolverOutcome::CycleFound {
                 cycle_edges,
                 proof_trace,

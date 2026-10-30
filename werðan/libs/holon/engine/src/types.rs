@@ -70,10 +70,16 @@ pub enum EngineTypestateOutcome {
         /// Failure proof trace.
         proof_trace: ::std::string::String,
     },
-    /// Rollout budget exhausted, advancing machine into M3 ContractNegotiate with blocker delta.
+    /// Rollout budget exhausted without hardening. The machine stays in M2
+    /// AriadneMcts: no Tier B broadcast fires here. When the module blocks on
+    /// a real parent edge, the solver bridge converts this into a Tier B
+    /// contract conflict. A parentless module parks plainly (Tier A exhaustion).
     BudgetExhausted {
-        /// State machine transitioned to M3 ContractNegotiate with blocker specification.
-        machine: ::holon_fsm::StateMachine<::holon_fsm::M3ContractNegotiate>,
+        /// Retained state machine in M2 AriadneMcts.
+        machine: ::holon_fsm::StateMachine<::holon_fsm::M2AriadneMcts>,
+        /// Parent identifier the module blocks on. Empty when the module has
+        /// no parent contracts.
+        blocked_on_parent: ::std::string::String,
         /// Best candidate code identified during rollouts.
         best_candidate: ::core::option::Option<::std::string::String>,
         /// Highest reward achieved.

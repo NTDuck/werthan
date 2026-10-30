@@ -276,6 +276,46 @@ fn contract_val_daemon_07_external_test_failure_maps_zero_rate() {
     ::std::assert_eq!(validation.test_pass_rate, 0.0);
 }
 
+/// Contract: compilation success reflects only the final workspace artifact
+/// state. The engine terminal error lands in the `error` field and does not
+/// poison the compilation flag when the check passed and no unimplemented
+/// stubs remain.
+#[test]
+fn contract_val_daemon_08_compilation_success_ignores_terminal_error() {
+    let workspace_validation = ::daemon::bench_validation::WorkspaceValidation {
+        check_ok: true,
+        test_pass_rate: 1.0,
+    };
+    let terminal_error = ::core::option::Option::Some(
+        "module source.py exhausted the futile dispatch cap after 3 attempts".to_string(),
+    );
+    let bench_result = ::daemon::bench_runner::BenchResult {
+        campaign_id: "contract-engine-error".to_string(),
+        wall_time_ms: 0,
+        engine_wall_time_ms: 0,
+        llm_requests: 0,
+        unimplemented_before: 0,
+        unimplemented_after_reset: 0,
+        compilation_success: { workspace_validation.check_ok },
+        test_pass_rate: { workspace_validation.test_pass_rate },
+        unimplemented_remaining: 0,
+        solver_dispatches: 0,
+        worker_executions: 0,
+        structural_retries: 0,
+        macro_states_visited: 0,
+        total_lines: 0,
+        code_lines: 0,
+        cocomo_effort_pm: 0.0,
+        cocomo_duration_months: 0.0,
+        error: { terminal_error },
+    };
+    ::std::assert!(
+        bench_result.compilation_success,
+        "a passing workspace check with no stubs stays a compilation success even with an engine error"
+    );
+    ::std::assert!(bench_result.error.is_some(), "the engine error stays visible");
+}
+
 /// Build a config whose build and test commands exit with the given status.
 fn external_command_config(test_program: &'static ::core::primitive::str) -> ::daemon::bench_config::CampaignConfig {
     let mut bench_config = ::daemon::bench_config::CampaignConfig::default();

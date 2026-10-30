@@ -135,19 +135,32 @@ impl<
         }
 
         let parent_id = self.resolve_parent_id();
-        let blocker = "Rollout budget exhausted without achieving unit reward".to_string();
-        let trace = ::std::format!(
-            "Diagnostic fault threshold reached on module {} with parent {}",
-            machine.module_id(),
-            parent_id,
-        );
-        let conflict_machine = machine.into_contract_negotiate(parent_id, blocker.clone(), trace);
-
+        let parented = !self.blackboard.problem_model.parent_contracts.is_empty();
+        let trace = match parented {
+            true => ::std::format!(
+                "Rollout budget exhausted on module {} blocked on parent {}",
+                machine.module_id(),
+                parent_id,
+            ),
+            false => ::std::format!(
+                "Rollout budget exhausted on parentless module {} with no contract counterparty",
+                machine.module_id(),
+            ),
+        };
+        // METHODOLOGY.md §5 Tier B requires the block to sit on a real parent
+        // edge. A parentless module has no edge, so no conflict machine forms
+        // here. The bridge reads `blocked_on_parent` and picks a Tier B
+        // conflict for a parented module or a plain park for a parentless one.
+        let blocked_on = match parented {
+            true => parent_id,
+            false => ::std::string::String::new(),
+        };
         crate::types::EngineTypestateOutcome::BudgetExhausted {
-            machine: { conflict_machine },
+            machine,
+            blocked_on_parent: { blocked_on },
             best_candidate: self.best_candidate_code.clone(),
             best_reward: self.best_reward_score,
-            blocker_trace: { blocker },
+            blocker_trace: { trace },
         }
     }
 
@@ -233,7 +246,19 @@ impl<
         if let ::core::option::Option::Some(fault) = &eval_res.fault_record {
             self.blackboard.patch_records.record_fault(fault.clone());
 
-            if let ::core::option::Option::Some(::holon_blackboard::FaultCause::ExtrinsicContract) = fault.cause {
+            // Extrinsic classifications are only actionable when a real upstream
+            // counterparty exists. On a parentless module (single-file campaign)
+            // resolve_parent_id() fabricates "parent_upstream". No parent can
+            // resolve such a conflict: the module parks, the futile-dispatch
+            // counter exhausts, and the campaign dies with
+            // ModuleRetryExhausted. Treat such faults as intrinsic so the
+            // rollout loop and repair agent keep running within this controller.
+            let parentless_module = self.blackboard.problem_model.parent_contracts.is_empty();
+            let extrinsic_contract = ::core::matches!(
+                fault.cause,
+                ::core::option::Option::Some(::holon_blackboard::FaultCause::ExtrinsicContract)
+            );
+            if extrinsic_contract && !parentless_module {
                 let parent_id = self.resolve_parent_id();
                 let delta_spec = fault.summary.clone();
                 let proof_trace = fault.diagnostic_trace.clone();
@@ -245,7 +270,13 @@ impl<
                 return ::core::option::Option::Some(res);
             }
 
-            if let ::core::option::Option::Some(::holon_blackboard::FaultCause::ExtrinsicCycle) = fault.cause {
+            // A parentless module cannot prove an extrinsic cycle either: the
+            // fabricated edge (parent_upstream, self) has no real parent vertex.
+            let extrinsic_cycle = ::core::matches!(
+                fault.cause,
+                ::core::option::Option::Some(::holon_blackboard::FaultCause::ExtrinsicCycle)
+            );
+            if extrinsic_cycle && !parentless_module {
                 let parent_id = self.resolve_parent_id();
                 let reporter_id = ::core::clone::Clone::clone(&self.blackboard.module_id);
                 let edge = (parent_id, reporter_id);
@@ -351,4 +382,196 @@ impl<
         }
         "parent_upstream".to_string()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Deterministic completion double for controller-level tests.
+    #[derive(::core::clone::Clone)]
+    struct ControllerFakeModel {
+        response_text: ::std::string::String,
+    }
+
+    impl ::rig::completion::CompletionModel for self::ControllerFakeModel {
+        type Response = ::serde_json::Value;
+
+        async fn completion(
+            &self,
+            _request: ::rig::completion::CompletionRequest,
+        ) -> ::core::result::Result<
+            ::rig::completion::CompletionResponse<Self::Response>,
+            ::rig::completion::CompletionError,
+        > {
+            let content = ::rig::message::AssistantContent::text(self.response_text.clone());
+            let choice = ::rig::one_or_many::OneOrMany::one(content);
+            ::core::result::Result::Ok(::rig::completion::CompletionResponse {
+                choice,
+                raw_response: ::serde_json::Value::Null,
+            })
+        }
+    }
+
+    /// Harness double that always reports a compile failure carrying the
+    /// "interface mismatch" marker the default distiller maps to
+    /// FaultCause::ExtrinsicContract.
+    #[derive(::core::clone::Clone, ::core::fmt::Debug)]
+    struct ContractConflictHarness;
+
+    impl ::holon_evaluator::ExecutionHarness for self::ContractConflictHarness {
+        fn execute_candidate(
+            &self,
+            _module_id: &::core::primitive::str,
+            _candidate_code: &::core::primitive::str,
+            _test_suite: &[::std::string::String],
+            _target_language: &::core::primitive::str,
+        ) -> ::holon_evaluator::HarnessExecutionOutput {
+            let mismatch_logs = "error: interface mismatch against upstream export".to_string();
+            ::holon_evaluator::HarnessExecutionOutput {
+                compiles: false,
+                pass_rate: 0.0,
+                raw_logs: { mismatch_logs },
+            }
+        }
+    }
+
+    /// Distiller double emitting a constant ExtrinsicContract fault regardless
+    /// of log content, isolating the controller gate from classifier heuristics.
+    #[derive(::core::clone::Clone, ::core::fmt::Debug)]
+    struct FixedContractDistiller;
+
+    impl ::holon_evaluator::DiagnosticDistiller for self::FixedContractDistiller {
+        fn distill_failure(
+            &self,
+            raw_logs: &::core::primitive::str,
+            _candidate_code: &::core::primitive::str,
+            _problem_model: &::holon_blackboard::ProblemModelSlice,
+        ) -> ::holon_blackboard::FaultRecord {
+            let cause_opt = ::core::option::Option::Some(::holon_blackboard::FaultCause::ExtrinsicContract);
+            ::holon_blackboard::FaultRecord {
+                summary: "contract conflict".to_string(),
+                diagnostic_trace: ::std::string::ToString::to_string(raw_logs),
+                cause: { cause_opt },
+            }
+        }
+
+        fn audit_rules(
+            &self,
+            _candidate_code: &::core::primitive::str,
+            _problem_model: &::holon_blackboard::ProblemModelSlice,
+        ) -> ::core::primitive::f64 {
+            0.0
+        }
+    }
+
+    /// A fault classified as ExtrinsicContract on a parentless problem model
+    /// (empty parent_contracts) must NOT yield StepResult::ContractConflict.
+    /// The fabricated "parent_upstream" counterparty could never resolve it.
+    /// The engine would park the module until dispatches exhaust. The step
+    /// instead falls through to the intrinsic reward path (None).
+    #[test]
+    fn test_parentless_extrinsic_contract_fault_falls_through() {
+        let fake_model = self::ControllerFakeModel {
+            response_text: "pub fn factory_probe() -> u32 {\n    1\n}".to_string(),
+        };
+        let agents = self::build_test_pool(&fake_model);
+        let empty_model = ::holon_blackboard::ProblemModelSlice::new();
+        let mut controller = self::build_controller(agents, empty_model);
+        ::std::assert!(controller.blackboard.problem_model.parent_contracts.is_empty());
+
+        let step_res = controller.step_core();
+        ::std::assert!(
+            !::core::matches!(step_res, ::core::option::Option::Some(self::StepResult::ContractConflict { .. })),
+            "parentless module must not produce StepResult::ContractConflict",
+        );
+    }
+
+    /// With at least one real parent contract the existing behavior holds:
+    /// the same ExtrinsicContract fault surfaces as StepResult::ContractConflict.
+    #[test]
+    fn test_parented_extrinsic_contract_fault_still_conflicts() {
+        let fake_model = self::ControllerFakeModel {
+            response_text: "pub fn factory_probe() -> u32 {\n    1\n}".to_string(),
+        };
+        let agents = self::build_test_pool(&fake_model);
+        let mut model = ::holon_blackboard::ProblemModelSlice::new();
+        let contract = ::holon_blackboard::EdgeContract {
+            parent_id: "module_upstream".to_string(),
+            interface_spec: "fn upstream_entry() -> u32".to_string(),
+            preconditions: ::std::vec::Vec::new(),
+        };
+        model.add_parent_contract(contract);
+        let mut controller = self::build_controller(agents, model);
+
+        let step_res = controller.step_core();
+        ::std::assert!(
+            ::core::matches!(step_res, ::core::option::Option::Some(self::StepResult::ContractConflict { .. })),
+            "parented module keeps the extrinsic contract conflict path",
+        );
+    }
+
+
+    /// Build a subagent pool from one completion model for controller tests.
+    fn build_test_pool(
+        model: &self::ControllerFakeModel,
+    ) -> crate::agents::SubagentPool<self::ControllerFakeModel> {
+        let strategy_agent = ::holon_strategy::HolonStrategyAgent::builder()
+            .model(model.clone())
+            .temperature(0.2)
+            .target_language("rust".to_string())
+            .build();
+        let codegen_agent = ::holon_codegen::HolonCodeGenAgent::builder()
+            .model(model.clone())
+            .temperature(0.2)
+            .target_language("rust".to_string())
+            .build();
+        let testgen_agent = ::holon_testgen::HolonTestGenAgent::builder()
+            .model(model.clone())
+            .temperature(0.2)
+            .target_language("rust".to_string())
+            .build();
+        let patch_agent = ::holon_patch::HolonPatchAgent::builder()
+            .model(model.clone())
+            .temperature(0.2)
+            .target_language("rust".to_string())
+            .build();
+        let strategy_handle = ::std::sync::Arc::new(strategy_agent);
+        let codegen_handle = ::std::sync::Arc::new(codegen_agent);
+        let testgen_handle = ::std::sync::Arc::new(testgen_agent);
+        let patch_handle = ::std::sync::Arc::new(patch_agent);
+        crate::agents::SubagentPool::builder()
+            .strategy_agent(strategy_handle)
+            .code_gen_agent(codegen_handle)
+            .test_gen_agent(testgen_handle)
+            .patch_agent(patch_handle)
+            .build()
+    }
+
+    fn build_controller(
+        agents: crate::agents::SubagentPool<self::ControllerFakeModel>,
+        problem_model: ::holon_blackboard::ProblemModelSlice,
+    ) -> self::ClusterEngine<
+        self::ControllerFakeModel,
+        self::ContractConflictHarness,
+        self::FixedContractDistiller,
+    > {
+        let harness_value = self::ContractConflictHarness;
+        let distiller_value = self::FixedContractDistiller;
+        let evaluator = ::holon_evaluator::TwoStageEvaluator::builder()
+            .harness(harness_value)
+            .distiller(distiller_value)
+            .build();
+        let engine_config = crate::types::EngineConfig::default();
+        let local_board = ::holon_blackboard::LocalBlackboard::new();
+        let mut controller = self::ClusterEngine::builder()
+            .config(engine_config)
+            .blackboard(local_board)
+            .evaluator(evaluator)
+            .agents(agents)
+            .build();
+        controller.blackboard_mut().problem_model = problem_model;
+        controller
+    }
+
 }

@@ -60,24 +60,63 @@ pub fn validate_workspace(
         .map(::std::string::String::as_str)
         .collect::<::std::vec::Vec<&::core::primitive::str>>();
     let check_res = harness.run_command(&check_program, &check_arg_refs, build_timeout);
-    let check_ok = match check_res {
+    let check_ok = match &check_res {
         ::core::result::Result::Ok(output) => {
             let code = output.status.code();
-            code == ::core::option::Option::Some(0)
+            let exit_zero = code == ::core::option::Option::Some(0);
+            if exit_zero {
+                ::tracing::info!(
+                    "campaign {}: build command `{}` exited 0",
+                    bench_config.campaign_id,
+                    check_program,
+                );
+            } else {
+                let snippet_text = self::tail_output_snippet(output);
+                ::tracing::info!(
+                    "campaign {}: build command `{}` failed with exit code {:?}: {}",
+                    bench_config.campaign_id,
+                    check_program,
+                    code,
+                    snippet_text,
+                );
+            }
+            exit_zero
         },
-        ::core::result::Result::Err(_) => false,
+        ::core::result::Result::Err(run_error) => {
+            ::tracing::info!(
+                "campaign {}: build command `{}` errored: {}",
+                bench_config.campaign_id,
+                check_program,
+                run_error,
+            );
+            false
+        },
     };
     let test_res = harness.run_command(&test_program, &test_arg_refs, test_timeout);
     let is_cargo_test = test_program == "cargo";
-    let test_pass_rate = match test_res {
+    let test_pass_rate = match &test_res {
         ::core::result::Result::Ok(output) => {
-            let exit_zero = output.status.code() == ::core::option::Option::Some(0);
+            let code = output.status.code();
+            let exit_zero = code == ::core::option::Option::Some(0);
             if !is_cargo_test {
                 // External toolchains report pass/fail through the exit code.
                 // Their output uses no cargo result-line format.
                 if exit_zero {
+                    ::tracing::info!(
+                        "campaign {}: test command `{}` exited 0, pass rate 1.0",
+                        bench_config.campaign_id,
+                        test_program,
+                    );
                     1.0
                 } else {
+                    let snippet_text = self::tail_output_snippet(output);
+                    ::tracing::info!(
+                        "campaign {}: test command `{}` failed with exit code {:?}: {}",
+                        bench_config.campaign_id,
+                        test_program,
+                        code,
+                        snippet_text,
+                    );
                     0.0
                 }
             } else {
@@ -89,14 +128,49 @@ pub fn validate_workspace(
                 let counts = self::parse_test_counts(&combined);
                 let passed = counts.0;
                 let failed = counts.1;
-                self::compute_pass_rate(passed, failed)
+                let pass_rate = self::compute_pass_rate(passed, failed);
+                ::tracing::info!(
+                    "campaign {}: test command `{}` exited with code {:?}, parsed passed {} failed {}, pass rate {:.3}",
+                    bench_config.campaign_id,
+                    test_program,
+                    code,
+                    passed,
+                    failed,
+                    pass_rate,
+                );
+                pass_rate
             }
         },
-        ::core::result::Result::Err(_) => 0.0,
+        ::core::result::Result::Err(run_error) => {
+            ::tracing::info!(
+                "campaign {}: test command `{}` errored: {}",
+                bench_config.campaign_id,
+                test_program,
+                run_error,
+            );
+            0.0
+        },
     };
     self::WorkspaceValidation {
         check_ok,
         test_pass_rate,
+    }
+}
+
+/// Merge stdout+stderr like `CargoHarness::merge_logs` and keep the last 400
+/// characters for failure diagnostics.
+fn tail_output_snippet(output: &::std::process::Output) -> ::std::string::String {
+    let stdout_text = ::std::string::String::from_utf8_lossy(&output.stdout);
+    let stderr_text = ::std::string::String::from_utf8_lossy(&output.stderr);
+    let merged_text = ::std::format!("{}{}", stdout_text, stderr_text);
+    let trimmed_text = merged_text.trim();
+    let char_count = trimmed_text.chars().count();
+    if char_count <= 400 {
+        ::std::string::String::from(trimmed_text)
+    } else {
+        let skip_count = char_count - 400;
+        let snippet_chars = trimmed_text.chars().skip(skip_count);
+        snippet_chars.collect()
     }
 }
 

@@ -1,0 +1,2 @@
+[benchmark] Campaign skel-strsim-bench starting.
+[benchmark] skel-strsim: check=failed rate=100.0% wall=1901.6s unimplemented=0 error=wave dispatch deadlock: no ready module while unhardened modules remain

@@ -1,0 +1,2 @@
+[benchmark] Campaign skel-rbt-bench starting.
+[benchmark] skel-rbt: check=failed rate=100.0% wall=29111.1s unimplemented=0 error=wave dispatch deadlock: no ready module while unhardened modules remain

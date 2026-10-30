@@ -1,0 +1,20 @@
+{
+  "campaign_id": "skel-bst-bench",
+  "wall_time_ms": 22144759,
+  "engine_wall_time_ms": 21894681,
+  "llm_requests": 195,
+  "unimplemented_before": 0,
+  "unimplemented_after_reset": 0,
+  "compilation_success": false,
+  "test_pass_rate": 1.0,
+  "unimplemented_remaining": 0,
+  "solver_dispatches": 3,
+  "worker_executions": 4,
+  "structural_retries": 0,
+  "macro_states_visited": 1,
+  "total_lines": 808,
+  "code_lines": 601,
+  "cocomo_effort_pm": 1.4061428319628646,
+  "cocomo_duration_months": 2.8457136355630475,
+  "error": "module source.py exhausted the futile dispatch cap after 3 attempts"
+}

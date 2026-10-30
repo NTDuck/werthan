@@ -1,0 +1,2 @@
+[benchmark] Campaign skel-heapq-bench starting.
+[benchmark] skel-heapq: check=failed rate=100.0% wall=10329.8s unimplemented=0 error=wave dispatch deadlock: no ready module while unhardened modules remain

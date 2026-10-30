@@ -119,14 +119,31 @@ fn map_typed_outcome(outcome: crate::types::EngineTypestateOutcome) -> ::global_
             cycle_edges: { cycle_edges },
             proof_trace: { proof_trace },
         },
-        crate::types::EngineTypestateOutcome::BudgetExhausted { machine, .. } => {
-            let payload = machine.state;
-            ::global_engine::SolverOutcome::ContractConflict {
-                parent_id: { payload.parent_id },
-                delta_spec: { payload.delta_spec },
-                proof_trace: { payload.proof_trace },
+        crate::types::EngineTypestateOutcome::BudgetExhausted {
+            machine,
+            blocked_on_parent,
+            blocker_trace,
+            ..
+        } => match blocked_on_parent.is_empty() {
+            // Parentless module: no real parent edge exists, so METHODOLOGY.md
+            // §5 Tier B cannot apply. Report the honest budget exhaustion and
+            // let the macro engine park the module without a Tier B broadcast.
+            true => {
+                let owned_module_id = machine.module_id().to_string();
+                ::global_engine::SolverOutcome::BudgetExhausted {
+                    module_id: { owned_module_id },
+                    proof_trace: { blocker_trace },
+                }
             }
-        }
+            // Parented module blocked on a real edge: Tier B conflict per
+            // METHODOLOGY.md §5.2 ("or when v_i exhausts B_max rollouts
+            // blocked on e_pi").
+            false => ::global_engine::SolverOutcome::ContractConflict {
+                parent_id: { blocked_on_parent },
+                delta_spec: "Rollout budget exhausted without achieving unit reward".to_string(),
+                proof_trace: { blocker_trace },
+            },
+        },
     }
 }
 

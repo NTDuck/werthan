@@ -37,6 +37,15 @@ pub enum SolverOutcome {
         /// Failure proof trace.
         proof_trace: ::std::string::String,
     },
+    /// Rollout budget exhausted without hardening and without a Tier B
+    /// conflict (no real parent edge to negotiate on). The macro engine
+    /// parks the module and counts one futile dispatch (VAL-MACRO-18).
+    BudgetExhausted {
+        /// Module identifier the dispatch covered.
+        module_id: ::std::string::String,
+        /// Blocker trace from the best candidate.
+        proof_trace: ::std::string::String,
+    },
 }
 
 /// Deterministic stub solver that emits trivial verified candidates per module.

@@ -188,7 +188,9 @@ fn contract_val_m2_03_state_conditioned_dispatch() {
 #[test]
 fn contract_val_m2_05_budget_exhaustion_fallback() {
     // Exactly B_max rollouts without unit reward extract the best reward
-    // candidate and advance the machine into contract negotiation.
+    // candidate. A parentless module keeps its M2 machine and reports no
+    // contract counterparty. The solver bridge then parks it without a Tier B
+    // broadcast, because METHODOLOGY.md §5 Tier B requires a real parent edge.
     let machine_five = make_machine();
     let blackboard_five = make_fail_suite_blackboard();
     let config_five = ::holon_engine::EngineConfig {
@@ -211,6 +213,7 @@ fn contract_val_m2_05_budget_exhaustion_fallback() {
     match outcome_five {
         ::holon_engine::EngineTypestateOutcome::BudgetExhausted {
             machine,
+            blocked_on_parent,
             best_candidate,
             best_reward,
             blocker_trace,
@@ -220,15 +223,13 @@ fn contract_val_m2_05_budget_exhaustion_fallback() {
             let extracted_code = best_candidate.expect("best candidate extracted");
             ::std::assert!(extracted_code.contains("alpha_rollout_candidate"));
             ::std::assert!(blocker_trace.contains("Rollout budget exhausted"));
-            let mut negotiate_machine = machine;
-            let events = negotiate_machine.drain_events();
-            ::std::assert_eq!(events.len(), 1);
-            let first_event = events.first().expect("event present");
-            let is_conflict = ::core::matches!(
-                first_event,
-                ::holon_fsm::ClusterBroadcastEvent::ContractConflict { .. }
+            ::std::assert!(blocked_on_parent.is_empty(), "parentless module names no parent");
+            let mut retained_machine = machine;
+            let events = retained_machine.drain_events();
+            ::std::assert!(
+                events.is_empty(),
+                "parentless budget exhaustion emits no Tier B broadcast"
             );
-            ::std::assert!(is_conflict);
         }
         _ => ::std::panic!("expected budget exhausted outcome"),
     }

@@ -1,0 +1,20 @@
+{
+  "campaign_id": "skel-toml-bench",
+  "wall_time_ms": 61443312,
+  "engine_wall_time_ms": 61290300,
+  "llm_requests": 774,
+  "unimplemented_before": 0,
+  "unimplemented_after_reset": 0,
+  "compilation_success": false,
+  "test_pass_rate": 1.0,
+  "unimplemented_remaining": 0,
+  "solver_dispatches": 6,
+  "worker_executions": 5,
+  "structural_retries": 0,
+  "macro_states_visited": 2,
+  "total_lines": 2092,
+  "code_lines": 1510,
+  "cocomo_effort_pm": 3.699448930007675,
+  "cocomo_duration_months": 4.109907831161527,
+  "error": "module source.py exhausted the futile dispatch cap after 3 attempts"
+}
