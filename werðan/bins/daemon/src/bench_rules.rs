@@ -186,7 +186,16 @@ fn sibling_header_text(
         }
         let candidate_end = candidate.relative_path.rfind('.').unwrap_or(candidate.relative_path.len());
         let candidate_stem = &candidate.relative_path[..candidate_end];
-        let stems_match = candidate_stem == implementation_stem;
+        let candidate_file_stem = ::std::path::Path::new(&candidate.relative_path)
+            .file_stem()
+            .and_then(|stem_os| stem_os.to_str())
+            .unwrap_or("");
+        let implementation_file_stem = ::std::path::Path::new(&implementation_entry.relative_path)
+            .file_stem()
+            .and_then(|stem_os| stem_os.to_str())
+            .unwrap_or("");
+        let stems_match = candidate_stem == implementation_stem
+            || (!candidate_file_stem.is_empty() && candidate_file_stem == implementation_file_stem);
         if !stems_match {
             continue;
         }

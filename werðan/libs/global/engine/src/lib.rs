@@ -1224,6 +1224,16 @@ impl self::MacroEngine {
                 model.add_parent_contract(contract.clone());
             }
         }
+        let self_contract_key = (module_id.to_string(), module_id.to_string());
+        if let ::core::option::Option::Some(contract) = self.board.contracts.get(&self_contract_key) {
+            model.export_obligations.push(contract.interface_spec.clone());
+        }
+        for child in self.board.dag.children_of(module_id) {
+            let child_key = (module_id.to_string(), child.clone());
+            if let ::core::option::Option::Some(contract) = self.board.contracts.get(&child_key) {
+                model.export_obligations.push(contract.interface_spec.clone());
+            }
+        }
         if let ::core::option::Option::Some(deltas) = self.pending_parent_deltas.get(module_id) {
             for delta in deltas {
                 model.add_delta_constraint(delta.clone());
@@ -1273,8 +1283,9 @@ impl self::MacroEngine {
         for (key, contract) in self.board.contracts.contracts.clone() {
             let owner_parent = self.merged_owner(&condensed, &key.0);
             let owner_child = self.merged_owner(&condensed, &key.1);
+            let is_self_contract = key.0 == key.1;
             let owner_match = owner_parent == owner_child;
-            if owner_match {
+            if owner_match && !is_self_contract {
                 continue;
             }
             let parent = match owner_parent {

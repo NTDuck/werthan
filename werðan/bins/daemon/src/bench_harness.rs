@@ -79,7 +79,6 @@ pub fn seed_board(
         board.inventory.push(entry.relative_path.clone());
     }
     board.dag = dag;
-    self::seed_contracts(&mut board, &legacy_dir);
     for entry in &entries {
         let test_tree = self::is_test_tree_path(&entry.relative_path);
         if test_tree {
@@ -115,6 +114,7 @@ pub fn seed_board(
             }
         }
     }
+    self::seed_contracts(&mut board, &legacy_dir);
     let metrics = self::measure_size(&discovered);
     let seed_output = self::SeedOutput {
         board,
@@ -292,6 +292,45 @@ pub fn seed_contracts(
             preconditions: ::std::vec::Vec::new(),
         };
         board.contracts.insert(edge_pair, contract);
+    }
+    let vertices = board.dag.vertices.clone();
+    for vertex_id in vertices {
+        let vertex_stem = ::std::path::Path::new(&vertex_id)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        let mut combined_specs = ::std::vec::Vec::new();
+        let mut primary_parent = ::std::string::String::new();
+        for (registered_id, maybe_artifact) in &board.artifacts.artifacts {
+            let artifact_stem = ::std::path::Path::new(registered_id)
+                .file_stem()
+                .and_then(|stem_segment| stem_segment.to_str())
+                .unwrap_or("");
+            let stems_match = !vertex_stem.is_empty() && vertex_stem == artifact_stem;
+            let is_header = registered_id.ends_with(".h")
+                || registered_id.ends_with(".hpp")
+                || registered_id.ends_with(".hxx");
+            if stems_match && is_header {
+                if let ::core::option::Option::Some(artifact_entry) = maybe_artifact {
+                    if primary_parent.is_empty() {
+                        primary_parent = ::core::clone::Clone::clone(registered_id);
+                    }
+                    let target_code = ::core::clone::Clone::clone(&artifact_entry.target_code);
+                    combined_specs.push(target_code);
+                }
+            }
+        }
+        if !combined_specs.is_empty() {
+            let vertex_first = ::core::clone::Clone::clone(&vertex_id);
+            let vertex_second = ::core::clone::Clone::clone(&vertex_id);
+            let self_key = (vertex_first, vertex_second);
+            let contract = ::holon_blackboard::EdgeContract {
+                parent_id: { primary_parent },
+                interface_spec: { combined_specs.join("\n\n") },
+                preconditions: ::std::vec::Vec::new(),
+            };
+            board.contracts.insert(self_key, contract);
+        }
     }
 }
 
@@ -526,5 +565,22 @@ mod tests {
         let after = ::std::fs::read_to_string(&lib_path).expect("plain lib rereads");
         ::std::assert_eq!(after, original);
         let _ = ::std::fs::remove_dir_all(&workspace);
+    }
+
+    #[test]
+    fn self_contract_seeded_for_module_matching_header() {
+        let repo_root = super::super::bench_config::repo_root();
+        let config_path = repo_root.join("benchmarks/assets/configs/ReCodeAgent/crust/libwecan.yml");
+        let config_text = ::std::fs::read_to_string(&config_path)
+            .expect("libwecan config reads");
+        let config = ::serde_yaml_ng::from_str::<super::super::bench_config::CampaignConfig>(&config_text)
+            .expect("config parses");
+        let seeded = super::seed_board(&config).expect("seed board succeeds");
+        let self_key = ("src/libwecan.c".to_string(), "src/libwecan.c".to_string());
+        let has_self_contract = seeded.board.contracts.contracts.contains_key(&self_key);
+        ::std::assert!(has_self_contract, "self-contract for libwecan must be seeded");
+        let contract = &seeded.board.contracts.contracts[&self_key];
+        ::std::assert!(contract.interface_spec.contains("extract"));
+        ::std::assert!(contract.interface_spec.contains("insert"));
     }
 }
