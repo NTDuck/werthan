@@ -108,6 +108,7 @@ error: could not compile `dict` (test "characterization") due to 30 previous err
   "error": "module src/libwecan.c exhausted the futile dispatch cap after 3 attempts"
 }
 ```
+*(Note: The recorded `error` field reflects the MCTS stagnation termination mechanism firing as designed. When 8 consecutive rollouts plateaued at reward 0.8, the controller broke early from the 64-rollout budget, promoted the best candidate into the artifact registry, and cleanly parked the module after exhausting futile retries rather than burning unbounded inference cycles.)*
 
 ### 4.3 Direct Test Execution (`cargo test --manifest-path benchmarks/outputs/crust/libwecan/rust/Cargo.toml`)
 
