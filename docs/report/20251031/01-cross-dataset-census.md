@@ -58,7 +58,8 @@ To test werðan's DAEDALUS architecture and Frequent Intentional Compaction (ADR
    - ReCodeAgent failed (0% pass rate, deadlocked after 5 iterations / 51.6m).
    - werðan executed 5,135s of honest inference (3,566 real LLM calls) on `swift-1.5-qwen3.8-27b`.
    - Forensic analysis revealed an inherent defect in ReCodeAgent's benchmark test harness (`test.rs` assigning `state_a` handlers inside `state_b_on_enter` while asserting `state_b`), which made the test suite fail to pass regardless of implementation. Coupled with `bin/mario/main.c` exhausting futile dispatch attempts, `crust.cfsm` met the methodology criteria for a project that continuously fails or is flawed by itself, and was therefore disqualified.
-2. **`crust.dict` Clean Validation Gate**:
+2. **`crust.dict` Empirical Evaluation**:
    - A memory-intensive, pointer-dense hash table testing allocator safety, dynamic growth, key-value lifecycle management, and strict C ABI integration compatibility.
    - ReCodeAgent scored 0.0% (0 / 6 tests passing).
-   - werðan achieved **100% compilation and 100% test pass rate (61 / 61 tests passing across 9 test suites)** using the local 27B SLM on a single RTX 3090.
+   - werðan executed 517 real LLM requests (2,968s engine wall time) on `swift-1.5-qwen3.8-27b` under ADR-0018 Frequent Intentional Compaction.
+   - The run recorded `compilation_success: false` and `test_pass_rate: 0.0` in `benchmarks/results/daemon/crust-dict.json`. While ADR-0018 successfully prevented context bloat and repetitive loops throughout 517 calls, the generated library diverged in its type signatures from the reference test harness (e.g. `DictType` represented as `u8` rather than an enum, `r#type` vs `type_`, `DictAlloc` as fn pointer rather than a struct), producing 30 compilation errors on `cargo test`.

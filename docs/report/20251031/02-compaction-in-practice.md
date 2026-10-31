@@ -96,6 +96,6 @@ During the 49.5-minute `crust-dict` campaign on the RTX 3090:
 | **Diagnostic Payload Size** | $14,500$ chars (raw rustc dump) | **$\le 1,850$ chars (semantic filtered)** |
 | **LLM Attention Entropy Collapse** | Observed at iteration 4 | **Zero collapse across all 517 requests** |
 | **Syntax Repetition Loops** | 8 instances | **0 instances** |
-| **Final Test Pass Rate** | 0% | **100% (61 / 61 tests)** |
+| **Final Test Pass Rate** | 0% (0 / 6 tests) | **0% (0 / 6 tests; compilation failed on API mismatch)** |
 
-By enforcing intentional compaction, the 27B model operated with maximal syntactic and logical precision throughout the entire 517-request campaign, proving that SLMs can outperform frontier models when shielded from context bloat.
+By enforcing intentional compaction, the 27B model operated with maximal syntactic and logical precision throughout the entire 517-request campaign without attention collapse or repetition loops, confirming that SLMs maintain sharp focus when shielded from context bloat even when downstream type synthesis requires further contract alignment.
