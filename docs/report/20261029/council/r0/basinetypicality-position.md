@@ -1,0 +1,52 @@
+# Round 0 — Calibration Position Paper
+
+**Persona:** BaselineTypicality (comparison-class critic)
+**Target:** incumbent methodology (`docs/references/METHODOLOGY.md`, derivations/lineage in `docs/references/METHODOLOGY-DRV.md`), plus the meta-strategy's comparison-class commitments (`docs/report/20261029/01-meta-strategy.md` §1 RQ3, §3).
+**Date:** 2026-10-30. Round 0 — no substantive attacks; objections below are *planned attack surfaces*, not filed findings (IDs `B-r1-*` start in Round 1).
+
+## Steelman
+
+What the incumbent claims, from my lens — i.e., its claims *about the comparison class and about baselines*, stated in their strongest form with anchors. These are the claims I will hold to account in Round 1.
+
+**C1. The four-paradigm comparison is exhaustive enough to justify every design decision.**
+`METHODOLOGY.md` §1: "Every structural choice in <...> is designed to resolve a specific failure mode of existing paradigms" — with the paradigms being ReCodeAgent (static pipeline), GVS5H (manager-worker), hierarchy-tree + root FSM, and (in `METHODOLOGY-DRV.md` §4.4) MOISE+ holonic MAS. The strongest form: the paradigm failures cited (no backward edges; serial manager loop; lockstep rollback; deontic overhead) are real, documented failure modes, and each of the five headline decisions maps to at least one of them.
+
+**C2. The $O(m^{|V|})$ argument rules out flat-FSM control.**
+`METHODOLOGY.md` §1 decision 2: "placing a flat Finite State Machine (FSM) at the root of an agent hierarchy forces lockstep global phase rollbacks: tracking $|V|$ modules across $m$ module states requires $O(m^{|V|})$ composite states." Strongest form: this is an E4-derivable state-space argument, and Harel orthogonality is the *specific* mechanism that reduces it to $O(m \cdot |V|)$.
+
+**C3. The mandatory trivial baselines are genuine candidates, not decorations.**
+`01-meta-strategy.md` §3: "Mandatory trivial baselines are candidates... If a trivial baseline lands on the frontier, that is a *reportable result*." `01` §1 RQ3 names them: (a) token-matched single 27B agent; (b) linear pipeline + repair loop, no statechart/MCTS/blackboard; (c) incumbent-minus-machinery (ARIADNE → portfolio-race-then-commit). Strongest form: the protocol's intake rules admit them by definition and the matched-evidence-tier rule (`01` §3 dominance clause) prevents projection-vs-receipt laundering.
+
+**C4. The incumbent's own receipts count for it, symmetrically.**
+`01` §3: "The incumbent's executed receipts count for it — no asymmetry in whose evidence is real." E1 receipts exist: 1 honest PASS in 8 real campaigns, aggregate 1,858 requests, 774 burned by one pathological module (`docs/report/20251025/README.md` §1 Summary). Strongest form: the incumbent is the only candidate with executed evidence, and the protocol explicitly forbids punishing it for that.
+
+**C5. The deployment corpus is a fair testbed for the comparison.**
+The skel corpus (8 projects, Python→JavaScript) is the executable corpus on which X1/X2/X3 comparisons will be run (`01` §2 axis definitions; RQ3 falsifier says "on the executable corpus").
+
+I accept all five as the positions of record. My Round 1 job is to test whether the *evidence behind the comparison-class content of C1–C3 exists at the claimed strength*, and whether C5's corpus can support the comparisons C3 promises.
+
+## Objections
+
+Round 0: planned attack surfaces only (targets + falsifier classes I intend to attempt; not argued, no severities claimed).
+
+- **B-surface-1 — the paradigm comparison table is unmeasured.** Target: `METHODOLOGY-DRV.md` §4.1–4.4 and the "Master Paradigm Comparison Matrix" rows (e.g. ReCodeAgent "Parallelism Across Repo: Low (sequential file translation)"; GVS5H "None (O(1)) — 1 worker executes per Manager turn"). Falsifier classes I will attempt: (i) tier-stamp every load-bearing cell — most appear to be E5 analogy or E3 secondary-verified at best; (ii) check whether any named paradigm was ever *run here or anywhere* under a regime-transferable protocol (expected finding: none), making the matrix a table of assertions.
+- **B-surface-2 — the $O(m^{|V|})$ claim attacks a possibly-unoccupied position in the design space.** Target: `METHODOLOGY.md` §1 decision 2. Falsifier class: exhibit a candidate *already inside the bounded space* (per-module micro-FSMs over a DAG — the DRV transcript's own "Architecture (4): Dependency-DAG Actor Model") that achieves $O(m \cdot |V|)$ without Harel orthogonality, which would show the necessity argument holds only against a strawman topology. E4-derivable; no execution needed.
+- **B-surface-3 — trivial baselines are named, never scored.** Target: `01` §1 RQ3 and §3. Falsifier classes: (i) existence check — demand one executed or receipt-constructed measurement for any of (a)/(b)/(c), or an explicit `projection` label on every dominance-table row involving them; (ii) E4 arithmetic for baseline (a)'s token-matching (what does "same total budget" mean against the incumbent's 1,858-request aggregate?) — if the matching rule is undefined, the baseline is unfalsifiable as stated; (iii) spec check of variant (c) against `01` §3 candidate-intake rule 2 ("implementation-relevant precision") — "portfolio-race-then-commit" is currently a gesture, not a spec, which would make it a strawman baseline if scored.
+- **B-surface-4 — two-sided strawman audit of the incumbent.** Targets in both directions. (i) Machinery free pass: Tier C (SCC condensation + deep history) requires a discovered cycle; the corpus has zero SCCs, so no E1 evidence exists that Tier C ever executed — the meta-strategy itself flags this (RQ2), and I will co-claim enforcement of the `unexercised` labeling and the "machinery-verification tax" (`01` §2 X5). (ii) Critics' strawman risk (K2 watch): incumbent receipts are real E1 while all rivals are projections; the dominance table must not let that asymmetry become an aura of superiority for machinery the corpus never exercised.
+- **B-surface-5 — corpus typicality cuts at the comparison itself.** Target: C5. Falsifier class: E1 audit of `docs/report/20251025/README.md` §1 — all finished runs show `macro_states_visited` of 1–2 on single-vertex, parentless DAGs; the incumbent's Tier B/Tier C machinery and the wave scheduler over $|V| > 1$ were never exercised, so neither the incumbent's receipts nor any trivial-baseline result on this corpus measures the multi-module coordination regime the architecture is *for*. Any RQ3 verdict on skel alone will need an explicit scope caveat or a synthetic multi-module validation contract (the `VAL-*` route).
+- **B-surface-6 — oracle-relativity contaminates baseline comparisons.** Target: the X1 axis as applied to baselines. Falsifier class: the toml receipt (18-line stub at `test_pass_rate = 1.0`, `20251025` §2.3) is E1 evidence that raw acceptance is gameable; a trivial baseline could match the incumbent's raw pass rate by gaming the same weak oracles. Any RQ3 comparison must run under stub-sensitivity-hardened acceptance (X1's own tier definition) or it compares noise to noise.
+
+## Evidence & Derivations
+
+- **E1 anchors (executed here):** `docs/report/20251025/README.md` §1 table — 1 PASS / 5 FAIL / 3 OOM-killed; 1,858 aggregate requests, 774 on the toml pathological path; `macro_states_visited` = 1 (bst, colorsys) or 2 (mathgen, toml); §2.1 fabricated-counterparty chain (5/8 finished campaigns died on an engine-accounting artifact, not translation difficulty); §2.3 toml 18-line stub at `test_pass_rate = 1.0`.
+- **E5-classification claims (to be tier-stamped in Round 1):** every "Where It Fails vs. (6)+(1.2)" paragraph in `METHODOLOGY-DRV.md` §4.1–4.4, and all non-arithmetic cells of the Master Paradigm Comparison Matrix. No executed run of any named paradigm exists in the repo's receipts.
+- **E4 derivation I intend to run in Round 1:** (i) the per-module-FSM counterexample to $O(m^{|V|})$ necessity; (ii) token-matching arithmetic for baseline (a) against the incumbent's measured request distribution (heapq PASS: 107 requests / ~3.2 h; toml FAIL: 774 / 17.1 h — the failure-cost asymmetry of `01` §2 X2 means "same total budget" is ambiguous by more than 7×).
+- **Evidence asymmetry note (both directions):** the incumbent uniquely holds E1 receipts (`01` §3 honors this), but those receipts cover a degenerate workload class (single-vertex DAGs) for machinery whose target regime is multi-module. Neither direction supports an unscoped dominance claim.
+
+## Requests to the council
+
+1. **RQ ownership claim.** I claim **RQ3** (do trivial baselines match/beat the incumbent — primary), and co-claim **RQ7** (is the bounded design space representative — my strawman-audit mandate is exactly this), **RQ4** (the forced-vs-aesthetic verdict on Harel orthogonality and encapsulated MCTS, via the comparison-class evidence), and **RQ2** (enforcement of `unexercised` labeling on Tier C / deep-history claims). I also claim the **K2 ledger-asymmetry watch** assigned to baseline personas in `01` §7.
+2. **To the chair (04/05 production):** every cell of any paradigm-comparison table in `04`/`05` must carry an evidence-tier stamp per `01` §4; cells that are E5 must be labeled `[E5]` inline, per the §4 rule that a verdict may never rest on E5.
+3. **To the chair (baselines):** before any dominance row includes baselines (a)/(b)/(c), the council needs (i) a defined token-matching rule for (a), (ii) an implementation-relevant spec for (c) satisfying `01` §3 intake rule 2, and (iii) an explicit decision: run at least one baseline on the executable corpus, or label all baseline rows `projection` and accept that RQ3's falsifier was never attempted (which per `01` §1 adjudication rule means RQ3 is not closed).
+4. **To fellow critics:** the corpus-scope caveat of B-surface-5 applies to *your* E1-based claims too — any generalization from the 8-project skel receipts to the multi-module regime must state the scope (K7 tripwire). Conversely, do not read my strawman audit of the comparison class as leniency toward the incumbent's machinery: `unexercised` machinery is a defect of the incumbent, and I intend to file it as such in Round 1.
+5. **Falsification tests I ask `08` to carry:** (T-B1) one executed trivial-baseline run on the executable corpus under hardened oracles; (T-B2) one synthetic multi-module (SCC-containing) validation run exercising Tier B/Tier C, or an explicit `unexercised` label on all machinery claims resting on them.
