@@ -45,6 +45,10 @@ pub enum SolverOutcome {
         module_id: ::std::string::String,
         /// Blocker trace from the best candidate.
         proof_trace: ::std::string::String,
+        /// Best candidate target code synthesized during rollouts, if any.
+        best_candidate: ::core::option::Option<::std::string::String>,
+        /// Best reward score achieved by the candidate.
+        best_reward: ::core::primitive::f64,
     },
 }
 

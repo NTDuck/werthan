@@ -122,6 +122,9 @@ impl<
         self.initialize(mode);
 
         let budget = self.config.max_rollouts;
+        let mut flat_rollout_count: ::core::primitive::usize = 0;
+        let mut previous_best_reward = self.best_reward_score;
+
         for _ in 0..budget {
             let iter_res = self.step_core();
             match iter_res {
@@ -147,6 +150,21 @@ impl<
                     };
                 }
                 ::core::option::Option::None => {}
+            }
+
+            if (self.best_reward_score - previous_best_reward).abs() < 1e-6 {
+                flat_rollout_count += 1;
+                if flat_rollout_count >= 8 && self.best_candidate_code.is_some() {
+                    ::tracing::info!(
+                        "stagnation detected: reward flat at {:.4} across {} rollouts. Breaking early",
+                        self.best_reward_score,
+                        flat_rollout_count,
+                    );
+                    break;
+                }
+            } else {
+                flat_rollout_count = 0;
+                previous_best_reward = self.best_reward_score;
             }
         }
 

@@ -122,8 +122,9 @@ fn map_typed_outcome(outcome: crate::types::EngineTypestateOutcome) -> ::global_
         crate::types::EngineTypestateOutcome::BudgetExhausted {
             machine,
             blocked_on_parent,
+            best_candidate,
+            best_reward,
             blocker_trace,
-            ..
         } => match blocked_on_parent.is_empty() {
             // Parentless module: no real parent edge exists, so METHODOLOGY.md
             // §5 Tier B cannot apply. Report the honest budget exhaustion and
@@ -133,6 +134,8 @@ fn map_typed_outcome(outcome: crate::types::EngineTypestateOutcome) -> ::global_
                 ::global_engine::SolverOutcome::BudgetExhausted {
                     module_id: { owned_module_id },
                     proof_trace: { blocker_trace },
+                    best_candidate,
+                    best_reward,
                 }
             }
             // Parented module blocked on a real edge: Tier B conflict per

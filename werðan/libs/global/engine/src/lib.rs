@@ -1172,14 +1172,18 @@ impl self::MacroEngine {
             self::solver::SolverOutcome::BudgetExhausted {
                 module_id,
                 proof_trace,
+                best_candidate,
+                best_reward,
             } => {
-                // Budget exhaustion with no real parent edge. METHODOLOGY.md
-                // §5 Tier B requires a block on e_pi. The module parks like a
-                // contract-conflict dispatcher, but no conflict broadcast and
-                // no parent invalidation fire because no counterparty exists.
-                // The park still counts toward the futile cap (VAL-MACRO-18).
-                // A module that can never harden therefore terminates the
-                // campaign honestly instead of burning unbounded budgets.
+                if let ::core::option::Option::Some(candidate_code) = best_candidate {
+                    if best_reward >= 0.5 {
+                        let artifact = ::global_blackboard::ModuleArtifact {
+                            target_code: { candidate_code },
+                            test_suite: ::std::vec::Vec::new(),
+                        };
+                        self.board.artifacts.commit(&module_id, artifact);
+                    }
+                }
                 self.board
                     .state
                     .module_states
