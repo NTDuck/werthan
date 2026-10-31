@@ -69,6 +69,15 @@ pub enum RunStop {
     },
 }
 
+/// Default step budget allocated to macro-engine execution before budget exhaustion.
+pub const DEFAULT_STEP_BUDGET: ::core::primitive::usize = 256;
+
+/// Default maximum allowable futile dispatches per module before escalation or abort.
+pub const DEFAULT_FUTILE_DISPATCH_CAP: ::core::primitive::usize = 3;
+
+/// Delimiter used to serialize semantic batch items into unique remediation map keys.
+const BATCH_KEY_DELIMITER: &::core::primitive::str = "\u{1f}";
+
 /// Deterministic macro-orchestrator engine implementing Algorithm 1 in METHODOLOGY.md.
 pub struct MacroEngine {
     board: ::global_blackboard::GlobalBlackboard,
@@ -156,8 +165,8 @@ impl self::MacroEngine {
                 ::std::boxed::Box::new(default_workers)
             }
         };
-        let step_budget = step_budget.unwrap_or(256);
-        let futile_dispatch_cap = futile_dispatch_cap.unwrap_or(3);
+        let step_budget = step_budget.unwrap_or(self::DEFAULT_STEP_BUDGET);
+        let futile_dispatch_cap = futile_dispatch_cap.unwrap_or(self::DEFAULT_FUTILE_DISPATCH_CAP);
         let hitl = hitl.unwrap_or_default();
         Self {
             board,
@@ -644,7 +653,7 @@ impl self::MacroEngine {
                 }
 
                 ::global_arbiter::CritiqueVerdict::RemediateLocal(_) => {
-                    let batch_key = batch.join("\u{1f}");
+                    let batch_key = batch.join(self::BATCH_KEY_DELIMITER);
                     let already = remediated.contains(&batch_key);
                     if already {
                         // The remediation dispatch did not flip the critic verdict.
@@ -1359,7 +1368,7 @@ mod tests {
     #[test]
     fn test_macro_engine_builder() {
         let engine = self::MacroEngine::builder().build();
-        ::std::assert_eq!(engine.step_budget, 256);
+        ::std::assert_eq!(engine.step_budget, self::DEFAULT_STEP_BUDGET);
         ::std::assert_eq!(engine.solver_dispatches(), 0);
     }
 

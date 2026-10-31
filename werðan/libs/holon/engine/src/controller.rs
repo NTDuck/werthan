@@ -17,6 +17,21 @@ enum StepResult {
     },
 }
 
+/// Target reward score signifying complete candidate hardening (compilation + 100% test pass rate + rules).
+const HARDENED_REWARD_TARGET: ::core::primitive::f64 = 1.0;
+
+/// Floating-point tolerance for verifying exact match with the hardened reward target.
+const HARDENED_REWARD_EPSILON: ::core::primitive::f64 = 1e-6;
+
+/// Threshold below which test pass rate triggers adversarial test expansion.
+const ADVERSARIAL_PARITY_THRESHOLD: ::core::primitive::f64 = 0.999_999;
+
+/// Maximum number of characterization tests allowed before suppressing further adversarial test expansion.
+const MAX_EXPANDED_CHARACTERIZATION_TESTS: ::core::primitive::usize = 10;
+
+/// Default prior utility assigned to fallback strategy hypotheses and repair nodes in the search tree.
+const DEFAULT_PRIOR_UTILITY: ::core::primitive::f64 = 0.50;
+
 /// Monte Carlo Tree Search controller managing intra-module synthesis.
 pub struct ClusterEngine<
     M: ::rig::completion::CompletionModel,
@@ -35,8 +50,9 @@ pub struct ClusterEngine<
 }
 
 impl<M: ::rig::completion::CompletionModel, H, D> ::core::fmt::Debug for self::ClusterEngine<M, H, D> {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ClusterEngine")
+    fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        formatter
+            .debug_struct("ClusterEngine")
             .field("config", &self.config)
             .field("rollout_count", &self.rollout_count)
             .field("best_candidate_code", &self.best_candidate_code)
@@ -207,11 +223,12 @@ impl<
         // VAL-M2-03(d): demonstrated low parity invokes the adversarial test
         // agent to expand coverage. The agent stays blind to candidate code.
         // INITIAL-mode seeding already covers the empty-suite case.
-        // Bound test expansion to prevent runaway growth during repeated repairs.
+        // Bound test expansion to prevent runaway growth during repeated repairs
+        // (ADR-0018 intentional test suite compaction).
         let coverage_low = ::core::matches!(
             self.last_pass_rate,
-            ::core::option::Option::Some(rate_value) if rate_value < 0.999_999
-        ) && self.blackboard.characterization_tests.test_count() < 10;
+            ::core::option::Option::Some(rate_value) if rate_value < ADVERSARIAL_PARITY_THRESHOLD
+        ) && self.blackboard.characterization_tests.test_count() < MAX_EXPANDED_CHARACTERIZATION_TESTS;
         if coverage_low {
             let seeded_tests = ::holon_testgen::HolonTestGenAgent::generate_characterization_tests(
                 &self.agents.test_gen_agent,
@@ -222,12 +239,15 @@ impl<
             }
         }
 
+        // METHODOLOGY.md §4: Select the most promising expandable node in the
+        // search tree using the UCB1 (Upper Confidence Bound 1) exploration policy.
+        // UCB1 balances exploitation of high-reward candidate paths with exploration
+        // of less-visited hypotheses based on prior utility and visit count.
         let expandable_id = self.tree.select_expandable(
             self.config.ucb_c_exp,
             self.config.gamma_prior,
             self.config.softmax_temperature,
         );
-
         let expansion_res = self.expand_node(expandable_id);
         let child_id = expansion_res.0;
         let candidate_code = expansion_res.1;
@@ -255,6 +275,24 @@ impl<
             eval_res.test_pass_rate,
             reward,
         );
+        if !eval_res.compiles {
+            let diagnostic_snippet = eval_res
+                .fault_record
+                .as_ref()
+                .map(|fault| fault.summary.as_str())
+                .unwrap_or("no fault record");
+            ::tracing::warn!(
+                target: "holon_engine",
+                "module {} rollout {} compilation failed: {}",
+                self.blackboard.module_id,
+                self.rollout_count,
+                diagnostic_snippet,
+            );
+        }
+        // Backpropagation loop: propagate the scalar evaluation reward back along
+        // the search path from the newly expanded child node to the root.
+        // This updates visit counts and cumulative reward estimates, steering subsequent
+        // UCB1 selections toward the most promising transformation branches.
         self.tree.backpropagate(child_id, reward);
         if reward > self.best_reward_score {
             self.best_reward_score = reward;
@@ -308,7 +346,10 @@ impl<
             }
         }
 
-        if (reward - 1.0).abs() < 1e-6 {
+        // Terminate early when reward reaches 1.0.
+        // The candidate compiled and passed all tests.
+        // Continued rollouts waste compute budget.
+        if (reward - HARDENED_REWARD_TARGET).abs() < HARDENED_REWARD_EPSILON {
             let res = self::StepResult::Hardened {
                 target_code: { candidate_code },
                 reward,
@@ -319,6 +360,11 @@ impl<
         ::core::option::Option::None
     }
 
+    /// Expand an MCTS search node by generating or repairing candidate code.
+    ///
+    /// For uninstantiated frontier nodes, the controller instantiates a strategy
+    /// hypothesis and generates candidate code. For existing nodes, it repairs
+    /// candidate code using the latest diagnostic fault record.
     fn expand_node(
         &mut self,
         selected_id: ::core::primitive::usize,
@@ -340,15 +386,17 @@ impl<
 
         match selected_code_opt {
             ::core::option::Option::None => {
+                // Frontier root expansion: instantiate an unvisited strategy hypothesis
+                // and synthesize an initial candidate implementation from problem requirements.
                 let hypothesis = match self.blackboard.strategy_hypotheses.next_uninstantiated() {
-                    ::core::option::Option::Some(h) => {
-                        h.instantiated = true;
-                        h.clone()
+                    ::core::option::Option::Some(uninstantiated_hypothesis) => {
+                        uninstantiated_hypothesis.instantiated = true;
+                        uninstantiated_hypothesis.clone()
                     }
                     ::core::option::Option::None => ::holon_blackboard::StrategyHypothesis {
                         strategy_id: "default_strategy".to_string(),
                         description: "Direct transformation strategy".to_string(),
-                        prior_utility: 0.50,
+                        prior_utility: self::DEFAULT_PRIOR_UTILITY,
                         instantiated: true,
                     },
                 };
@@ -367,8 +415,10 @@ impl<
                 (child_id, new_code)
             }
             ::core::option::Option::Some(existing_code) => {
+                // Targeted repair expansion: invoke the patch agent on the existing candidate
+                // guided by the latest distilled diagnostic fault.
                 let fault = match self.blackboard.patch_records.latest_fault() {
-                    ::core::option::Option::Some(f) => f.clone(),
+                    ::core::option::Option::Some(recorded_fault) => recorded_fault.clone(),
                     ::core::option::Option::None => ::holon_blackboard::FaultRecord {
                         summary: "Suboptimal parity score".to_string(),
                         cause: ::core::option::Option::Some(::holon_blackboard::FaultCause::Intrinsic),
@@ -387,7 +437,7 @@ impl<
                     selected_id,
                     ::core::option::Option::Some(repaired_code.clone()),
                     ::core::option::Option::None,
-                    0.50,
+                    DEFAULT_PRIOR_UTILITY,
                 );
                 (child_id, repaired_code)
             }
@@ -405,6 +455,9 @@ impl<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Completion agent sampling temperature used across deterministic unit tests.
+    const TEST_AGENT_TEMPERATURE: ::core::primitive::f64 = 0.2;
 
     /// Deterministic completion double for controller-level tests.
     #[derive(::core::clone::Clone)]
@@ -536,22 +589,22 @@ mod tests {
     ) -> crate::agents::SubagentPool<self::ControllerFakeModel> {
         let strategy_agent = ::holon_strategy::HolonStrategyAgent::builder()
             .model(model.clone())
-            .temperature(0.2)
+            .temperature(TEST_AGENT_TEMPERATURE)
             .target_language("rust".to_string())
             .build();
         let codegen_agent = ::holon_codegen::HolonCodeGenAgent::builder()
             .model(model.clone())
-            .temperature(0.2)
+            .temperature(TEST_AGENT_TEMPERATURE)
             .target_language("rust".to_string())
             .build();
         let testgen_agent = ::holon_testgen::HolonTestGenAgent::builder()
             .model(model.clone())
-            .temperature(0.2)
+            .temperature(TEST_AGENT_TEMPERATURE)
             .target_language("rust".to_string())
             .build();
         let patch_agent = ::holon_patch::HolonPatchAgent::builder()
             .model(model.clone())
-            .temperature(0.2)
+            .temperature(TEST_AGENT_TEMPERATURE)
             .target_language("rust".to_string())
             .build();
         let strategy_handle = ::std::sync::Arc::new(strategy_agent);

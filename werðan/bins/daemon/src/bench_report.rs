@@ -1,8 +1,10 @@
 //! Campaign report schema for the THESEUS campaign runner (VAL-DAEMON-01/03/04).
 //! The report carries campaign identity, per-module outcomes, the FIFO event
 //! log, hardened/failed totals, and an honest backend configuration echo.
-
-
+//!
+//! Architectural Intent (ADR-0005 / VAL-DAEMON-01):
+//! Pin the observable campaign report structure against authoritative methodology
+//! specifications. Downstream tools evaluate campaign results through this schema.
 /// One module outcome in the campaign report.
 #[derive(::core::clone::Clone, ::core::fmt::Debug, ::serde::Serialize, ::serde::Deserialize, ::core::cmp::PartialEq)]
 pub struct ModuleOutcome {
@@ -27,7 +29,7 @@ pub struct BackendEcho {
     pub stub_backend: ::core::primitive::bool,
 }
 
-/// Campaign runner report: the observable result of one THESEUS campaign.
+/// Campaign runner report: the observable result of one THESEUS campaign (ADR-0005 / VAL-DAEMON-01).
 #[derive(
     ::core::clone::Clone,
     ::core::fmt::Debug,
@@ -54,7 +56,7 @@ pub struct CampaignReport {
     pub error: ::core::option::Option<::std::string::String>,
 }
 
-/// Run the deterministic stub campaign over the seeded board.
+/// Run the deterministic stub campaign over the seeded board (VAL-DAEMON-04).
 ///
 /// Event log entries derive from the engine transition log, which records
 /// one entry per recorded transition in dispatch order.
@@ -62,6 +64,7 @@ pub fn run_stub_campaign(
     campaign_id: &::core::primitive::str,
     board: ::global_blackboard::GlobalBlackboard,
 ) -> self::CampaignReport {
+    ::tracing::info!("starting stub campaign {campaign_id}");
     let solver = ::global_engine::StubModuleSolver::new();
     let boxed_solver = ::std::boxed::Box::new(solver);
     let backend = self::BackendEcho {
@@ -73,24 +76,34 @@ pub fn run_stub_campaign(
     engine.configure(board);
     let run_res = engine.run();
     match run_res {
+        ::core::result::Result::Err(engine_error) => {
+            ::tracing::error!("stub campaign {campaign_id} failed with engine error: {engine_error}");
+            self::failed_report_from_error(campaign_id, &engine, backend, &engine_error)
+        },
         ::core::result::Result::Ok(stop) => {
             let report = self::report_from_engine(campaign_id, &engine, backend);
             let finished = ::core::matches!(stop, ::global_engine::RunStop::Terminated);
             if finished {
+                ::tracing::info!(
+                    "stub campaign {campaign_id} completed successfully with {} hardened modules",
+                    report.hardened_count
+                );
                 report
             } else {
                 let parked = "campaign parked on human gate before termination".to_string();
+                ::tracing::warn!("stub campaign {campaign_id}: {parked}");
                 let mut parked_report = report;
                 parked_report.error = ::core::option::Option::Some(parked);
                 parked_report
             }
         },
-        ::core::result::Result::Err(engine_error) => {
-            self::failed_report_from_error(campaign_id, &engine, backend, &engine_error)
-        },
     }
 }
 
+/// Error propagation schema mapping per ADR-0005 and VAL-DAEMON-03.
+///
+/// When engine execution halts with an error, map it to every unhardened module.
+/// This preserves the underlying state vector and transition log.
 pub fn failed_report_from_error(
     campaign_id: &::core::primitive::str,
     engine: &::global_engine::MacroEngine,
@@ -114,6 +127,11 @@ pub fn failed_report_from_error(
     report
 }
 
+/// Campaign report schema mapping per ADR-0005 and VAL-DAEMON-01.
+///
+/// Maps final blackboard state vector and artifacts into a CampaignReport.
+/// Modules reaching M4 carry artifact references.
+/// Unhardened modules carry explicit blockers.
 pub fn report_from_engine(
     campaign_id: &::core::primitive::str,
     engine: &::global_engine::MacroEngine,
@@ -139,7 +157,7 @@ pub fn report_from_engine(
             .unwrap_or(fallback_micro);
         let hardened = ::core::matches!(observed_state, ::global_blackboard::ModuleMicroState::M4Hardened);
         let artifact_reference = if hardened {
-            board.artifacts.get(&module_id).and_then(|slot| slot.as_ref()).map(|_| module_id.clone())
+            board.artifacts.get(&module_id).and_then(|slot| slot.as_ref()).map(|_artifact| module_id.clone())
         } else {
             ::core::option::Option::None
         };

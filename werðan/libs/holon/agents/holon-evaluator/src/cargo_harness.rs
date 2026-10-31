@@ -353,8 +353,15 @@ impl self::ExecutionHarness for self::CargoHarness {
                 test_module_text.push_str(&import_line);
             }
             for (case_index, test_entry) in test_suite.iter().enumerate() {
+                let normalized_entry = if !crate_label.is_empty() {
+                    let pattern = ::std::format!("use {crate_label}::");
+                    let replacement = ::std::format!("use ::{crate_label}::");
+                    test_entry.replace(&pattern, &replacement)
+                } else {
+                    test_entry.clone()
+                };
                 let scoped_case = ::std::format!(
-                    "mod test_case_{case_index} {{\n    use super::*\x3b\n    {test_entry}\n}}\n\n"
+                    "mod test_case_{case_index} {{\n    use super::*\x3b\n    {normalized_entry}\n}}\n\n"
                 );
                 test_module_text.push_str(&scoped_case);
             }

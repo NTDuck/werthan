@@ -1,8 +1,11 @@
 //! Real per-project benchmark execution: honest LLM-backed engine run plus post-run validation.
 //! Total pipeline wall time, cargo toolchain checks with timeouts, deterministic COCOMO
 //! metrics, and an inference honesty gate.
-
-
+//!
+//! Architectural Intent (ADR-0005 / VAL-DAEMON-01 / VAL-DAEMON-03):
+//! Executes campaigns synchronously on dedicated OS threads to preserve non-Send
+//! MacroEngine semantics. Enforces honesty gating so synthetic passes cannot bypass
+//! real inference calls.
 pub async fn run_campaign(
     bench_config: &super::bench_config::CampaignConfig,
 ) -> self::BenchResult {
@@ -14,14 +17,14 @@ pub async fn run_campaign(
         let outcome = self::run_campaign_blocking(&thread_config);
         let send_ok = result_sender.send(outcome).is_ok();
         if !send_ok {
-            ::tracing::error!("campaign result receiver dropped before the result arrived");
+            ::tracing::error!("campaign result receiver dropped before worker thread delivered outcome");
         }
     });
     let campaign_res = result_receiver.recv();
     let campaign_result = match campaign_res {
         ::core::result::Result::Ok(value) => value,
         ::core::result::Result::Err(recv_error) => {
-            let reason = ::std::format!("campaign thread join failed: {recv_error}");
+            let reason = ::std::format!("failed to receive campaign result from worker thread: {recv_error}");
             self::failed_result(&bench_config.campaign_id, &reason)
         },
     };
@@ -84,8 +87,7 @@ fn run_campaign_blocking(
         &api_surface_text,
     );
     ::tracing::info!(
-        "campaign {}: rule extraction issued {} requests over {} vertices, {} failures",
-        campaign_id,
+        "campaign {campaign_id}: rule extraction issued {} requests across {} vertices with {} failures",
         rule_report.request_count,
         rule_entries.len(),
         rule_report.failed_vertices.len()
@@ -119,22 +121,24 @@ fn run_campaign_blocking(
         .hitl(hitl_gates)
         .build();
     engine.configure(seeded_board);
-    ::tracing::info!("starting engine.run()");
+    ::tracing::info!("campaign {campaign_id}: starting engine execution");
     let engine_started = ::std::time::Instant::now();
     let run_res = engine.run();
-    let _ = &engine;
+    let _engine_ref = &engine;
     let engine_wall_time_ms = { engine_started.elapsed().as_millis() as ::core::primitive::u64 };
-    ::tracing::info!("finished engine.run() in {}ms", engine_wall_time_ms);
+    ::tracing::info!(
+        "campaign {campaign_id}: finished engine execution in {engine_wall_time_ms} ms"
+    );
     let engine_error = match run_res {
         ::core::result::Result::Ok(global_engine_run_stop) => {
-            ::tracing::info!("engine stopped: {global_engine_run_stop:?}");
+            ::tracing::info!("campaign {campaign_id}: engine stopped with status: {global_engine_run_stop:?}");
             match global_engine_run_stop {
                 ::global_engine::RunStop::Terminated => ::core::option::Option::None,
                 ::global_engine::RunStop::HitlGatePending { gate } => {
                     // A headless benchmark has no operator to approve the
                     // gate, so a parked campaign is an explicit outcome.
                     let detail = ::std::format!("campaign parked on human gate {gate:?}");
-                    ::tracing::info!("{detail}");
+                    ::tracing::info!("campaign {campaign_id}: {detail}");
                     ::core::option::Option::Some(detail)
                 }
             }
@@ -148,16 +152,18 @@ fn run_campaign_blocking(
         super::bench_harness::count_unimplemented(&workspace_root, &bench_config.stack.target_language);
     let llm_requests = request_count.load(::std::sync::atomic::Ordering::SeqCst);
     ::tracing::info!(
-        "campaign {}: llm requests {}, engine wall {} ms",
-        campaign_id,
-        llm_requests,
-        engine_wall_time_ms
+        "campaign {campaign_id}: completed with {llm_requests} LLM requests in {engine_wall_time_ms} ms engine wall time"
     );
+    // Intent (ADR-0005 / VAL-DAEMON-03): Inference honesty gate.
+    // The benchmark requires real LLM inference when solver dispatches occur.
+    // If solver dispatches were active (> 0) but zero backend requests were
+    // recorded, the campaign bypassed real model inference. Record an honest
+    // terminal failure so synthetic or mocked passes cannot masquerade as valid.
     let solver_dispatches = engine.solver_dispatches();
     let dispatches_present = solver_dispatches > 0;
     let zero_inference = llm_requests == 0;
     let honesty_error = if dispatches_present && zero_inference {
-        ::core::option::Option::Some("dishonest: zero inference calls".to_string())
+        ::core::option::Option::Some("dishonest: zero inference calls recorded during active solver dispatches".to_string())
     } else {
         ::core::option::Option::None
     };
@@ -166,10 +172,12 @@ fn run_campaign_blocking(
     } else {
         engine_error
     };
+    // Intent (ADR-0005 / VAL-DAEMON-01 / VAL-DAEMON-08): Benchmark result schema mapping.
     // Benchmark acceptance semantics: compilation success reflects the final
-    // workspace artifact state (check + no unimplemented stubs) only. A
-    // designed bounded engine termination does not mark compilation failed.
-    // The engine terminal error reports independently in the `error` field.
+    // workspace artifact state (cargo check passed + zero unimplemented stubs) only.
+    // A designed bounded engine termination or error does not fail compilation_success
+    // if the resulting code is valid (see contract_val_daemon_08). The terminal engine
+    // error reports independently in the `error` field.
     let compilation_success =
         validation.check_ok && unimplemented_remaining == 0;
     let wall_time_ms = { campaign_started.elapsed().as_millis() as ::core::primitive::u64 };
@@ -197,6 +205,10 @@ fn run_campaign_blocking(
     result
 }
 
+/// Canonical benchmark result schema for downstream evaluation (ADR-0005 / VAL-DAEMON-01).
+///
+/// Encapsulates end-to-end execution metrics: wall-clock durations, observed inference
+/// request counts, COCOMO-II estimation metrics, and workspace compilation / test pass rates.
 #[derive(::core::clone::Clone, ::core::fmt::Debug, ::serde::Serialize, ::serde::Deserialize)]
 pub struct BenchResult {
     /// Campaign identifier from the configuration.
@@ -261,8 +273,7 @@ fn reset_workspace(
     let not_outputs_rooted = !root_text.starts_with(outputs_prefix);
     if not_outputs_rooted {
         return ::core::option::Option::Some(::std::format!(
-            "workspace root {} is not under {outputs_prefix}",
-            root_text
+            "workspace root path '{root_text}' is not under expected prefix '{outputs_prefix}'"
         ));
     }
     let dataset_relative = root_text.replacen(
@@ -274,7 +285,7 @@ fn reset_workspace(
     let dataset_missing = !dataset_dir.is_dir();
     if dataset_missing {
         return ::core::option::Option::Some(::std::format!(
-            "pristine dataset dir missing: {}",
+            "pristine dataset directory not found at: {}",
             dataset_dir.display()
         ));
     }
@@ -285,14 +296,14 @@ fn reset_workspace(
         let already_clean = remove_error.kind() == ::std::io::ErrorKind::NotFound;
         if !already_clean {
             return ::core::option::Option::Some(::std::format!(
-                "workspace reset remove failed: {remove_error}"
+                "failed to remove workspace directory for reset: {remove_error}"
             ));
         }
     }
     let copy_res = self::copy_dir_recursive(&dataset_dir, workspace_root);
     if let ::core::result::Result::Err(copy_error) = copy_res {
         return ::core::option::Option::Some(::std::format!(
-            "workspace reset copy failed: {copy_error}"
+            "failed to copy dataset to workspace for reset: {copy_error}"
         ));
     }
     ::core::option::Option::None
@@ -306,12 +317,12 @@ fn copy_dir_recursive(
     let create_res = ::std::fs::create_dir_all(target_dir);
     if let ::core::result::Result::Err(create_error) = create_res {
         return ::core::result::Result::Err(::std::format!(
-            "dir creation failed for {}: {create_error}",
+            "failed to create destination directory {}: {create_error}",
             target_dir.display()
         ));
     }
     let entries = ::std::fs::read_dir(source_dir)
-        .map_err(|read_error| ::std::format!("read_dir failed: {read_error}"))?;
+        .map_err(|read_error| ::std::format!("failed to read source directory {}: {read_error}", source_dir.display()))?;
     for entry in entries.flatten() {
         let entry_path = entry.path();
         let entry_name = entry.file_name();
@@ -324,8 +335,9 @@ fn copy_dir_recursive(
             let copy_res = ::std::fs::copy(&entry_path, &entry_target);
             if let ::core::result::Result::Err(copy_error) = copy_res {
                 return ::core::result::Result::Err(::std::format!(
-                    "copy failed for {}: {copy_error}",
-                    entry_path.display()
+                    "failed to copy file {} to {}: {copy_error}",
+                    entry_path.display(),
+                    entry_target.display()
                 ));
             }
         }
@@ -376,7 +388,7 @@ fn build_solver(
             return ::core::result::Result::Err(failure);
         },
     };
-    ::tracing::info!("campaign {}: LLM backend configured", bench_config.campaign_id);
+    ::tracing::info!("campaign {}: configured LLM completion backend", bench_config.campaign_id);
     let mut mcts_config = ::holon_engine::EngineConfig::default();
     let rollout_budget = bench_config.ariadne.engine_budget_per_module;
     let rollout_nonzero = rollout_budget > 0;
@@ -499,7 +511,7 @@ mod tests {
         let config_path = repo_root.join("benchmarks/assets/configs/ReCodeAgent/crust/vec.yml");
         let load_res = super::super::bench_config::load_bench_config(&config_path);
         let mut bench_config = load_res.expect("crust-vec config loads");
-        let _ = ::tracing_subscriber::fmt().try_init();
+        let _init_result = ::tracing_subscriber::fmt().try_init();
         bench_config.ariadne.engine_budget_per_module = 1;
         bench_config.verification.max_self_heal_retries = 0;
         bench_config.inference.inference_max_tokens = 4096;
