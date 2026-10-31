@@ -48,6 +48,7 @@ Decision records live in [`../decisions/`](../decisions/). The ledger is append-
 | [ADR-0015](../decisions/0015-methodology-validation-contracts.md) | Methodology validation contracts (`VAL-*`) replace cucumber BDD suites; contracts outrank implementation tests. Accepted. |
 | [ADR-0016](../decisions/0016-daemon-owned-transport-deadlines.md) | Daemon-owned reqwest transport with client-level deadlines inside `bench_llm::OpenAiCompatModel`. Accepted. |
 | [ADR-0017](../decisions/0017-language-agnostic-pipeline.md) | Language-agnostic pipeline: config-driven `target_language` plumbing, neutral fault sentinels, dialect-gated post-processing; `rust` is the sanctioned default. Accepted. |
+| [ADR-0018](../decisions/0018-frequent-intentional-compaction.md) | Frequent Intentional Compaction: semantic diagnostic filtering capping repair payloads within the SLM "Smart Zone" ($\le 12\text{k}$ tokens). Accepted. |
 
 ## Change Protocol
 

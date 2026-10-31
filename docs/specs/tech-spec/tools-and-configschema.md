@@ -57,7 +57,7 @@ The canonical migration.yml schema is `configschema::CampaignConfig` (crate `wer
 | `inference` | `base_url`, `model`, `max_parallel_shards`, `max_shards`, `inference_max_tokens`, `inference_temperature`, `inference_timeout_secs`, `build_timeout_secs`, `test_timeout_secs`. |
 | `verification` | `max_self_heal_retries`, `require_byte_identical_io`. |
 | `hitl` | `gate_on_reimagine`, `gate_on_macro_regression`, `extrinsic_conflict_escalation` (`"auto_negotiate"` \| `"ask_human"`). |
-| `ariadne` | `engine_budget_per_module` (serde alias `max_rollouts`), `ucb_exploration_c`, `softmax_temperature`, `reward_weights` (`compile`, `characterization_parity`, `hardening_score`), `llm_backend` (`base_url`, `model`, `max_tokens`, `temperature`, `timeout_secs`), `cargo_harness` (`build_timeout_secs`, `test_timeout_secs`). |
+| `ariadne` | `engine_budget_per_module` (serde alias `max_rollouts`), `ucb_exploration_c`, `softmax_temperature`, `reward_weights` (`compile` default 0.20, `characterization_parity` default 0.60, `hardening_score` default 0.20, matching `holon_engine::EngineConfig`), `llm_backend` (`base_url`, `model`, `max_tokens`, `temperature`, `timeout_secs`), `cargo_harness` (`build_timeout_secs`, `test_timeout_secs`). |
 
 ### 2.2 Defined-but-Not-Consumed Sections
 
