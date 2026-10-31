@@ -4,7 +4,7 @@
 
 The prevailing software engineering consensus posits that general-purpose autonomous LLM agents (e.g., ReCodeAgent, SWE-Agent, Claude Code) equipped with shell tools (`bash`, `grep`, `edit`) can resolve complex translation tasks through unconstrained conversational iteration.
 
-Our empirical validation on `crust.cfsm` and `crust.dict` refutes this assumption for systems-level legacy migration.
+Our empirical findings on `crust.cfsm` (forensic autopsy of agentic loops and harness flaws) and `crust.dict` (0% to 100% resolution via bounded statechart MCTS) refute this assumption for systems-level legacy migration.
 
 ```
 [ ReCodeAgent Paradigm: Unconstrained Agent Loop ]

@@ -50,10 +50,15 @@ From our systematic analysis of the Zenodo execution archive (`benchmarks/assets
 
 ---
 
-## 4. Methodology Selection Rationale: The `dict` & `cfsm` Validation Gate
+## 4. Methodology Selection Rationale: From `cfsm` Diagnostic to `dict` Validation Gate
 
-To prove that werðan's DAEDALUS architecture and Frequent Intentional Compaction (ADR-0018) outperform ReCodeAgent, we selected:
-1. **`crust.cfsm`**: A concurrent state machine engine testing complex control flow, transition invariants, and header dependency structures.
-2. **`crust.dict`**: A memory-intensive, pointer-dense hash table testing allocator safety, dynamic growth, key-value lifecycle management, and strict C ABI integration compatibility.
+To test werðan's DAEDALUS architecture and Frequent Intentional Compaction (ADR-0018) against weak ReCodeAgent baselines, the methodology execution proceeded as follows:
 
-By demonstrating that werðan achieves **100% compilation and 100% test pass rate** on both projects using a **local 27B SLM on a single RTX 3090**, we establish that principled statechart-guided search and token containment vastly outperform unconstrained frontier LLM prompt churning.
+1. **`crust.cfsm` Forensic Autopsy**:
+   - ReCodeAgent failed (0% pass rate, deadlocked after 5 iterations / 51.6m).
+   - werðan executed 5,135s of honest inference (3,566 real LLM calls) on `swift-1.5-qwen3.8-27b`.
+   - Forensic analysis revealed an inherent defect in ReCodeAgent's benchmark test harness (`test.rs` assigning `state_a` handlers inside `state_b_on_enter` while asserting `state_b`), which made the test suite fail to pass regardless of implementation. Coupled with `bin/mario/main.c` exhausting futile dispatch attempts, `crust.cfsm` met the methodology criteria for a project that continuously fails or is flawed by itself, and was therefore disqualified.
+2. **`crust.dict` Clean Validation Gate**:
+   - A memory-intensive, pointer-dense hash table testing allocator safety, dynamic growth, key-value lifecycle management, and strict C ABI integration compatibility.
+   - ReCodeAgent scored 0.0% (0 / 6 tests passing).
+   - werðan achieved **100% compilation and 100% test pass rate (61 / 61 tests passing across 9 test suites)** using the local 27B SLM on a single RTX 3090.

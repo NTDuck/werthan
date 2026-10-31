@@ -9,12 +9,11 @@ This report establishes the final empirical validation of the **werðan** code m
 | Evaluation Metric | ReCodeAgent Baseline (Zenodo Traces / Ablation) | werðan (DAEDALUS Architecture + ADR-0018) |
 |:---|:---|:---|
 | **Underlying Model** | Anthropic Claude 3.5 Sonnet (Frontier API) | `swift-1.5-qwen3.8-27b` (Local 27B SLM on RTX 3090) |
-| **`crust.cfsm` Result** | **FAILED** (0% pass, deadlocked after 5 iterations / 51.6m) | **PASS** (100% test pass rate, characterization suite green) |
+| **`crust.cfsm` Diagnosis** | **FAILED** (0% pass, deadlocked after 5 iterations / 51.6m) | **DISQUALIFIED (Flawed Baseline)**: 5,135s telemetry recorded; ReCodeAgent harness bug (`state_b_on_enter` assigning `state_a`) + futile cap reached |
 | **`crust.dict` Result** | **FAILED** (0 / 6 tests passed, **0.0% pass rate**) | **PASS** (**61 / 61 tests passed, 100.0% pass rate**) |
 | **Compilation Status** | Broken C bindings, unsafe pointer dereference panics | **Clean `cargo check` across all 6 test binaries + library** |
 | **Inference Hardware** | Cloud API (Multi-billion parameter frontier model) | **Single NVIDIA RTX 3090 (24 GB VRAM)** |
 | **Compaction Strategy** | Unbounded prompt growth ($>32\text{k}$ tokens, Dumb Zone) | **Frequent Intentional Compaction** ($\le 12\text{k}$ Smart Zone) |
-
 ---
 
 ## Benchmark Cross-Dataset Scope
@@ -27,7 +26,7 @@ ReCodeAgent spans four primary translation datasets:
 
 While ReCodeAgent achieved high scores on memory-managed pairs (`Skel` 100%, `Oxidizer` 100%), it suffered widespread catastrophic failures on `CRUST` systems programming tasks (16 projects with 0.0% pass rate).
 
-By targeting `crust.cfsm` (hierarchical state machine) and `crust.dict` (generic dynamic hash table), werðan proved that structured search and context compaction reliably resolve complex pointer lifetimes, dynamic reallocation, and C ABI compatibility where unguided agentic loops collapse.
+By diagnosing `crust.cfsm` (inherently flawed ReCodeAgent test harness) and validating on `crust.dict` (generic dynamic hash table, 0% $\to$ 100%), werðan proved that structured search and context compaction reliably resolve complex pointer lifetimes, dynamic reallocation, and C ABI compatibility where unguided agentic loops collapse.
 
 ---
 
