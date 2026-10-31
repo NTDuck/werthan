@@ -72,7 +72,8 @@ pub fn seed_board(
     // test-tree files still feed the size metrics and the rule prompts.
     for entry in &entries {
         let test_tree = self::is_test_tree_path(&entry.relative_path);
-        if test_tree {
+        let is_header = self::is_header_path(&entry.relative_path, &bench_config.stack.source_language);
+        if test_tree || is_header {
             continue;
         }
         board.inventory.push(entry.relative_path.clone());
@@ -229,29 +230,13 @@ pub fn build_dag(
     source_language: &::core::primitive::str,
 ) -> ::global_blackboard::CondensedDag {
     let mut dag = ::global_blackboard::CondensedDag::new();
-    let mut headers = ::std::vec::Vec::new();
-    let mut modules = ::std::vec::Vec::new();
     for entry in entries {
         let test_tree = self::is_test_tree_path(&entry.relative_path);
-        if test_tree {
+        let header_file = self::is_header_path(&entry.relative_path, source_language);
+        if test_tree || header_file {
             continue;
         }
-        let header_file = self::is_header_path(&entry.relative_path, source_language);
-        if header_file {
-            headers.push(entry);
-        } else {
-            modules.push(entry);
-        }
         dag.vertices.push(entry.vertex_id.clone());
-    }
-    for module_entry in &modules {
-        let module_stem = self::stem_of(&module_entry.relative_path);
-        for header_entry in &headers {
-            let header_stem = self::stem_of(&header_entry.relative_path);
-            if module_stem == header_stem {
-                dag.edges.push((header_entry.vertex_id.clone(), module_entry.vertex_id.clone()));
-            }
-        }
     }
     dag
 }
@@ -268,26 +253,6 @@ fn is_test_tree_path(relative_path: &::core::primitive::str) -> ::core::primitiv
         .split('/')
         .any(|component| component == "tests" || component == "test")
 }
-/// Seed one interface contract per DAG edge so the S4 brief guard holds.
-pub fn seed_contracts(
-    board: &mut ::global_blackboard::GlobalBlackboard,
-    legacy_dir: &::std::path::Path,
-) {
-    let edges = board.dag.edges.clone();
-    for edge_pair in edges {
-        let parent_id = edge_pair.0.clone();
-        let header_path = legacy_dir.join(&parent_id);
-        let header_spec = ::std::fs::read_to_string(&header_path)
-            .unwrap_or_else(|_| ::std::format!("parent interface from header {parent_id}"));
-        let contract = ::holon_blackboard::EdgeContract {
-            parent_id,
-            interface_spec: { header_spec },
-            preconditions: ::std::vec::Vec::new(),
-        };
-        board.contracts.insert(edge_pair, contract);
-    }
-}
-
 /// Report whether the extension marks a header file.
 ///
 /// Header detection follows the legacy source language. C-family campaigns
@@ -310,10 +275,24 @@ fn is_header_path(
         || relative_path.ends_with(".hxx")
 }
 
-fn stem_of(relative_path: &::core::primitive::str) -> &::core::primitive::str {
-    let file_name = relative_path.rsplit('/').next().unwrap_or(relative_path);
-    let stem_end = file_name.rfind('.').unwrap_or(file_name.len());
-    &file_name[..stem_end]
+/// Seed one interface contract per DAG edge so the S4 brief guard holds.
+pub fn seed_contracts(
+    board: &mut ::global_blackboard::GlobalBlackboard,
+    legacy_dir: &::std::path::Path,
+) {
+    let edges = board.dag.edges.clone();
+    for edge_pair in edges {
+        let parent_id = edge_pair.0.clone();
+        let header_path = legacy_dir.join(&parent_id);
+        let header_spec = ::std::fs::read_to_string(&header_path)
+            .unwrap_or_else(|_| ::std::format!("parent interface from header {parent_id}"));
+        let contract = ::holon_blackboard::EdgeContract {
+            parent_id,
+            interface_spec: { header_spec },
+            preconditions: ::std::vec::Vec::new(),
+        };
+        board.contracts.insert(edge_pair, contract);
+    }
 }
 
 /// Measure the legacy tree size metrics from the discovered source files.
