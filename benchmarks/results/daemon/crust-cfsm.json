@@ -1,0 +1,20 @@
+{
+  "campaign_id": "crust-cfsm-bench",
+  "wall_time_ms": 5135600,
+  "engine_wall_time_ms": 5057181,
+  "llm_requests": 3566,
+  "unimplemented_before": 0,
+  "unimplemented_after_reset": 5,
+  "compilation_success": false,
+  "test_pass_rate": 0.0,
+  "unimplemented_remaining": 5,
+  "solver_dispatches": 24,
+  "worker_executions": 28,
+  "structural_retries": 0,
+  "macro_states_visited": 18,
+  "total_lines": 5827,
+  "code_lines": 2478,
+  "cocomo_effort_pm": 6.223255173958171,
+  "cocomo_duration_months": 5.008027442765418,
+  "error": "module bin/mario/main.c exhausted the futile dispatch cap after 3 attempts"
+}

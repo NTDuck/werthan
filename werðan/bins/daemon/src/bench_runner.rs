@@ -383,8 +383,12 @@ fn build_solver(
     if rollout_nonzero {
         mcts_config.max_rollouts = rollout_budget;
     }
-    mcts_config.ucb_c_exp = bench_config.ariadne.ucb_exploration_c;
-    mcts_config.softmax_temperature = bench_config.ariadne.softmax_temperature;
+    if bench_config.ariadne.ucb_exploration_c > 0.0 {
+        mcts_config.ucb_c_exp = bench_config.ariadne.ucb_exploration_c;
+    }
+    if bench_config.ariadne.softmax_temperature > 0.0 {
+        mcts_config.softmax_temperature = bench_config.ariadne.softmax_temperature;
+    }
     let engine_weights = ::holon_engine::RewardWeights {
         compile: ::core::clone::Clone::clone(&bench_config.ariadne.reward_weights.compile),
         parity: ::core::clone::Clone::clone(

@@ -132,7 +132,7 @@ pub struct HitlSection {
 }
 
 /// Reward weight triple for the gated hierarchical reward function.
-#[derive(::core::clone::Clone, ::core::marker::Copy, ::core::fmt::Debug, ::core::default::Default, ::serde::Deserialize, ::serde::Serialize)]
+#[derive(::core::clone::Clone, ::core::marker::Copy, ::core::fmt::Debug, ::serde::Deserialize, ::serde::Serialize)]
 #[serde(default)]
 pub struct RewardWeights {
     /// Weight for clean compilation.
@@ -141,6 +141,16 @@ pub struct RewardWeights {
     pub characterization_parity: ::core::primitive::f64,
     /// Weight for semantic hardening score.
     pub hardening_score: ::core::primitive::f64,
+}
+
+impl ::core::default::Default for self::RewardWeights {
+    fn default() -> Self {
+        Self {
+            compile: 0.20,
+            characterization_parity: 0.60,
+            hardening_score: 0.20,
+        }
+    }
 }
 
 /// Inference backend coordinates for generative subagents.
@@ -296,7 +306,7 @@ mod tests {
         ::core::assert_eq!(parsed.campaign_id, "minimal");
         ::core::assert_eq!(parsed.execution_mode, super::ExecutionMode::Hitl);
         ::core::assert_eq!(parsed.stack.target_language, "");
-        ::core::assert_eq!(parsed.ariadne.reward_weights.compile, 0.0);
+        ::core::assert_eq!(parsed.ariadne.reward_weights.compile, 0.20);
         ::core::assert_eq!(
             parsed.hitl.extrinsic_conflict_escalation,
             super::ConflictEscalation::AutoNegotiate

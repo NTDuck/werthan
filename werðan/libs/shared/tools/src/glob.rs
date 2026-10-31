@@ -140,25 +140,21 @@ fn collect_glob_matches(
     respect_gitignore: ::core::primitive::bool,
     limit: ::core::primitive::usize,
 ) -> ::std::vec::Vec<::std::string::String> {
-    let mut matches = ::std::vec::Vec::new();
-    let exists = base_dir.exists();
-    if !exists {
-        return matches;
+    if !base_dir.exists() {
+        return ::std::vec::Vec::new();
     }
 
-    let is_file = base_dir.is_file();
-    if is_file {
+    if base_dir.is_file() {
         let normalized = self::normalize_entry_path(base_dir);
         let is_match = matcher.is_match(&normalized);
         if is_match {
-            matches.push(normalized);
+            return ::std::vec![normalized];
         }
-        return matches;
+        return ::std::vec::Vec::new();
     }
 
     let mut builder = ::ignore::WalkBuilder::new(base_dir);
-    let ignore_hidden = !include_hidden;
-    builder.hidden(ignore_hidden);
+    builder.hidden(!include_hidden);
     builder.git_ignore(respect_gitignore);
     builder.git_global(respect_gitignore);
     builder.git_exclude(respect_gitignore);
@@ -166,40 +162,23 @@ fn collect_glob_matches(
     let allows_target = base_dir.starts_with("target");
     let allows_node_modules = base_dir.starts_with("node_modules");
     builder.filter_entry(move |entry| {
-        let file_name = entry.file_name();
-        let name_str = file_name.to_string_lossy();
-        if name_str == ".git" {
-            return false;
-        }
-        if !allows_node_modules && name_str == "node_modules" {
-            return false;
-        }
-        if !allows_target && name_str == "target" {
-            return false;
-        }
-        true
+        let file_name = entry.file_name().to_string_lossy();
+        file_name != ".git"
+            && (allows_node_modules || file_name != "node_modules")
+            && (allows_target || file_name != "target")
     });
 
-    let walker = builder.build();
-    for entry_result in walker {
-        if matches.len() >= limit {
-            break;
-        }
-        let entry = match entry_result {
-            ::core::result::Result::Ok(entry_val) => entry_val,
-            ::core::result::Result::Err(_) => continue,
-        };
-        let depth = entry.depth();
-        if depth == 0 {
-            continue;
-        }
-        let entry_path = entry.path();
-        let normalized = self::normalize_entry_path(entry_path);
-        let is_match = matcher.is_match(&normalized);
-        if is_match {
-            matches.push(normalized);
-        }
-    }
+    let mut matches = builder
+        .build()
+        .filter_map(::core::result::Result::ok)
+        .filter(|entry| entry.depth() > 0)
+        .map(|entry| {
+            let entry_path = entry.path();
+            self::normalize_entry_path(entry_path)
+        })
+        .filter(|normalized_path| matcher.is_match(normalized_path))
+        .take(limit)
+        .collect::<::std::vec::Vec<::std::string::String>>();
 
     matches.sort();
     matches.dedup();
@@ -213,5 +192,54 @@ fn normalize_entry_path(path: &::std::path::Path) -> ::std::string::String {
     match stripped_opt {
         ::core::option::Option::Some(unprefixed) => unprefixed.to_string(),
         ::core::option::Option::None => forward_slashed,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_normalize_entry_path() {
+        let path_prefixed = ::std::path::Path::new("./foo/bar.rs");
+        let normalized = super::normalize_entry_path(path_prefixed);
+        ::std::assert_eq!(normalized, "foo/bar.rs");
+
+        let path_clean = ::std::path::Path::new("foo/bar.rs");
+        let normalized_clean = super::normalize_entry_path(path_clean);
+        ::std::assert_eq!(normalized_clean, "foo/bar.rs");
+    }
+
+    #[test]
+    fn test_collect_glob_matches_functional() {
+        let temp_dir = ::std::env::temp_dir();
+        let unique_timestamp = ::std::time::SystemTime::now()
+            .duration_since(::std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default();
+        let root = temp_dir.join(::std::format!("werthan-glob-test-{unique_timestamp}"));
+        ::std::fs::create_dir_all(&root).expect("create test root");
+
+        let file_one = root.join("alpha.rs");
+        let file_two = root.join("beta.txt");
+        let file_three = root.join("gamma.rs");
+        ::std::fs::write(&file_one, "fn alpha() {}").expect("write alpha");
+        ::std::fs::write(&file_two, "text content").expect("write beta");
+        ::std::fs::write(&file_three, "fn gamma() {}").expect("write gamma");
+
+        let matcher = super::build_glob_matcher("**/*.rs").expect("valid matcher");
+        let matches_all = super::collect_glob_matches(&root, &matcher, false, true, 100);
+        ::std::assert_eq!(matches_all.len(), 2);
+
+        let matches_limited = super::collect_glob_matches(&root, &matcher, false, true, 1);
+        ::std::assert_eq!(matches_limited.len(), 1);
+
+        let file_matcher = super::build_glob_matcher("**/alpha.rs").expect("valid file matcher");
+        let matches_file = super::collect_glob_matches(&file_one, &file_matcher, false, true, 100);
+        ::std::assert_eq!(matches_file.len(), 1);
+
+        let non_existent = root.join("does_not_exist");
+        let matches_non_existent = super::collect_glob_matches(&non_existent, &matcher, false, true, 100);
+        ::std::assert!(matches_non_existent.is_empty());
+
+        let _ignored = ::std::fs::remove_dir_all(&root);
     }
 }

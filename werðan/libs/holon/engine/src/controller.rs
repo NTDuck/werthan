@@ -194,14 +194,24 @@ impl<
     }
     fn step_core(&mut self) -> ::core::option::Option<self::StepResult> {
         self.rollout_count += 1;
+        ::tracing::info!(
+            target: "holon_engine",
+            "module {} rollout {}/{}: tests={}, last_pass_rate={:?}",
+            self.blackboard.module_id,
+            self.rollout_count,
+            self.config.max_rollouts,
+            self.blackboard.characterization_tests.test_count(),
+            self.last_pass_rate,
+        );
 
         // VAL-M2-03(d): demonstrated low parity invokes the adversarial test
         // agent to expand coverage. The agent stays blind to candidate code.
         // INITIAL-mode seeding already covers the empty-suite case.
+        // Bound test expansion to prevent runaway growth during repeated repairs.
         let coverage_low = ::core::matches!(
             self.last_pass_rate,
             ::core::option::Option::Some(rate_value) if rate_value < 0.999_999
-        );
+        ) && self.blackboard.characterization_tests.test_count() < 10;
         if coverage_low {
             let seeded_tests = ::holon_testgen::HolonTestGenAgent::generate_characterization_tests(
                 &self.agents.test_gen_agent,
@@ -236,8 +246,16 @@ impl<
             eval_res.test_pass_rate,
             eval_res.hardening_score,
         );
+        ::tracing::info!(
+            target: "holon_engine",
+            "module {} rollout {} eval: compiles={}, pass_rate={}, reward={}",
+            self.blackboard.module_id,
+            self.rollout_count,
+            eval_res.compiles,
+            eval_res.test_pass_rate,
+            reward,
+        );
         self.tree.backpropagate(child_id, reward);
-
         if reward > self.best_reward_score {
             self.best_reward_score = reward;
             self.best_candidate_code = ::core::option::Option::Some(candidate_code.clone());

@@ -187,9 +187,8 @@ impl self::MacroEngine {
     /// Seed the board inventory, DAG, and module vector before running.
     pub fn configure(&mut self, board: ::global_blackboard::GlobalBlackboard) {
         self.board = board;
-        self.board.state.module_states.clear();
         for vertex in self.board.dag.vertices.clone() {
-            self.board.state.module_states.insert(vertex, ::global_blackboard::ModuleMicroState::M0Blocked);
+            self.board.state.module_states.entry(vertex).or_insert(::global_blackboard::ModuleMicroState::M0Blocked);
         }
         self.futile_dispatches.clear();
     }
@@ -987,7 +986,9 @@ impl self::MacroEngine {
             let restored = self.board.state.history_state_of(&vertex);
             let next_state = match restored {
                 ::core::option::Option::Some(checkpoint) => checkpoint,
-                ::core::option::Option::None => ::global_blackboard::ModuleMicroState::M0Blocked,
+                ::core::option::Option::None => {
+                    self.board.state.module_states.get(&vertex).copied().unwrap_or(::global_blackboard::ModuleMicroState::M0Blocked)
+                },
             };
             self.board.state.module_states.insert(vertex.clone(), next_state);
             self.transition_log
@@ -1099,6 +1100,12 @@ impl self::MacroEngine {
             ::core::option::Option::Some(saved) => saved,
             ::core::option::Option::None => ::holon_fsm::ActivationMode::Initial,
         };
+        ::tracing::info!(
+            target: "global_engine",
+            "dispatch_module: vertex {} mode {:?}",
+            module_id,
+            mode,
+        );
         let next_state = match mode {
             ::holon_fsm::ActivationMode::Initial => ::global_blackboard::ModuleMicroState::M1ContextHydration,
             ::holon_fsm::ActivationMode::CriticRetry | ::holon_fsm::ActivationMode::WarmStartRegression => {
@@ -1111,6 +1118,12 @@ impl self::MacroEngine {
 
         self.solver_dispatches += 1;
         let outcome = self.solver.solve(module_id, &model, mode);
+        ::tracing::info!(
+            target: "global_engine",
+            "dispatch_module: vertex {} finished with outcome {:?}",
+            module_id,
+            outcome,
+        );
         match outcome {
             self::solver::SolverOutcome::Hardened {
                 target_code,

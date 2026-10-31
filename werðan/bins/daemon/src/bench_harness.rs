@@ -71,21 +71,20 @@ pub fn seed_board(
     // vertex, so the board inventory carries module files only. Header and
     // test-tree files still feed the size metrics and the rule prompts.
     for entry in &entries {
-        let is_header = self::is_header_path(&entry.relative_path, &bench_config.stack.source_language);
         let test_tree = self::is_test_tree_path(&entry.relative_path);
-        let non_test = !test_tree || is_header;
-        if non_test {
-            board.inventory.push(entry.relative_path.clone());
+        if test_tree {
+            continue;
         }
+        board.inventory.push(entry.relative_path.clone());
     }
     board.dag = dag;
     self::seed_contracts(&mut board, &legacy_dir);
     for entry in &entries {
-        let header_file = self::is_header_path(&entry.relative_path, &bench_config.stack.source_language);
         let test_tree = self::is_test_tree_path(&entry.relative_path);
-        if test_tree && !header_file {
+        if test_tree {
             continue;
         }
+        let header_file = self::is_header_path(&entry.relative_path, &bench_config.stack.source_language);
         if header_file {
             let header_path = legacy_dir.join(&entry.relative_path);
             let header_text = ::std::fs::read_to_string(&header_path).unwrap_or_default();
@@ -233,11 +232,11 @@ pub fn build_dag(
     let mut headers = ::std::vec::Vec::new();
     let mut modules = ::std::vec::Vec::new();
     for entry in entries {
-        let header_file = self::is_header_path(&entry.relative_path, source_language);
         let test_tree = self::is_test_tree_path(&entry.relative_path);
-        if test_tree && !header_file {
+        if test_tree {
             continue;
         }
+        let header_file = self::is_header_path(&entry.relative_path, source_language);
         if header_file {
             headers.push(entry);
         } else {
@@ -263,6 +262,31 @@ pub fn is_header(
 ) -> ::core::primitive::bool {
     self::is_header_path(&entry.relative_path, source_language)
 }
+/// Report whether one relative path lives inside a test tree directory.
+fn is_test_tree_path(relative_path: &::core::primitive::str) -> ::core::primitive::bool {
+    relative_path
+        .split('/')
+        .any(|component| component == "tests" || component == "test")
+}
+/// Seed one interface contract per DAG edge so the S4 brief guard holds.
+pub fn seed_contracts(
+    board: &mut ::global_blackboard::GlobalBlackboard,
+    legacy_dir: &::std::path::Path,
+) {
+    let edges = board.dag.edges.clone();
+    for edge_pair in edges {
+        let parent_id = edge_pair.0.clone();
+        let header_path = legacy_dir.join(&parent_id);
+        let header_spec = ::std::fs::read_to_string(&header_path)
+            .unwrap_or_else(|_| ::std::format!("parent interface from header {parent_id}"));
+        let contract = ::holon_blackboard::EdgeContract {
+            parent_id,
+            interface_spec: { header_spec },
+            preconditions: ::std::vec::Vec::new(),
+        };
+        board.contracts.insert(edge_pair, contract);
+    }
+}
 
 /// Report whether the extension marks a header file.
 ///
@@ -286,36 +310,10 @@ fn is_header_path(
         || relative_path.ends_with(".hxx")
 }
 
-/// Report whether one relative path lives inside a test tree directory.
-fn is_test_tree_path(relative_path: &::core::primitive::str) -> ::core::primitive::bool {
-    relative_path
-        .split('/')
-        .any(|component| component == "tests" || component == "test")
-}
-
 fn stem_of(relative_path: &::core::primitive::str) -> &::core::primitive::str {
     let file_name = relative_path.rsplit('/').next().unwrap_or(relative_path);
     let stem_end = file_name.rfind('.').unwrap_or(file_name.len());
     &file_name[..stem_end]
-}
-/// Seed one interface contract per DAG edge so the S4 brief guard holds.
-pub fn seed_contracts(
-    board: &mut ::global_blackboard::GlobalBlackboard,
-    legacy_dir: &::std::path::Path,
-) {
-    let edges = board.dag.edges.clone();
-    for edge_pair in edges {
-        let parent_id = edge_pair.0.clone();
-        let header_path = legacy_dir.join(&parent_id);
-        let header_spec = ::std::fs::read_to_string(&header_path)
-            .unwrap_or_else(|_| ::std::format!("parent interface from header {parent_id}"));
-        let contract = ::holon_blackboard::EdgeContract {
-            parent_id,
-            interface_spec: { header_spec },
-            preconditions: ::std::vec::Vec::new(),
-        };
-        board.contracts.insert(edge_pair, contract);
-    }
 }
 
 /// Measure the legacy tree size metrics from the discovered source files.

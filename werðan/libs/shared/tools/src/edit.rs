@@ -105,14 +105,7 @@ fn parse_hashline_patches(
         let trimmed = raw_line.trim();
         let file_header_opt = self::parse_file_header(trimmed);
         if let ::core::option::Option::Some(file_path) = file_header_opt {
-            if let ::core::option::Option::Some(hunk) = current_hunk.take() {
-                if let ::core::option::Option::Some(patch) = &mut current_patch {
-                    patch.hunks.push(hunk);
-                }
-            }
-            if let ::core::option::Option::Some(patch) = current_patch.take() {
-                patches.push(patch);
-            }
+            self::flush_current_patch(&mut current_hunk, &mut current_patch, &mut patches);
             let path = file_path;
             let hunks = ::std::vec::Vec::new();
             let new_patch = self::FilePatch {
@@ -125,11 +118,7 @@ fn parse_hashline_patches(
 
         let hunk_action_opt = self::parse_hunk_header(trimmed);
         if let ::core::option::Option::Some(action) = hunk_action_opt {
-            if let ::core::option::Option::Some(hunk) = current_hunk.take() {
-                if let ::core::option::Option::Some(patch) = &mut current_patch {
-                    patch.hunks.push(hunk);
-                }
-            }
+            self::flush_current_hunk(&mut current_hunk, &mut current_patch);
             let lines = ::std::vec::Vec::new();
             let order_index = order_counter;
             let new_hunk = self::ParsedHunk {
@@ -152,14 +141,7 @@ fn parse_hashline_patches(
         }
     }
 
-    if let ::core::option::Option::Some(hunk) = current_hunk.take() {
-        if let ::core::option::Option::Some(patch) = &mut current_patch {
-            patch.hunks.push(hunk);
-        }
-    }
-    if let ::core::option::Option::Some(patch) = current_patch.take() {
-        patches.push(patch);
-    }
+    self::flush_current_patch(&mut current_hunk, &mut current_patch, &mut patches);
 
     let is_empty = patches.is_empty();
     if is_empty {
@@ -201,6 +183,18 @@ fn parse_file_header(line: &::core::primitive::str) -> ::core::option::Option<::
     let owned = path_str.to_string();
     ::core::option::Option::Some(owned)
 }
+
+fn flush_current_patch(
+    current_hunk: &mut ::core::option::Option<self::ParsedHunk>,
+    current_patch: &mut ::core::option::Option<self::FilePatch>,
+    patches: &mut ::std::vec::Vec<self::FilePatch>,
+) {
+    self::flush_current_hunk(current_hunk, current_patch);
+    if let ::core::option::Option::Some(patch) = current_patch.take() {
+        patches.push(patch);
+    }
+}
+
 
 fn parse_hunk_header(line: &::core::primitive::str) -> ::core::option::Option<self::HunkAction> {
     let is_put = line.starts_with("PUT ");
@@ -320,33 +314,33 @@ fn parse_line_range(
 
     let eq_pos = trimmed.find(".=");
     if let ::core::option::Option::Some(idx) = eq_pos {
-        let s_part = &trimmed[..idx];
-        let e_part = &trimmed[idx + 2..];
-        let s_res = s_part.parse::<::core::primitive::usize>();
-        let e_res = e_part.parse::<::core::primitive::usize>();
-        if let (::core::result::Result::Ok(start_val), ::core::result::Result::Ok(end_val)) = (s_res, e_res) {
+        let start_part = &trimmed[..idx];
+        let end_part = &trimmed[idx + 2..];
+        let start_res = start_part.parse::<::core::primitive::usize>();
+        let end_res = end_part.parse::<::core::primitive::usize>();
+        if let (::core::result::Result::Ok(start_val), ::core::result::Result::Ok(end_val)) = (start_res, end_res) {
             return ::core::option::Option::Some((start_val, end_val));
         }
     }
 
     let dot_dot_pos = trimmed.find("..");
     if let ::core::option::Option::Some(idx) = dot_dot_pos {
-        let s_part = &trimmed[..idx];
-        let e_part = &trimmed[idx + 2..];
-        let s_res = s_part.parse::<::core::primitive::usize>();
-        let e_res = e_part.parse::<::core::primitive::usize>();
-        if let (::core::result::Result::Ok(start_val), ::core::result::Result::Ok(end_val)) = (s_res, e_res) {
+        let start_part = &trimmed[..idx];
+        let end_part = &trimmed[idx + 2..];
+        let start_res = start_part.parse::<::core::primitive::usize>();
+        let end_res = end_part.parse::<::core::primitive::usize>();
+        if let (::core::result::Result::Ok(start_val), ::core::result::Result::Ok(end_val)) = (start_res, end_res) {
             return ::core::option::Option::Some((start_val, end_val));
         }
     }
 
     let hyphen_pos = trimmed.find('-');
     if let ::core::option::Option::Some(idx) = hyphen_pos {
-        let s_part = &trimmed[..idx];
-        let e_part = &trimmed[idx + 1..];
-        let s_res = s_part.parse::<::core::primitive::usize>();
-        let e_res = e_part.parse::<::core::primitive::usize>();
-        if let (::core::result::Result::Ok(start_val), ::core::result::Result::Ok(end_val)) = (s_res, e_res) {
+        let start_part = &trimmed[..idx];
+        let end_part = &trimmed[idx + 1..];
+        let start_res = start_part.parse::<::core::primitive::usize>();
+        let end_res = end_part.parse::<::core::primitive::usize>();
+        if let (::core::result::Result::Ok(start_val), ::core::result::Result::Ok(end_val)) = (start_res, end_res) {
             return ::core::option::Option::Some((start_val, end_val));
         }
     }
@@ -357,6 +351,17 @@ fn parse_line_range(
     }
 
     ::core::option::Option::None
+}
+
+fn flush_current_hunk(
+    current_hunk: &mut ::core::option::Option<self::ParsedHunk>,
+    current_patch: &mut ::core::option::Option<self::FilePatch>,
+) {
+    if let ::core::option::Option::Some(hunk) = current_hunk.take() {
+        if let ::core::option::Option::Some(patch) = current_patch {
+            patch.hunks.push(hunk);
+        }
+    }
 }
 
 async fn apply_file_patch(patch: &self::FilePatch) -> ::core::result::Result<::core::primitive::usize, ::rig::tool::ToolError> {
@@ -417,14 +422,14 @@ async fn apply_file_patch(patch: &self::FilePatch) -> ::core::result::Result<::c
 
 fn sort_hunks_descending(hunks: &[self::ParsedHunk]) -> ::std::vec::Vec<self::ParsedHunk> {
     let mut sorted = hunks.to_vec();
-    sorted.sort_by(|a, b| {
-        let key_a = self::hunk_sort_key(a);
-        let key_b = self::hunk_sort_key(b);
-        let anchor_cmp = key_b.0.cmp(&key_a.0);
+    sorted.sort_by(|hunk_left, hunk_right| {
+        let key_left = self::hunk_sort_key(hunk_left);
+        let key_right = self::hunk_sort_key(hunk_right);
+        let anchor_cmp = key_right.0.cmp(&key_left.0);
         if anchor_cmp != ::core::cmp::Ordering::Equal {
             return anchor_cmp;
         }
-        key_b.1.cmp(&key_a.1)
+        key_right.1.cmp(&key_left.1)
     });
     sorted
 }
@@ -445,9 +450,9 @@ fn apply_single_hunk(file_lines: &mut ::std::vec::Vec<::std::string::String>, hu
         self::HunkAction::ReplaceRange { start, end } => {
             let start_idx = start.max(1).saturating_sub(1);
             let end_idx = end.min(total_lines);
-            let s_clamped = start_idx.min(total_lines);
-            let e_clamped = end_idx.max(s_clamped);
-            let drain_range = s_clamped..e_clamped;
+            let start_clamped = start_idx.min(total_lines);
+            let end_clamped = end_idx.max(start_clamped);
+            let drain_range = start_clamped..end_clamped;
             let lines_to_insert = hunk.lines.clone();
             let _ = file_lines.splice(drain_range, lines_to_insert);
         },
@@ -468,5 +473,42 @@ fn apply_single_hunk(file_lines: &mut ::std::vec::Vec<::std::string::String>, hu
             let lines_to_insert = hunk.lines.clone();
             file_lines.extend(lines_to_insert);
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_parse_hashline_patches_valid_input() {
+        let patch_input = "[src/example.rs#A1B2]\nPUT 1:\n+first line\n+second line\n";
+        let result = super::parse_hashline_patches(patch_input);
+        ::std::assert!(result.is_ok());
+        let patches = result.unwrap();
+        ::std::assert_eq!(patches.len(), 1);
+        let first_patch = &patches[0];
+        ::std::assert_eq!(first_patch.path, "src/example.rs");
+        ::std::assert_eq!(first_patch.hunks.len(), 1);
+        let first_hunk = &first_patch.hunks[0];
+        ::std::assert_eq!(first_hunk.lines.len(), 2);
+        ::std::assert_eq!(first_hunk.lines[0], "first line");
+        ::std::assert_eq!(first_hunk.lines[1], "second line");
+    }
+
+    #[test]
+    fn test_parse_hashline_patches_empty_fails() {
+        let empty_input = "";
+        let result = super::parse_hashline_patches(empty_input);
+        ::std::assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_hashline_patches_multiple_files_and_hunks() {
+        let patch_input = "[alpha.rs]\nPUT <1:\n+before line\n[beta.rs]\nPUT >$:\n+appended line\n";
+        let result = super::parse_hashline_patches(patch_input);
+        ::std::assert!(result.is_ok());
+        let patches = result.unwrap();
+        ::std::assert_eq!(patches.len(), 2);
+        ::std::assert_eq!(patches[0].path, "alpha.rs");
+        ::std::assert_eq!(patches[1].path, "beta.rs");
     }
 }

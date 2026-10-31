@@ -113,11 +113,58 @@ pub fn render_repair_prompt(
 ) -> ::std::string::String {
     let context_block = problem_model.render_prompt_context();
     let fault_summary = &fault.summary;
-    let diagnostic_trace = &fault.diagnostic_trace;
+    let diagnostic_trace = self::compact_diagnostic_trace(&fault.diagnostic_trace, 20);
     let target_language = &problem_model.target_language;
     ::std::format!(
         "[PROBLEM CONTEXT]\n{context_block}\n\n[CANDIDATE CODE]\n{candidate_code}\n\n[FAULT SUMMARY]\n{fault_summary}\n\n[DIAGNOSTIC TRACE]\n{diagnostic_trace}\n\nReturn the repaired complete {target_language} module now.",
     )
+}
+
+/// Compact a diagnostic trace into a focused fault card within the SLM "Smart Zone" (<= 12k tokens).
+/// Distills compiler errors, file/line spans, error codes, and suggestions, stripping noisy build boilerplate.
+pub fn compact_diagnostic_trace(
+    raw_trace: &::core::primitive::str,
+    max_lines: ::core::primitive::usize,
+) -> ::std::string::String {
+    const MAX_CHAR_BUDGET: ::core::primitive::usize = 2048;
+    let lines = raw_trace.lines().collect::<::std::vec::Vec<&str>>();
+    let mut relevant_lines = ::std::vec::Vec::new();
+    for line in &lines {
+        let trimmed = line.trim();
+        let is_key_diagnostic = trimmed.starts_with("error")
+            || trimmed.contains("error:")
+            || trimmed.starts_with("-->")
+            || trimmed.starts_with("help:")
+            || trimmed.starts_with("note:")
+            || trimmed.contains("TypeError")
+            || trimmed.contains("SyntaxError")
+            || trimmed.contains("AssertionError")
+            || trimmed.contains("failed")
+            || trimmed.contains("panic");
+        if is_key_diagnostic {
+            relevant_lines.push(*line);
+            if relevant_lines.len() >= max_lines {
+                break;
+            }
+        }
+    }
+    let compacted = if relevant_lines.is_empty() {
+        let skip_count = lines.len().saturating_sub(max_lines);
+        lines
+            .iter()
+            .skip(skip_count)
+            .copied()
+            .collect::<::std::vec::Vec<&str>>()
+            .join("\n")
+    } else {
+        relevant_lines.join("\n")
+    };
+    if compacted.chars().count() > MAX_CHAR_BUDGET {
+        let truncated = compacted.chars().take(MAX_CHAR_BUDGET).collect::<::std::string::String>();
+        ::std::format!("{truncated}\n[...diagnostic truncated...]")
+    } else {
+        compacted
+    }
 }
 
 /// Run one blocking prompt exchange on a dedicated single-thread runtime.
@@ -252,6 +299,15 @@ mod tests {
         let normal_text = "pub fn repaired_probe() -> u8 { 1 }";
         let no_sentinel = self::fault_sentinel_of(normal_text);
         ::std::assert!(no_sentinel.is_none());
+    }
+
+    #[test]
+    fn test_compact_diagnostic_trace_extracts_key_diagnostics() {
+        let noisy_trace = "Compiling target v0.1.0\nwarning: unused variable\nerror[E0308]: mismatched types\n  --> src/lib.rs:10:5\nhelp: consider borrowing\nBuild failed with exit code 1";
+        let compacted = self::compact_diagnostic_trace(noisy_trace, 3);
+        ::std::assert!(compacted.contains("error[E0308]"));
+        ::std::assert!(compacted.contains("--> src/lib.rs:10:5"));
+        ::std::assert!(compacted.lines().count() <= 3);
     }
 
     /// Counting completion model: records every call and answers with a

@@ -2116,6 +2116,7 @@ dependencies = [
  "ste100",
  "stepdown",
  "tokio",
+ "tracing",
  "turbofish",
 ]
 

@@ -135,6 +135,14 @@ impl self::CargoHarness {
         let stem_text = if stem_is_mod && has_parent {
             let parent_segment = segments[segments.len() - 2];
             parent_segment.split('.').next().unwrap_or(parent_segment)
+        } else if raw_stem == "main" && self.workspace_root.join("src/lib.rs").exists() {
+            if has_parent {
+                let parent_segment = segments[segments.len() - 2];
+                let parent_clean = parent_segment.split('.').next().unwrap_or(parent_segment);
+                return ::std::path::PathBuf::from(::std::format!("src/{parent_clean}_main.rs"));
+            } else {
+                "app_main"
+            }
         } else {
             raw_stem
         };
@@ -177,26 +185,59 @@ impl self::CargoHarness {
     ) -> ::core::result::Result<::std::process::Output, ::std::string::String> {
         let stdout_target = ::std::process::Stdio::piped();
         let stderr_target = ::std::process::Stdio::piped();
-        let child_result = ::std::process::Command::new(program_name)
+        let mut command = ::std::process::Command::new(program_name);
+        command
             .args(program_args)
             .current_dir(&self.workspace_root)
             .stdout(stdout_target)
-            .stderr(stderr_target)
-            .spawn();
+            .stderr(stderr_target);
+        #[cfg(unix)]
+        {
+            use ::std::os::unix::process::CommandExt;
+            command.process_group(0);
+        }
+        let child_result = command.spawn();
         let mut child = match child_result {
             ::core::result::Result::Ok(spawned) => spawned,
             ::core::result::Result::Err(spawn_error) => {
                 return ::core::result::Result::Err(spawn_error.to_string());
             }
         };
+        let stdout_pipe = child.stdout.take();
+        let stderr_pipe = child.stderr.take();
+        let stdout_handle = ::std::thread::spawn(move || {
+            let mut captured_bytes = ::std::vec::Vec::new();
+            if let ::core::option::Option::Some(mut pipe) = stdout_pipe {
+                use ::std::io::Read;
+                let _ = pipe.read_to_end(&mut captured_bytes);
+            }
+            captured_bytes
+        });
+        let stderr_handle = ::std::thread::spawn(move || {
+            let mut captured_bytes = ::std::vec::Vec::new();
+            if let ::core::option::Option::Some(mut pipe) = stderr_pipe {
+                use ::std::io::Read;
+                let _ = pipe.read_to_end(&mut captured_bytes);
+            }
+            captured_bytes
+        });
         let deadline = ::std::time::Instant::now() + ::std::time::Duration::from_secs(timeout_secs);
         loop {
             match child.try_wait() {
                 ::core::result::Result::Ok(::core::option::Option::Some(_)) => break,
                 ::core::result::Result::Ok(::core::option::Option::None) => {
                     if ::std::time::Instant::now() > deadline {
+                        #[cfg(unix)]
+                        {
+                            let pid_string = child.id().to_string();
+                            let _ = ::std::process::Command::new("kill")
+                                .args(["-KILL", &::std::format!("-{pid_string}")])
+                                .output();
+                        }
                         let _ = child.kill();
                         let _ = child.wait();
+                        let _ = stdout_handle.join();
+                        let _ = stderr_handle.join();
                         return ::core::result::Result::Err(::std::format!(
                             "{program_name} exceeded the {timeout_secs} second timeout"
                         ));
@@ -205,11 +246,27 @@ impl self::CargoHarness {
                     ::std::thread::sleep(poll_interval);
                 }
                 ::core::result::Result::Err(wait_error) => {
+                    let _ = stdout_handle.join();
+                    let _ = stderr_handle.join();
                     return ::core::result::Result::Err(wait_error.to_string());
                 }
             }
         }
-        child.wait_with_output().map_err(|collect_error| collect_error.to_string())
+        let status = match child.wait() {
+            ::core::result::Result::Ok(exit_status) => exit_status,
+            ::core::result::Result::Err(wait_error) => {
+                let _ = stdout_handle.join();
+                let _ = stderr_handle.join();
+                return ::core::result::Result::Err(wait_error.to_string());
+            }
+        };
+        let stdout = stdout_handle.join().unwrap_or_default();
+        let stderr = stderr_handle.join().unwrap_or_default();
+        ::core::result::Result::Ok(::std::process::Output {
+            status,
+            stdout,
+            stderr,
+        })
     }
 
     /// Combine stdout and stderr into one log string.
@@ -284,6 +341,7 @@ impl self::ExecutionHarness for self::CargoHarness {
                 raw_logs: ::std::format!("harness failed to write candidate source: {write_error}"),
             };
         }
+        self.sync_lib_modules();
         let test_path = self.workspace_root.join("tests/characterization.rs");
         if test_suite.is_empty() {
             let _ = ::std::fs::remove_file(test_path);
@@ -291,13 +349,14 @@ impl self::ExecutionHarness for self::CargoHarness {
             let crate_label = self.crate_name();
             let mut test_module_text = ::std::string::String::new();
             if !crate_label.is_empty() {
-                let import_line = ::std::format!("use ::{crate_label}::*\x3b");
+                let import_line = ::std::format!("use ::{crate_label}::*\x3b\n\n");
                 test_module_text.push_str(&import_line);
-                test_module_text.push_str("\n\n");
             }
-            for test_entry in test_suite {
-                test_module_text.push_str(test_entry);
-                test_module_text.push_str("\n\n");
+            for (case_index, test_entry) in test_suite.iter().enumerate() {
+                let scoped_case = ::std::format!(
+                    "mod test_case_{case_index} {{\n    use super::*\x3b\n    {test_entry}\n}}\n\n"
+                );
+                test_module_text.push_str(&scoped_case);
             }
             let _ = ::std::fs::create_dir_all(self.workspace_root.join("tests"));
             if let ::core::result::Result::Err(write_error) =
@@ -310,7 +369,11 @@ impl self::ExecutionHarness for self::CargoHarness {
                 };
             }
         }
-        let build_args = ["check", "--all-targets"];
+        let build_args = if test_suite.is_empty() {
+            ::std::vec!["check", "--lib"]
+        } else {
+            ::std::vec!["check", "--lib", "--test", "characterization"]
+        };
         let build_output = self.run_command("cargo", &build_args, self.build_timeout_secs);
         let build_log = match build_output {
             ::core::result::Result::Ok(output) => {
@@ -339,7 +402,7 @@ impl self::ExecutionHarness for self::CargoHarness {
                 raw_logs: { build_log },
             };
         }
-        let test_args = ["test", "--all-targets", "--", "--format", "terse"];
+        let test_args = ["test", "--test", "characterization", "--", "--format", "terse"];
         let test_output = self.run_command("cargo", &test_args, self.test_timeout_secs);
         let test_log = match test_output {
             ::core::result::Result::Ok(output) => Self::merge_logs(&output),
@@ -471,6 +534,53 @@ impl self::CargoHarness {
             compiles: true,
             pass_rate: 0.0,
             raw_logs: ::std::format!("{build_log}\n{test_log}"),
+        }
+    }
+
+    /// Register all Rust source modules in src/ inside src/lib.rs.
+    /// Multi-file projects place translated modules in src/{stem}.rs.
+    /// Cargo requires registration in src/lib.rs.
+    fn sync_lib_modules(&self) {
+        let lib_path = self.workspace_root.join("src/lib.rs");
+        if !lib_path.exists() {
+            return;
+        }
+        let src_dir = self.workspace_root.join("src");
+        let dir_entries = match ::std::fs::read_dir(src_dir) {
+            ::core::result::Result::Ok(entries) => entries,
+            ::core::result::Result::Err(_) => return,
+        };
+        let mut existing_lib_text = match ::std::fs::read_to_string(&lib_path) {
+            ::core::result::Result::Ok(content) => content,
+            ::core::result::Result::Err(_) => return,
+        };
+        let mut modified = false;
+        for entry_res in dir_entries {
+            let entry = match entry_res {
+                ::core::result::Result::Ok(valid_entry) => valid_entry,
+                ::core::result::Result::Err(_) => continue,
+            };
+            let entry_path = entry.path();
+            if entry_path.extension().and_then(|extension| extension.to_str()) != ::core::option::Option::Some("rs") {
+                continue;
+            }
+            let file_stem = match entry_path.file_stem().and_then(|stem| stem.to_str()) {
+                ::core::option::Option::Some(stem_str) => stem_str,
+                ::core::option::Option::None => continue,
+            };
+            if file_stem == "lib" || file_stem == "main" {
+                continue;
+            }
+            let decl_pattern = ::std::format!("pub mod {file_stem}\x3b");
+            if !existing_lib_text.contains(&decl_pattern) {
+                existing_lib_text.push_str(&::std::format!(
+                    "\npub mod {file_stem}\x3b\npub use {file_stem}::*\x3b\n"
+                ));
+                modified = true;
+            }
+        }
+        if modified {
+            let _ = ::std::fs::write(&lib_path, existing_lib_text);
         }
     }
 }

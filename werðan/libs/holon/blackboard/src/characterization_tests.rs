@@ -18,8 +18,32 @@ impl self::CharacterizationTestsSlice {
     }
 
     /// Add unit test case to characterization test suite.
+    /// Deduplicates test cases by function name to prevent duplicate definition compiler errors.
     pub fn add_test_case(&mut self, test_code: ::std::string::String) {
+        let incoming_name = Self::extract_fn_name(&test_code);
+        if let ::core::option::Option::Some(target_name) = &incoming_name {
+            let already_registered = self.test_cases.iter().any(|existing_code| {
+                Self::extract_fn_name(existing_code).as_ref() == ::core::option::Option::Some(target_name)
+            });
+            if already_registered {
+                return;
+            }
+        }
         self.test_cases.push(test_code);
+    }
+
+    /// Extract test function name from test code.
+    fn extract_fn_name(source_text: &::core::primitive::str) -> ::core::option::Option<::std::string::String> {
+        for line_text in source_text.lines() {
+            let trimmed_line = line_text.trim();
+            if let ::core::option::Option::Some(signature_tail) = trimmed_line.strip_prefix("fn ") {
+                let function_name = signature_tail.split('(').next()?.trim();
+                if !function_name.is_empty() {
+                    return ::core::option::Option::Some(function_name.to_string());
+                }
+            }
+        }
+        ::core::option::Option::None
     }
 
     /// Add property assertion to characterization test suite.
