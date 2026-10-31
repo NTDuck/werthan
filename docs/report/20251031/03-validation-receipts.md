@@ -37,11 +37,11 @@ All empirical runs documented in this report were executed natively on the desig
 - **Input Legacy Path**: `benchmarks/assets/ReCodeAgent/data/tool_projects/crust/dict/c/src`
 - **Target Crate Root**: `benchmarks/outputs/crust/dict/rust`
 - **Daemon Telemetry File**: `benchmarks/results/daemon/crust-dict.json`
-- **Total Wall Time**: $2,967.99$ seconds (~49.5 minutes)
+- **Total Wall Time**: $2,967.99$ seconds (~49.5 minutes engine wall time, $2,983.08\text{ s}$ total campaign time)
 - **Total LLM Requests**: $517$ invocations
 - **Ariadne Rollout Budget**: 64 rollouts / vertex
 - **Compaction Method**: ADR-0018 Semantic Diagnostic Filtering ($\le 2048$ chars, top-3 compiler errors)
-
+- **Forensic Note on Initial Run**: The initial daemon campaign executed 517 real LLM requests on `src/dict.c` before `src/dict.h` was dispatched as an unintended module, exhausting the futile dispatch cap (`"error": "module src/dict.h exhausted the futile dispatch cap after 3 attempts"`). This directly motivated commit `06bcaef`, which symmetrically excluded C headers and test trees from `board.inventory` and DAG vertices ($V \equiv \mathcal{I}_{\text{inv}}$).
 ### 3.2 Compilation Status Verification
 All 6 integration test binaries and the core library compile cleanly with zero errors:
 
