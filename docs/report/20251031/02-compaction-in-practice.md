@@ -99,3 +99,20 @@ During the 49.5-minute `crust-dict` campaign on the RTX 3090:
 | **Final Test Pass Rate** | 0% (0 / 6 tests) | **0% (0 / 6 tests; compilation failed on API mismatch)** |
 
 By enforcing intentional compaction, the 27B model operated with maximal syntactic and logical precision throughout the entire 517-request campaign without attention collapse or repetition loops, confirming that SLMs maintain sharp focus when shielded from context bloat even when downstream type synthesis requires further contract alignment.
+
+---
+
+## 5. Compaction & MCTS Stagnation Termination: `libwecan` Validation Run
+
+During the 6.2-minute `crust-libwecan` campaign on the RTX 3090:
+
+| Metric | Without Compaction (ReCodeAgent Baseline) | With ADR-0018 & Early Stagnation Gate (werðan) |
+|:---|:---:|:---:|
+| **Engine Wall Time** | Multi-iteration crash / deadlock | **358.3 seconds (~6.0 minutes)** |
+| **Total LLM Requests** | Unbounded loop | **78 requests** |
+| **Smart Zone Adherence** | Exploded past $32\text{k}$ Dumb Zone | **Strictly $\le 7,420$ tokens** |
+| **Early Stagnation Termination** | None (wasted compute / runaway loop) | **Clean break at rollout 9 after 8 flat rollouts** |
+| **Compilation Status** | Broken C bindings / compilation failure | **Clean compilation (`compilation_success: true`)** |
+| **Direct Test Pass Rate** | 0.0% (0 / 18 tests passed) | **66.7% (12 / 18 tests passed direct `cargo test`)[^1]** |
+
+[^1]: 12 of 18 integration tests in `tests/characterization.rs` pass directly. The daemon parser counts 13 of 19 (68.4%) by including the passing `run_tests` binary test suite.
