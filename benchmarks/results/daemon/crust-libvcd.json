@@ -1,0 +1,20 @@
+{
+  "campaign_id": "crust-libvcd-bench",
+  "wall_time_ms": 498887,
+  "engine_wall_time_ms": 487066,
+  "llm_requests": 51,
+  "unimplemented_before": 0,
+  "unimplemented_after_reset": 7,
+  "compilation_success": false,
+  "test_pass_rate": 0.0,
+  "unimplemented_remaining": 0,
+  "solver_dispatches": 3,
+  "worker_executions": 4,
+  "structural_retries": 0,
+  "macro_states_visited": 2,
+  "total_lines": 282,
+  "code_lines": 197,
+  "cocomo_effort_pm": 0.43591396181086467,
+  "cocomo_duration_months": 1.8235274479928831,
+  "error": "module src/vcd.c exhausted the futile dispatch cap after 3 attempts"
+}

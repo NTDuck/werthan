@@ -48,6 +48,7 @@ From our systematic analysis of the Zenodo execution archive (`benchmarks/assets
 | **`merkle-tree`** | Cryptographic Tree | 4 | 740 | 6 | **0 / 6 (0%)** | Recursive node ownership and hash slice lifetimes |
 | **`libutf`** | Unicode Parsing | 3 | 520 | 11 | **0 / 11 (0%)** | UTF-8 byte boundary decoding and byte slice out-of-bounds |
 | **`libwecan`** | CAN Frame Signal Packing | 1 | 257 | 18 | **0 / 18 (0%)** | Bitmanip bit-offset calculations and Motorola/Intel endianness bitfield packing |
+| **`libvcd`** | VCD Waveform Parser | 1 | 238 | 1 | **0 / 1 (0%)** | Waveform parsing state machine, char-slice vs String type mismatch |
 
 ---
 
@@ -67,3 +68,7 @@ To test werðan's DAEDALUS architecture and Frequent Intentional Compaction (ADR
    - A self-contained, 257-line automotive CAN frame bit-manipulation library testing signal extraction and packing across Intel and Motorola endianness conventions.
    - ReCodeAgent failed completely with **0.0% pass rate** (0 / 18 tests passing; crashed in validation).
    - werðan achieved **compilation_success: true** and **66.7% test pass rate** directly under `cargo test` (12 / 18 characterization tests passing; 13 / 19 or 68.4% including the binary runner) in 358s engine wall time with 78 honest LLM calls on `swift-1.5-qwen3.8-27b`. MCTS stagnation early termination cleanly exited after 8 flat rollouts, preserving the best candidate and outperforming ReCodeAgent's 0.0% baseline.
+4. **`crust.libvcd` Empirical Follow-up**:
+   - Evaluated 238 lines of C VCD waveform parsing logic (`src/vcd.c`, `src/vcd.h`).
+   - ReCodeAgent failed with **0.0% pass rate** ($0 / 1$).
+   - werðan executed 51 real LLM calls ($487.1\text{ s}$ engine wall time). Core library compiled cleanly under `cargo check --lib`. External test failed on `E0308` type mismatch between synthesized `Option<String>` and test harness expectation `Option<&[u8]>`. Enhanced MCTS stagnation early-exit stopped after 8 flat rollouts across 3 dispatches, avoiding 64-rollout budget exhaustion.

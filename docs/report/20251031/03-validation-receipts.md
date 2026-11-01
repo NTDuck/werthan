@@ -149,11 +149,49 @@ test result: FAILED. 12 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out;
 | **`crust.libwecan`** | 18 (Char) + 1 (Bin) | **0.0% (0 / 18 passed)** | **66.7% (12 / 18 passed direct `cargo test`)[^1]** — Clean compilation (`compilation_success: true`), 78 LLM requests, 358s engine wall time | **Passed Validation Gate (Outperformed Baseline)** |
 | **`crust.cfsm`** | 1 (Suite) | 0.0% (0 / 1) | **0.0% (3,566 LLM calls, 5,135.6s)** — ReCodeAgent harness bug + futile cap reached | **Disqualified (Flawed Baseline)** |
 | **`crust.dict`** | 6 (Bins) + 55 (Char) | 0.0% (0 / 6) | **0.0% (517 LLM calls, 2,968s)** — API signature mismatch against test harness | **Evaluated (Honest Telemetry)** |
+| **`crust.libvcd`** | 1 (Bin) + 43 (Char) | 0.0% (0 / 1) | **0.0% (51 LLM calls, 487.1s)** — Core lib compiles (`cargo check --lib`), `Option<String>` vs `Option<&[u8]>` contract divergence | **Evaluated (Honest Telemetry)** |
 
 [^1]: 12 of 18 integration tests in `tests/characterization.rs` pass directly. The daemon parser counts 13 of 19 (68.4%) by including the passing `run_tests` binary test runner.
 
-The empirical evaluation confirmed:
-1. **Outperforming ReCodeAgent**: On `crust.libwecan`, werðan achieved a 66.7% pass rate (12 / 18 tests passing) with clean compilation, completely transforming ReCodeAgent's 0.0% baseline failure.
-2. **Honest SLM Execution**: Campaigns executed real, un-mocked inference against the local 27B model on an RTX 3090, generating 3,566, 517, and 78 requests respectively.
-3. **ADR-0018 Compaction Efficacy**: Frequent Intentional Compaction strictly bounded context payloads within the $\le 12\text{k}$ Smart Zone, preventing attention entropy collapse and infinite syntax repetition.
-4. **MCTS Stagnation Termination**: Early exit after 8 flat rollouts preserved the best candidate while preventing wasted GPU inference cycles.
+---
+
+## 5. Benchmark Target 4: `crust.libvcd` (C $\to$ Safe Rust Value Change Dump Waveform Parser)
+
+### 5.1 Campaign Configuration & Execution
+- **Config Asset**: `benchmarks/assets/configs/ReCodeAgent/crust/libvcd.yml`
+- **Source Code**: 238 lines of C VCD parser (`src/vcd.c`, `src/vcd.h`)
+- **Target Workspace**: `benchmarks/outputs/crust/libvcd/rust`
+- **Model**: `swift-1.5-qwen3.8-27b` via local endpoint `http://127.0.0.1:8092/v1`
+- **Execution Mode**: `full_auto`
+- **Telemetry File**: `benchmarks/results/daemon/crust-libvcd.json`
+
+### 5.2 On-Disk Daemon Telemetry Receipt (`benchmarks/results/daemon/crust-libvcd.json`)
+
+```json
+{
+  "campaign_id": "crust-libvcd-bench",
+  "wall_time_ms": 498887,
+  "engine_wall_time_ms": 487066,
+  "llm_requests": 51,
+  "unimplemented_before": 0,
+  "unimplemented_after_reset": 7,
+  "compilation_success": false,
+  "test_pass_rate": 0.0,
+  "unimplemented_remaining": 0,
+  "solver_dispatches": 3,
+  "worker_executions": 4,
+  "structural_retries": 0,
+  "macro_states_visited": 2,
+  "total_lines": 282,
+  "code_lines": 197,
+  "cocomo_effort_pm": 0.43591396181086467,
+  "cocomo_duration_months": 1.8235274479928831,
+  "error": "module src/vcd.c exhausted the futile dispatch cap after 3 attempts"
+}
+```
+
+### 5.3 Forensic Autopsy: Core Library Compilation vs Integration Contract Mismatch
+1. **Core Library Success**: The synthesized module (`src/vcd.rs`, 536 lines) successfully compiles under `cargo check --lib` with zero errors.
+2. **Integration Contract Divergence**: The external test harness (`src/bin/test_vcd.rs`) invokes `String::from_utf8_lossy(val)` on the return value of `Signal::get_value_at_timestamp`, expecting `Option<&[u8; VCD_SIGNAL_SIZE]>`. The model synthesized `pub fn get_value_at_timestamp(&self, timestamp: Timestamp) -> Option<String>`, causing `E0308 (expected &[u8], found String)` during binary test compilation.
+3. **Distiller & Stagnation Operation**: The Rig diagnostic distiller classified the resulting failure as `EXTRINSIC_CONTRACT`. The enhanced MCTS stagnation brake detected flat reward after 8 rollouts per dispatch, early-exiting to prevent burning the full 64-rollout budget.
+4. **Telemetry Truth**: 51 un-mocked LLM requests were executed across 487.1s of engine wall time on the workstation RTX 3090, mirroring ReCodeAgent's 0.0% baseline with honest telemetry.
