@@ -81,3 +81,11 @@ To evaluate werðan's DAEDALUS architecture and Frequent Intentional Compaction 
    - Evaluated 2,164 lines of C logic (`src/skp.c`, `src/skp.h`, `test/`).
    - ReCodeAgent passed $1 / 3$ tests (33.3%).
    - werðan executed 39 real LLM calls ($1,165.5\text{ s}$ engine wall time). The 2,153-line header created heavy prompt context pressure, testing the boundaries of the $\le 12\text{k}$ token Smart Zone. The MCTS stagnation early-exit safely bounded execution across 3 dispatches.
+5. **`crust.aes128-simd` Toolchain Gap Audit**:
+   - Evaluated 474 lines of C logic across 8 files implementing SIMD-accelerated AES-128.
+   - ReCodeAgent scored 50.0% ($2 / 4$ tests passing).
+   - Evaluation showed cargo check failed on SSE intrinsic translations because toolchain target feature flags (`-C target-feature=+sse2`) are not injected by the standard harness into `RUSTFLAGS`, causing `core::arch::x86_64` intrinsics to emit type mismatch and overflowing literal errors.
+6. **`crust.kd3` Forensic Autopsy**:
+   - Evaluated 652 lines of C logic (`kdtree.c`, `kdtree.h`) representing a 3D k-d tree.
+   - ReCodeAgent scored 0.0% across all ablation variants ($0 / 1$ test passing).
+   - Forensic analysis of `rust/src/bin/test.rs` revealed an unfixable test harness defect: the test calls `.as_mut()` and `.is_none()` on `iter.get_next()` expecting `Option<usize>`, while the C API returns raw `size_t` with a sentinel. Furthermore, line 35 calls `tree.search_space(...)` without passing `&mut iter`, leaving the local iterator unpopulated and causing unconditional assertion panics regardless of translation quality.
