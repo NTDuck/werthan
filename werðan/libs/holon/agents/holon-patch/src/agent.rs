@@ -164,6 +164,8 @@ fn is_diagnostic_signal(line_text: &::core::primitive::str) -> ::core::primitive
         || trimmed.starts_with("-->")
         || trimmed.starts_with("help:")
         || trimmed.starts_with("note:")
+        || trimmed.starts_with('|')
+        || trimmed.contains('|')
         || trimmed.contains("TypeError")
         || trimmed.contains("SyntaxError")
         || trimmed.contains("AssertionError")

@@ -312,7 +312,7 @@ impl<
         // This updates visit counts and cumulative reward estimates, steering subsequent
         // UCB1 selections toward the most promising transformation branches.
         self.tree.backpropagate(child_id, reward);
-        if reward > self.best_reward_score {
+        if reward > self.best_reward_score || self.best_candidate_code.is_none() {
             self.best_reward_score = reward;
             self.best_candidate_code = ::core::option::Option::Some(candidate_code.clone());
         }
@@ -597,6 +597,35 @@ mod tests {
         ::std::assert!(
             ::core::matches!(step_res, ::core::option::Option::Some(self::StepResult::ContractConflict { .. })),
             "parented module keeps the extrinsic contract conflict path",
+        );
+    }
+
+    /// Flat rollouts at reward zero trigger stagnation early termination.
+    /// The search breaks after eight flat rollouts instead of exhausting the budget.
+    #[test]
+    fn test_stagnation_early_exit_triggers_at_zero_reward() {
+        let fake_model = self::ControllerFakeModel {
+            response_text: "pub fn factory_probe() -> u32 {\n    1\n}".to_string(),
+        };
+        let agents = self::build_test_pool(&fake_model);
+        let empty_model = ::holon_blackboard::ProblemModelSlice::new();
+        let mut controller = self::build_controller(agents, empty_model);
+        let blocked = ::holon_fsm::StateMachine::new("test_module".to_string());
+        let machine = blocked.wake_ready().hydration_completed();
+
+        let outcome = controller.solve(machine);
+        ::std::assert!(
+            ::core::matches!(outcome, crate::types::EngineTypestateOutcome::BudgetExhausted { .. }),
+            "flat rollouts must yield BudgetExhausted outcome",
+        );
+        ::std::assert!(
+            controller.rollout_count <= 9,
+            "stagnation early-exit must terminate within 8-9 rollouts, actual was {}",
+            controller.rollout_count,
+        );
+        ::std::assert!(
+            controller.best_candidate_code.is_some(),
+            "best candidate code must be captured on initial rollout even at zero reward",
         );
     }
 
