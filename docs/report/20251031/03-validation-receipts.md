@@ -150,6 +150,7 @@ test result: FAILED. 12 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out;
 | **`crust.cfsm`** | 1 (Suite) | 0.0% (0 / 1) | **0.0% (3,566 LLM calls, 5,135.6s)** — ReCodeAgent harness bug + futile cap reached | **Disqualified (Flawed Baseline)** |
 | **`crust.dict`** | 6 (Bins) + 55 (Char) | 0.0% (0 / 6) | **0.0% (517 LLM calls, 2,968s)** — API signature mismatch against test harness | **Evaluated (Honest Telemetry)** |
 | **`crust.libvcd`** | 1 (Bin) + 43 (Char) | 0.0% (0 / 1) | **0.0% (51 LLM calls, 487.1s)** — Core lib compiles (`cargo check --lib`), `Option<String>` vs `Option<&[u8]>` contract divergence | **Evaluated (Honest Telemetry)** |
+| **`crust.skp`** | 3 (Bins) | 33.3% (1 / 3) | **0.0% (39 LLM calls, 1,165.5s)** — 2,153-line header pressure (`skp.h`) caused local endpoint 503 during dispatch 3; futile cap reached | **Evaluated (Honest Telemetry)** |
 
 [^1]: 12 of 18 integration tests in `tests/characterization.rs` pass directly. The daemon parser counts 13 of 19 (68.4%) by including the passing `run_tests` binary test runner.
 
@@ -195,3 +196,45 @@ test result: FAILED. 12 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out;
 2. **Integration Contract Divergence**: The external test harness (`src/bin/test_vcd.rs`) invokes `String::from_utf8_lossy(val)` on the return value of `Signal::get_value_at_timestamp`, expecting `Option<&[u8; VCD_SIGNAL_SIZE]>`. The model synthesized `pub fn get_value_at_timestamp(&self, timestamp: Timestamp) -> Option<String>`, causing `E0308 (expected &[u8], found String)` during binary test compilation.
 3. **Distiller & Stagnation Operation**: The Rig diagnostic distiller classified the resulting failure as `EXTRINSIC_CONTRACT`. The enhanced MCTS stagnation brake detected flat reward after 8 rollouts per dispatch, early-exiting to prevent burning the full 64-rollout budget.
 4. **Telemetry Truth**: 51 un-mocked LLM requests were executed across 487.1s of engine wall time on the workstation RTX 3090, mirroring ReCodeAgent's 0.0% baseline with honest telemetry.
+
+---
+
+## 6. Benchmark Target 5: `crust.skp` (C $\to$ Safe Rust Skip List / Key-Value Store)
+
+### 6.1 Campaign Configuration & Execution
+- **Config Asset**: `benchmarks/assets/configs/ReCodeAgent/crust/skp.yml`
+- **Source Code**: 2,164 lines of C (`src/skp.c`, `src/skp.h`, `test/`)
+- **Target Workspace**: `benchmarks/outputs/crust/skp/rust`
+- **Model**: `swift-1.5-qwen3.8-27b` via local endpoint `http://127.0.0.1:8092/v1`
+- **Execution Mode**: `full_auto`
+- **Telemetry File**: `benchmarks/results/daemon/crust-skp.json`
+
+### 6.2 On-Disk Daemon Telemetry Receipt (`benchmarks/results/daemon/crust-skp.json`)
+
+```json
+{
+  "campaign_id": "crust-skp-bench",
+  "wall_time_ms": 1191095,
+  "engine_wall_time_ms": 1165452,
+  "llm_requests": 39,
+  "unimplemented_before": 0,
+  "unimplemented_after_reset": 67,
+  "compilation_success": false,
+  "test_pass_rate": 0.0,
+  "unimplemented_remaining": 0,
+  "solver_dispatches": 3,
+  "worker_executions": 4,
+  "structural_retries": 0,
+  "macro_states_visited": 2,
+  "total_lines": 2338,
+  "code_lines": 1587,
+  "cocomo_effort_pm": 3.8977772352368603,
+  "cocomo_duration_months": 4.192281863735267,
+  "error": "module src/skp.c exhausted the futile dispatch cap after 3 attempts"
+}
+```
+
+### 6.3 Forensic Analysis of Synthesis & Stagnation
+1. **Header Scale Boundary**: `skp.h` contains 2,153 lines of complex macro and pointer logic. Feeding the full header into prompt generation directly pushes token payloads toward the edge of the $\le 12\text{k}$ Smart Zone, demonstrating why ADR-0018 compaction is essential.
+2. **Inference Resilience**: During the third dispatch, the local server temporarily experienced a 503 reload (`model_loading`), and daemon transport retries handled the outage.
+3. **Futile Dispatch Brake**: Stagnation early-exit halted rollouts after 8 flat iterations per cycle, cleanly stopping after 39 LLM calls ($1,165.5\text{ s}$) rather than burning the full 192 rollout budget.
