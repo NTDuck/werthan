@@ -132,6 +132,10 @@ With no arguments, the daemon falls through to `interactive::run_daemon_server()
 - **Smoke (`--smoke` / `--dry-run`)**: resolve the inference URL from the campaign `inference.base_url` (fall back to the compiled `BASE_URL` default; fail when neither is set), probe `GET {base_url}/models`, print the base URL and the first served model id, and exit nonzero on failure; both flags dispatch to the same `daemon::bench_smoke::run_smoke_cli` path and no campaign executes.
 - **Interactive (no args)**: launch the TUI cockpit.
 
+### 4.1 Honesty Invariant
+
+The daemon is a config-driven, honest executor: every campaign runs from a `migration.yml` against a real legacy project, invokes the real engine over real inference requests, and records what actually happened. A run whose engine completes but issued zero inference requests (`llm_requests == 0`) is recorded as dishonest and fails the campaign; the `CountingCompletionModel` atomic request counter supplies the verifiable audit. No mock output, no fabricated telemetry, and no degraded-to-prose fallback exists anywhere in the benchmark paths. See [tech-spec/benchmark-harness.md §4](tech-spec/benchmark-harness.md) for the workspace-reset and honesty-gate mechanics.
+
 ### Planned (not implemented)
 
 The daemon currently logs through a single ANSI/stdout `tracing_subscriber::fmt()` sink. The following are planned but unimplemented: a structured JSONL file sink with daily rolling appenders, and a `SIGINT` handler performing clean checkpoint flush and exit-code-0 termination. Do not build on these behaviors today.
