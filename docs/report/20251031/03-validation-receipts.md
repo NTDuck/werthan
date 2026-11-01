@@ -14,7 +14,7 @@ All empirical runs documented in this report were executed natively on the desig
 
 | Target Project | Domain | ReCodeAgent Pass | werðan Pass Rate | Compilation | Engine Wall Time | Honest LLM Requests | Outcome |
 |:---|:---|:---:|:---:|:---:|:---:|:---:|:---|
-| **`crust.libwecan`** | CAN Frame Bit-Packing | 0.0% (0 / 18) | **66.7% (12 / 18)** | **Clean (`true`)** | **358.3s** | **78** | **Passed Validation Gate (Outperformed Baseline)** |
+| **`crust.libwecan`** | CAN Frame Bit-Packing | 0.0% (0 / 18) | **0.0% (cargo test exit 101)** | **Clean (`true`)** | **985.7s** | **78** | **Evaluated (Honest Telemetry)** |
 | **`crust.cfsm`** | Hierarchical FSM | 0.0% (0 / 1) | 0.0% (0 / 1) | Flawed harness | 5,135.6s | 3,566 | Disqualified (Flawed Baseline Harness) |
 | **`crust.dict`** | Generic Hash Table | 0.0% (0 / 6) | 0.0% (0 / 6) | API mismatch | 2,968.0s | 517 | Evaluated (Honest Telemetry) |
 | **`crust.libvcd`** | Waveform Parser | 0.0% (0 / 1) | 0.0% (0 / 1) | Core lib clean | 487.1s | 51 | Evaluated (Honest Telemetry) |
@@ -99,13 +99,13 @@ error: could not compile `dict` (test "characterization") due to 30 previous err
 ```json
 {
   "campaign_id": "crust-libwecan-bench",
-  "wall_time_ms": 374507,
-  "engine_wall_time_ms": 358357,
+  "wall_time_ms": 1014460,
+  "engine_wall_time_ms": 985761,
   "llm_requests": 78,
   "unimplemented_before": 0,
   "unimplemented_after_reset": 10,
   "compilation_success": true,
-  "test_pass_rate": 0.6842105263157895,
+  "test_pass_rate": 0.0,
   "unimplemented_remaining": 0,
   "solver_dispatches": 3,
   "worker_executions": 4,
@@ -118,38 +118,36 @@ error: could not compile `dict` (test "characterization") due to 30 previous err
   "error": "module src/libwecan.c exhausted the futile dispatch cap after 3 attempts"
 }
 ```
-*(Note: The recorded `error` field reflects the MCTS stagnation termination mechanism firing as designed. When 8 consecutive rollouts plateaued at reward 0.8, the controller broke early from the 64-rollout budget, promoted the best candidate into the artifact registry, and cleanly parked the module after exhausting futile retries rather than burning unbounded inference cycles.)*
+*(Note: The recorded `error` field reflects the MCTS stagnation termination mechanism firing as designed. When 8 consecutive rollouts plateaued at reward 0.88, the controller broke early from the 64-rollout budget, promoted the best candidate into the artifact registry, and parked the module. However, the final `cargo test` validation exited with code 101 due to an unsigned integer underflow panic at `src/libwecan.rs:137:13` in the binary test runner, resulting in `test_pass_rate: 0.0`.)*
 
 ### 4.3 Direct Test Execution (`cargo test --manifest-path benchmarks/outputs/crust/libwecan/rust/Cargo.toml`)
 
 ```text
 running 0 tests
 running 1 test
-test run_tests ... ok
+failures:
 
-running 18 tests
-test test_case_0::test_extract_intel_unsigned ... ok
-test test_case_1::test_extract_intel_signed_positive ... ok
-test test_case_2::test_extract_intel_signed_negative ... ok
-test test_case_3::test_extract_motorola_unsigned ... ok
-test test_case_5::test_extract_motorola_signed_negative ... ok
-test test_case_6::test_encode_uint64_t ... ok
-test test_case_7::test_encode_int64_t ... ok
-test test_case_8::test_insert_intel_unsigned ... ok
-test test_case_10::test_insert_intel_signed_positive ... ok
-test test_case_11::test_insert_intel_signed_negative ... ok
-test test_case_12::test_insert_motorola_signed_positive ... ok
-test test_case_13::test_insert_motorola_signed_negative ... ok
+---- run_tests stdout ----
+...
+thread 'run_tests' panicked at src/libwecan.rs:137:13:
+attempt to subtract with overflow
 
 failures:
-    test_case_14::test_extract_intel_offset_lsb
-    test_case_15::test_extract_motorola_offset_lsb
-    test_case_16::test_insert_intel_preserves_other_bits
-    test_case_17::test_insert_motorola_preserves_other_bits
-    test_case_4::test_extract_motorola_unsigned_multi_byte
-    test_case_9::test_insert_motorola_unsigned_multi_byte
+    run_tests
 
-test result: FAILED. 12 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+When the characterization suite is run in isolation (`cargo test --test characterization`):
+```text
+running 15 tests
+...
+failures:
+    test_case_6::test_insert_motorola_preserves_other_bits
+    test_case_9::test_encode_decode_double_roundtrip
+    test_case_10::test_encode_decode_float_roundtrip
+
+test result: FAILED. 12 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 ```
 
 ### 4.4 Execution Trace Walkthrough: Higher-Level Intent Across Macro States
@@ -167,15 +165,15 @@ The daemon execution log (`/tmp/libwecan_run.log`) details the exact sequence of
    - *Trace Action*: Rule extraction derived bit-packing invariants. S4 seeded the module self-contract $\mathcal{C}(v_i, v_i)$ from `include/libwecan.h`, populating `ProblemModelSlice.export_obligations` with `wecan_pack_intel`, `wecan_unpack_intel`, `wecan_pack_motorola`, `wecan_unpack_motorola`, `wecan_get_bit`, and `wecan_set_bit`.
 4. **`S5 Iterative DAG` (MCTS Search with Intentional Compaction)**:
    - *Intent*: Search for semantically correct bit manipulation implementations while strictly preserving token budgets.
-   - *Trace Action*: Ariadne launched 64-rollout MCTS search. Rollout 1 synthesized safe Rust implementations meeting all export obligations. In subsequent rollouts, testgen generated 18 characterization tests covering Motorola and Intel byte-order packing. Under ADR-0018, diagnostic error logs were strictly truncated to $\le 2048$ chars and top-3 errors, keeping context payloads $\le 7,420$ tokens (within the $\le 12\text{k}$ Smart Zone).
+   - *Trace Action*: Ariadne launched 64-rollout MCTS search. Rollout 1 synthesized safe Rust implementations meeting all export obligations. In subsequent rollouts, testgen generated 15 characterization tests covering Motorola and Intel byte-order packing. Under ADR-0018, diagnostic error logs were strictly truncated to $\le 2048$ chars and top-3 errors, keeping context payloads $\le 7,420$ tokens (within the $\le 12\text{k}$ Smart Zone).
 5. **MCTS Stagnation Early Termination**:
    - *Intent*: Avoid burning inference cycles when exploration reaches an optimal plateau.
-   - *Trace Action*: When 8 consecutive rollouts yielded flat reward ($R=0.80$, with 12 characterization tests passing and zero compiler warnings), the controller triggered early termination, promoting the winning candidate into `board.artifacts`.
+   - *Trace Action*: When 8 consecutive rollouts yielded flat reward ($R=0.88$, with 12 of 15 characterization tests passing and zero compiler warnings), the controller triggered early termination, promoting the winning candidate into `board.artifacts`.
 6. **`S6 Validation` (Deterministic Parity Gate)**:
    - *Intent*: Validate the hardened crate independently against clean Cargo commands.
-   - *Trace Action*: The final validation pass confirmed `compilation_success: true`, passing 12 of 18 characterization tests and 13 of 19 crate tests in 358.3s engine wall time.
+   - *Trace Action*: The final validation pass confirmed `compilation_success: true`, passing 12 of 15 characterization tests in isolation, but `cargo test` exits with code 101 due to a binary test runner arithmetic underflow panic; total engine wall time was 985.7s (~16.4 min).
 
-### 4.5 Why werðan Succeeded with Flying Colors but ReCodeAgent Failed
+### 4.5 Why werðan Succeeded at Compilation but Failed Validation
 
 A forensic comparison against ReCodeAgent's execution traces (`recodeagent.crust.libwecan.c.rust/project_details.json`) reveals four decisive contrasts:
 
@@ -196,13 +194,13 @@ A forensic comparison against ReCodeAgent's execution traces (`recodeagent.crust
 
 | Benchmark Project | Integration Tests | ReCodeAgent Pass Rate (Claude 3.5 Sonnet) | werðan Diagnostic / Validation Outcome (`swift-1.5-qwen3.8-27b`) | Status |
 |:---|:---:|:---:|:---:|:---:|
-| **`crust.libwecan`** | 18 (Char) + 1 (Bin) | **0.0% (0 / 18 passed)** | **66.7% (12 / 18 passed direct `cargo test`)[^1]** — Clean compilation (`compilation_success: true`), 78 LLM requests, 358s engine wall time | **Passed Validation Gate (Outperformed Baseline)** |
+| **`crust.libwecan`** | 15 (Char) + 1 (Bin) | **0.0% (0 / 18 passed)** | **0.0% (`cargo test` exit 101; 12/15 char tests pass in isolation)** — Clean compilation (`compilation_success: true`), 78 LLM requests, 986s engine wall time | **Evaluated (Honest Telemetry)** |
 | **`crust.cfsm`** | 1 (Suite) | 0.0% (0 / 1) | **0.0% (3,566 LLM calls, 5,135.6s)** — ReCodeAgent harness bug + futile cap reached | **Disqualified (Flawed Baseline)** |
 | **`crust.dict`** | 6 (Bins) + 55 (Char) | 0.0% (0 / 6) | **0.0% (517 LLM calls, 2,968s)** — API signature mismatch against test harness | **Evaluated (Honest Telemetry)** |
 | **`crust.libvcd`** | 1 (Bin) + 43 (Char) | 0.0% (0 / 1) | **0.0% (51 LLM calls, 487.1s)** — Core lib compiles (`cargo check --lib`), `Option<String>` vs `Option<&[u8]>` contract divergence | **Evaluated (Honest Telemetry)** |
 | **`crust.skp`** | 3 (Bins) | 33.3% (1 / 3) | **0.0% (39 LLM calls, 1,165.5s)** — 2,153-line header pressure (`skp.h`) caused local endpoint 503 during dispatch 3; futile cap reached | **Evaluated (Honest Telemetry)** |
 
-[^1]: 12 of 18 integration tests in `tests/characterization.rs` pass directly. The daemon parser counts 13 of 19 (68.4%) by including the passing `run_tests` binary test runner.
+[^1]: 12 of 15 integration tests in `tests/characterization.rs` pass in isolation. The aggregate `cargo test` command exits 101 due to an integer underflow panic in the `run_tests` binary test runner.
 
 ---
 

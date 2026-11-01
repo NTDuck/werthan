@@ -53,16 +53,15 @@ From our systematic analysis of the Zenodo execution archive (`benchmarks/assets
 
 ---
 
-## 4. Empirical Validation Milestone: Outperforming ReCodeAgent on `libwecan`
+## 4. Empirical Evaluation: Systems Translation on `libwecan`
 
-To validate werðan's DAEDALUS architecture and Frequent Intentional Compaction (ADR-0018) against ReCodeAgent's 0% failures, our campaign sequence established both diagnostic baselines and a headline empirical victory:
+To evaluate werðan's DAEDALUS architecture and Frequent Intentional Compaction (ADR-0018) against ReCodeAgent's 0% failures, our campaign sequence established both diagnostic baselines and an empirical comparison:
 
-### 4.1 Headline Success: `crust.libwecan` Validation Gate (0.0% $\to$ 66.7%)
+### 4.1 Headline Compilation: `crust.libwecan` (0.0% $\to$ 0.0%, Clean Compilation Achieved)
 - **Target Profile**: A 257-line automotive CAN frame bit-manipulation library (`src/libwecan.c`, `include/libwecan.h`) testing multi-byte signal extraction, endianness conversions (Motorola/Intel), and bitfield packing.
 - **ReCodeAgent Outcome**: **0.0% pass rate** (0 / 18 tests passing; crashed / timed out during validation loop).
-- **werðan Milestone**: **`compilation_success: true`** and **66.7% test pass rate** (12 / 18 characterization tests passing directly under `cargo test`; 13 / 19 crate-wide) in **358.3s engine wall time** with **78 honest LLM requests** on local `swift-1.5-qwen3.8-27b`.
+- **werðan Milestone**: **`compilation_success: true`** and **0.0% test pass rate** (`cargo test` exit code 101 due to an unsigned integer underflow panic at `src/libwecan.rs:137:13` in the binary test runner; 12 of 15 characterization tests pass in isolation) in **985.7s engine wall time** (~16.4 min) with **78 honest LLM requests** on local `swift-1.5-qwen3.8-27b`.
 - **Key Mechanism**: Symmetrically isolating companion headers, seeding self-contracts $\mathcal{C}(v_i, v_i)$ into `export_obligations`, and enforcing ADR-0018 diagnostic compaction ($\le 7,420$ token context payloads).
-
 ### 4.2 Diagnostic Evaluations & Forensic Baseline Audits
 
 1. **`crust.cfsm` Forensic Autopsy**:

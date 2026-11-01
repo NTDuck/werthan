@@ -51,7 +51,7 @@ As shown in Report `02-compaction-in-practice.md`, raw conversational accumulati
 When an unconstrained agent reaches a plateau or an unresolvable obstacle, it spins indefinitely until external timeout:
 - In ReCodeAgent's `crust.cfsm` trace, the agent repeated the identical broken edits across 5 iterations until reaching a 51.6-minute timeout without saving any partial progress.
 - In ReCodeAgent's `crust.libwecan` trace, the agent produced syntax errors, tried random edits, and crashed during validation, leaving a completely broken crate (0.0% pass rate).
-- **In werðan**: The MCTS controller monitors candidate reward progression. When reward plateaus across 8 consecutive rollouts, the engine detects stagnation, terminates the search early, and promotes the best candidate with reward $\ge 0.5$ into `board.artifacts`. On `crust.libwecan`, this exact mechanism preserved a 66.7% passing, clean-compiling crate rather than corrupting it with further futile edits.
+- **In werðan**: The MCTS controller monitors candidate reward progression. When reward plateaus across 8 consecutive rollouts, the engine detects stagnation, terminates the search early, and promotes the best candidate with reward $\ge 0.5$ into `board.artifacts`. On `crust.libwecan`, this mechanism preserved a clean-compiling crate, but the synthesized `insert` function contains an unsigned integer underflow panic at `src/libwecan.rs:137:13` that causes the binary test runner to abort, resulting in `cargo test` exit code 101 and `test_pass_rate: 0.0`.
 ---
 
 ## 3. The Core Strengths of DAEDALUS
