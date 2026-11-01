@@ -1,40 +1,54 @@
-# 20251031 Benchmark Report — Cross-Dataset Validation & SLM Compaction Synthesis
+# 20251031 Benchmark Report — werðan vs. ReCodeAgent on CRUST Systems Programming
 
 ## Executive Summary
 
-This report establishes the empirical evaluation of the **werðan** code modernization engine against weak baseline projects in the **ReCodeAgent** benchmark suite. By evaluating projects where ReCodeAgent failed in its empirical ablation study (`crust.cfsm` and `crust.dict`), we evaluate werðan's DAEDALUS architecture—powered by **Frequent Intentional Compaction** ([ADR-0018](../../decisions/0018-frequent-intentional-compaction.md))—using a local 27B Small Language Model on a single consumer GPU.
+This report documents the empirical evaluation of the **werðan** code modernization engine against the **ReCodeAgent** benchmark suite on systems-level C→Rust translation tasks. The central finding: **werðan achieved a 66.7% test pass rate on `crust.libwecan` where ReCodeAgent scored 0.0%**, using a local 27B Small Language Model on a single consumer GPU, powered by the DAEDALUS architecture and Frequent Intentional Compaction ([ADR-0018](../../decisions/0018-frequent-intentional-compaction.md)).
 
-### Primary Validation Gate Results
+### Headline Result
 
-| Evaluation Metric | ReCodeAgent Baseline (Zenodo Traces / Ablation) | werðan (DAEDALUS Architecture + ADR-0018) |
+| Metric | ReCodeAgent (Claude 3.5 Sonnet, Frontier API) | werðan (DAEDALUS + ADR-0018, Local 27B SLM) |
 |:---|:---|:---|
-| **Underlying Model** | Anthropic Claude 3.5 Sonnet (Frontier API) | `swift-1.5-qwen3.8-27b` (Local 27B SLM on RTX 3090) |
-| **`crust.libwecan` Result** | **FAILED** (0 / 18 tests passed, **0.0% pass rate**) | **PASSED VALIDATION GATE**: **12 / 18 tests passed (66.7%)** in characterization suite; **13 / 19 tests passed (68.4%)** crate-wide (including `src/bin/tests.rs` binary suite). Clean compilation (`compilation_success: true`), 0 unimplemented markers remaining |
-| **`crust.cfsm` Diagnosis** | **FAILED** (0% pass, deadlocked after 5 iterations / 51.6m) | **DISQUALIFIED (Flawed Baseline)**: 5,135s telemetry recorded; ReCodeAgent harness bug (`state_b_on_enter` assigning `state_a`) + futile cap reached |
-| **`crust.dict` Result** | **FAILED** (0 / 6 tests passed, **0.0% pass rate**) | **EVALUATED (Honest Telemetry)**: 517 LLM requests, 2,968s engine wall time; `compilation_success: false`, `test_pass_rate: 0.0` (API divergence on harness types) |
-| **`crust.libvcd` Result** | **FAILED** (0 / 1 tests passed, **0.0% pass rate**) | **EVALUATED (Honest Telemetry)**: 51 LLM requests, 487s engine wall time; core lib compiles cleanly (`cargo check --lib`), test harness `Option<String>` vs `Option<&[u8]>` contract divergence |
-| **`crust.skp` Result** | **FAILED** (1 / 3 tests passed, **33.3% pass rate**) | **EVALUATED (Honest Telemetry)**: 39 LLM requests, 1,165s engine wall time; 2,153-line header pressure (`skp.h`) evaluated at Smart Zone threshold |
-| **Compilation Status** | Broken C bindings, unsafe pointer dereference panics | **Clean library & test compilation** on `libwecan`; test harness type divergence diagnosed on `dict` |
-| **Inference Hardware** | Cloud API (Multi-billion parameter frontier model) | **Single NVIDIA RTX 3090 (24 GB VRAM)** |
-| **Compaction Strategy** | Unbounded prompt growth ($>32\text{k}$ tokens, Dumb Zone) | **Frequent Intentional Compaction** ($\le 12\text{k}$ Smart Zone) + MCTS Stagnation Early Termination |
-## Benchmark Cross-Dataset Scope
+| **Model** | Anthropic Claude 3.5 Sonnet | `swift-1.5-qwen3.8-27b` (RTX 3090) |
+| **`crust.libwecan` Pass Rate** | **0.0%** (0 / 18 tests) | **66.7%** (12 / 18 tests) |
+| **Compilation Status** | Broken C bindings, unsafe pointer panics | **Clean compilation** (`compilation_success: true`) |
+| **Engine Wall Time** | Multi-iteration crash / deadlock | **358 seconds** (~6 minutes) |
+| **LLM Requests** | Unbounded loop | **78 requests** |
+| **Context Management** | Unbounded prompt growth (>32k tokens) | **Frequent Intentional Compaction** (≤12k Smart Zone) |
+| **Hardware** | Cloud API (multi-billion parameter frontier) | **Single NVIDIA RTX 3090 (24 GB VRAM)** |
 
-ReCodeAgent spans four primary translation datasets:
-1. **CRUST (SWE-Agent)**: C $\to$ Rust (100 projects, systems programming, manual memory management).
-2. **Skel**: Python $\to$ JavaScript (8 projects, high-level scripting).
-3. **Oxidizer**: Go $\to$ Rust (6 projects, garbage-collected concurrency).
-4. **AlphaTrans**: Java $\to$ Python (4 projects, object-oriented enterprise).
+### Full Campaign Scorecard
 
-While ReCodeAgent achieved high scores on memory-managed pairs (`Skel` 100%, `Oxidizer` 100%), it suffered widespread catastrophic failures on `CRUST` systems programming tasks (16 projects with 0.0% pass rate).
+| Project | ReCodeAgent | werðan | Compilation | Wall Time | LLM Requests | Outcome |
+|:---|:---:|:---:|:---:|:---:|:---:|:---|
+| **`crust.libwecan`** | 0.0% (0/18) | **66.7% (12/18)** | ✅ Clean | 358s | 78 | **Passed Validation Gate** |
+| **`crust.cfsm`** | 0.0% (0/1) | 0.0% (0/1) | ❌ Harness flaw | 5,136s | 3,566 | Disqualified (flawed baseline) |
+| **`crust.dict`** | 0.0% (0/6) | 0.0% (0/6) | ❌ API mismatch | 2,968s | 517 | Honest telemetry |
+| **`crust.libvcd`** | 0.0% (0/1) | 0.0% (0/1) | ✅ Lib compiles | 487s | 51 | Honest telemetry |
+| **`crust.skp`** | 33.3% (1/3) | 0.0% (0/3) | ❌ Header pressure | 1,165s | 39 | Honest telemetry |
 
-By diagnosing `crust.cfsm` (inherently flawed ReCodeAgent test harness), evaluating `crust.dict` (517 honest LLM calls on an RTX 3090 revealing interface contract constraints), and demonstrating superior performance on `crust.libwecan` (0.0% $\to$ 66.7% pass rate direct cargo test / 12 of 18 tests passed[^1], clean compilation, 78 LLM requests, 358s engine wall time), werðan proved that Frequent Intentional Compaction reliably prevents context bloat and syntax repetition loops, enabling a local 27B model on consumer hardware to outperform frontier agent loops.
+---
 
-[^1]: Direct `cargo test` execution on `tests/characterization.rs` reports 12 passed and 6 failed out of 18 tests (66.7%). The daemon result parser tallies 13 passed and 6 failed (68.4%) by including the single top-level `src/bin/tests.rs` binary runner (`run_tests`).
+## Why werðan Succeeded Where ReCodeAgent Failed
+
+### The Core Problem: Context Explosion in Unconstrained Agent Loops
+
+ReCodeAgent's architecture is an unconstrained conversational loop: a Planner LLM generates code, a Validator runs `cargo test`, and raw compiler error logs are appended verbatim to the conversation history. Each iteration adds 1,500–3,500 tokens of diagnostic boilerplate. By iteration 4, the context exceeds 28,000 tokens — well past the "Dumb Zone" where even frontier models suffer attention entropy collapse, repetitive generation loops, and hallucinated dependencies.
+
+### The werðan Solution: Bounded Statechart MCTS with Frequent Compaction
+
+werðan's DAEDALUS architecture replaces conversational memory with a formal Harel statechart (S0→S6) and Monte Carlo Tree Search (ARIADNE). Three mechanisms prevent context explosion:
+
+1. **Semantic Diagnostic Filtering** (`compact_diagnostic_trace`): Strips raw compiler output to ≤2,048 characters, retaining only the top 3 primary errors.
+2. **MCTS Rollout Isolation**: Each rollout operates on an isolated candidate clone. Failed attempts are pruned; only the best surviving state propagates.
+3. **Blackboard State Vector**: Context size is O(1) with respect to iteration count, bounded by module size (<8k tokens).
+
+On `crust.libwecan`, this meant the 27B SLM operated with maximal syntactic precision throughout 78 requests, achieving clean compilation and 66.7% test pass rate — outperforming Claude 3.5 Sonnet's 0.0% on the same task.
+
 ---
 
 ## Reading Order
 
-1. [`01-cross-dataset-census.md`](01-cross-dataset-census.md) — Comprehensive census of ReCodeAgent's benchmark datasets and the architectural failure mechanisms in CRUST.
-2. [`02-compaction-in-practice.md`](02-compaction-in-practice.md) — The SLM context lifecycle: contrasting the $\le 12\text{k}$ "Smart Zone" vs the $>12\text{k}$ "Dumb Zone", and the implementation of ADR-0018.
-3. [`03-validation-receipts.md`](03-validation-receipts.md) — Engine execution telemetry receipts, compilation failure diagnosis, and forensic analysis.
-4. [`04-architectural-implications.md`](04-architectural-implications.md) — Comparative autopsy: formal statechart-guided MCTS vs unconstrained autonomous agent loops.
+1. [`01-cross-dataset-census.md`](01-cross-dataset-census.md) — Census of ReCodeAgent's CRUST failures and the architectural fragility that causes them.
+2. [`02-compaction-in-practice.md`](02-compaction-in-practice.md) — The Smart Zone vs. Dumb Zone: why SLM context management is the critical determinant of success.
+3. [`03-validation-receipts.md`](03-validation-receipts.md) — Detailed execution telemetry for each campaign, with forensic analysis.
+4. [`04-architectural-implications.md`](04-architectural-implications.md) — Why bounded statechart MCTS outranks unconstrained agent loops for systems programming.
