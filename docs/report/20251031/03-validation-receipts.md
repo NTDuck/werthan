@@ -150,6 +150,21 @@ failures:
 test result: FAILED. 12 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 ```
 
+### 4.3.1 Forensic Breakdown of Test Failures: Underflow & Float Precision
+
+Forensic analysis of the failing tests revealed two distinct root causes:
+
+1. **Unsigned Integer Underflow Panic (`libwecan.rs:137:13`)**:
+   - In C `libwecan.c`, the Motorola index loop uses a signed integer: `int i = byte_idx_lsb; while (i >= byte_idx_msb) { ... i--; }`.
+   - In Rust, the model translated `i` as an unsigned `u16` (`let mut i = byte_idx_lsb;`). When `byte_idx_msb == 0`, decrementing `i` past zero panics in debug mode: `attempt to subtract with overflow`.
+   - When `i` is cast to signed `i32` (`let mut i = byte_idx_lsb as i32; while i >= byte_idx_msb as i32`), `run_tests` passes steps 1.1 through 9.7 (including all Motorola and Intel insert steps), and characterization passes 13 of 15 tests.
+
+2. **Harness Float Precision Inadequacy at Scale (`src/bin/tests.rs:997` & characterization tests 9, 10)**:
+   - In `cmp_float`, equality is asserted via `(f1 - PRECISION32 < f2) && (f1 + PRECISION32 > f2)` with `PRECISION32: f32 = 0.00001`.
+   - In step 9.8, the value tested is `-2938.345666`. In 32-bit IEEE-754 float (`f32`), 1 ULP (unit in the last place) at magnitude 2938 is $2938 \times 2^{-23} \approx 0.00035$.
+   - Because $0.00001 < 0.00035$, adding or subtracting `PRECISION32` in `f32` rounds to zero change (`f1 - 0.00001 == f1`). Consequently, `f1 - PRECISION32 < f1` evaluates to `false`, causing the assertion to fail even when the decoded float matches the input float bit-for-bit.
+   - In C, `#define PRECISION 0.00001` is an unsuffixed `double` literal, promoting `f1 - PRECISION` to 64-bit double arithmetic where $0.00001$ is resolvable. In Rust, the test harness typed `PRECISION32` as `f32`, creating an unfulfillable assertion condition for floats of magnitude $\ge 100$.
+
 ### 4.4 Execution Trace Walkthrough: Higher-Level Intent Across Macro States
 
 The daemon execution log (`/tmp/libwecan_run.log`) details the exact sequence of macro states and micro rollouts that achieved this milestone:
