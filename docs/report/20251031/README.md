@@ -23,7 +23,7 @@ This report documents the empirical evaluation of the **werðan** code moderniza
 |:---|:---:|:---:|:---:|:---:|:---:|:---|
 | **`crust.libwecan`** | 0.0% (0/18) | **0.0% (cargo test exit 101)** | ✅ Lib compiles | 986s | 78 | **Evaluated (Honest Telemetry)** |
 | **`crust.cfsm`** | 0.0% (0/1) | 0.0% (0/1) | ❌ Harness flaw | 5,136s | 3,566 | Disqualified (flawed baseline) |
-| **`crust.dict`** | 0.0% (0/6) | 0.0% (0/6) | ❌ API mismatch | 2,968s | 517 | Honest telemetry |
+| **`crust.dict`** | 0.0% (0/6) | 0.0% (0/6) | ❌ Neither compiled | 853s | 51 | Honest telemetry |
 | **`crust.libvcd`** | 0.0% (0/1) | 0.0% (0/1) | ✅ Lib compiles | 487s | 51 | Honest telemetry |
 | **`crust.skp`** | 33.3% (1/3) | 0.0% (0/3) | ❌ Header pressure | 1,165s | 39 | Honest telemetry |
 

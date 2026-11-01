@@ -16,7 +16,7 @@ All empirical runs documented in this report were executed natively on the desig
 |:---|:---|:---:|:---:|:---:|:---:|:---:|:---|
 | **`crust.libwecan`** | CAN Frame Bit-Packing | 0.0% (0 / 18) | **0.0% (cargo test exit 101)** | **Clean (`true`)** | **985.7s** | **78** | **Evaluated (Honest Telemetry)** |
 | **`crust.cfsm`** | Hierarchical FSM | 0.0% (0 / 1) | 0.0% (0 / 1) | Flawed harness | 5,135.6s | 3,566 | Disqualified (Flawed Baseline Harness) |
-| **`crust.dict`** | Generic Hash Table | 0.0% (0 / 6) | 0.0% (0 / 6) | API mismatch | 2,968.0s | 517 | Evaluated (Honest Telemetry) |
+| **`crust.dict`** | Generic Hash Table | 0.0% (0 / 6) | 0.0% (0 / 6) | Neither compiled | 852.9s | 51 | Evaluated (Honest Telemetry) |
 | **`crust.libvcd`** | Waveform Parser | 0.0% (0 / 1) | 0.0% (0 / 1) | Core lib clean | 487.1s | 51 | Evaluated (Honest Telemetry) |
 | **`crust.skp`** | Skip List Key-Value | 33.3% (1 / 3) | 0.0% (0 / 3) | Header pressure | 1,165.5s | 39 | Evaluated (Honest Telemetry) |
 
@@ -47,42 +47,54 @@ All empirical runs documented in this report were executed natively on the desig
 - **Input Legacy Path**: `benchmarks/assets/ReCodeAgent/data/tool_projects/crust/dict/c/src`
 - **Target Crate Root**: `benchmarks/outputs/crust/dict/rust`
 - **Daemon Telemetry File**: `benchmarks/results/daemon/crust-dict.json`
-- **Total Wall Time**: $2,967.99$ seconds (~49.5 minutes engine wall time, $2,983.08\text{ s}$ total campaign time)
-- **Total LLM Requests**: $517$ invocations
-- **Ariadne Rollout Budget**: 64 rollouts / vertex
+- **Total Wall Time**: $868.77$ seconds (~14.5 minutes campaign wall time, $852.93\text{ s}$ engine wall time)
+- **Total LLM Requests**: $51$ invocations
+- **Ariadne Rollout Budget**: 64 rollouts / vertex (terminated early at 8 flat rollouts per dispatch)
 - **Compaction Method**: ADR-0018 Semantic Diagnostic Filtering ($\le 2048$ chars, top-3 compiler errors)
-- **Forensic Note on Initial Run**: The initial daemon campaign executed 517 real LLM requests on `src/dict.c` before `src/dict.h` was dispatched as an unintended module, exhausting the futile dispatch cap (`"error": "module src/dict.h exhausted the futile dispatch cap after 3 attempts"`). This directly motivated commit `06bcaef`, which symmetrically excluded C headers and test trees from `board.inventory` and DAG vertices ($V \equiv \mathcal{I}_{\text{inv}}$).
+- **On-Disk Telemetry Receipt**:
+```json
+{
+  "campaign_id": "crust-dict-bench",
+  "wall_time_ms": 868769,
+  "engine_wall_time_ms": 852928,
+  "llm_requests": 51,
+  "unimplemented_before": 0,
+  "unimplemented_after_reset": 18,
+  "compilation_success": false,
+  "test_pass_rate": 0.0,
+  "unimplemented_remaining": 0,
+  "solver_dispatches": 3,
+  "worker_executions": 4,
+  "structural_retries": 0,
+  "macro_states_visited": 2,
+  "total_lines": 1278,
+  "code_lines": 1007,
+  "cocomo_effort_pm": 2.417643080180405,
+  "cocomo_duration_months": 3.496463824655784,
+  "error": "module src/dict.c exhausted the futile dispatch cap after 3 attempts"
+}
+```
 ### 3.2 Compilation Status & Test Execution Autopsy
-While the core library compiles under `cargo check --lib` (5 compiler warnings), the full test suite (`cargo test`) fails during compilation due to API divergence between the synthesized Rust implementation and the external integration test harness:
+The synthesized library fails compilation under `cargo check --lib` due to 27 errors stemming from attempting to `#[derive(Clone)]` on structs containing boxed trait object closures (`Box<dyn Fn(...)>`), alongside type mismatches between `u64` hash codes and `usize` slice indexing:
 
 ```bash
-$ cargo test --manifest-path benchmarks/outputs/crust/dict/rust/Cargo.toml
-error[E0560]: struct `DictKeyAttr` has no field named `type_`
-  --> src/bin/test4.rs:21:1
+$ cargo check --manifest-path benchmarks/outputs/crust/dict/rust/Cargo.toml
+error[E0277]: the trait bound `dyn Fn(usize) -> Vec<u8> + Send + Sync: Clone` is not satisfied
+  --> src/dict.rs:32:5
    |
-21 | type_: DictType::I32,
-   | ^^^^^ unknown field (exists as `r#type`)
-
-error[E0599]: no associated function or constant named `Str` found for type `u8` in the current scope
-  --> src/bin/test5.rs:21:39
-   |
-21 |     let mut dict = dict_new(DictType::Str, 0, size_of::<i32>());
-   |                                       ^^^ associated function or constant not found in `u8`
-
-error[E0071]: expected struct, variant or union type, found fn pointer
-  --> src/bin/test3.rs:33:8
-   |
-33 | alloc: DictAlloc {
-   |        ^^^^^^^^^ not a struct (synthesized as `fn(usize) -> Vec<u8>`)
-
-error: could not compile `dict` (test "characterization") due to 30 previous errors
+30 | #[derive(Clone)]
+   |          ----- in this derive macro expansion
+31 | pub struct DictAlloc {
+32 |     pub malloc: DictMalloc,
+   |     ^^^^^^^^^^^^^^^^^^^^^^ the trait `Clone` is not implemented
+...
+error: could not compile `dict` (lib) due to 27 previous errors
 ```
 
 ### 3.3 Forensic Analysis of Synthesis Disconnect
-1. **Type Representation Divergence**: The reference C-to-Rust stub declared `DictType` as an enum (`Char`, `WChar`, `I32`, `Str`, etc.), while the model synthesized `DictType` as a `u8` type alias (`pub type DictType = u8; pub const DICT_CHAR: DictType = 0;`).
-2. **Field Identifier Conflict**: The reference harness used `type_` for field naming to avoid the Rust keyword `type`, whereas the synthesized library used the raw identifier `r#type`.
-3. **Allocator Contract**: The test harness instantiated `DictAlloc` as a struct `{ malloc, free }`, whereas the synthesized implementation modeled `DictAlloc` as a direct allocator function pointer.
-4. **Telemetry Truth**: The daemon recorded `compilation_success: false` and `test_pass_rate: 0.0` in `benchmarks/results/daemon/crust-dict.json` after 517 honest LLM calls ($2,968\text{ s}$ wall time).
+1. **Closure Trait Bounds**: The model attempted to auto-derive `Clone` on structs containing dynamically dispatched trait object callbacks (`DictAlloc`, `DictKeyAttr`, `DictValAttr`), which fails in safe Rust because trait objects do not implement `Clone` by default.
+2. **Slice Indexing and Modulo**: Hash codes were typed as `u64` without casting to `usize` when indexing bucket slices or computing modulo with `usize` modulus.
+3. **Telemetry Truth**: The daemon recorded `compilation_success: false` and `test_pass_rate: 0.0` in `benchmarks/results/daemon/crust-dict.json` after 51 honest LLM calls ($852.9\text{ s}$ engine wall time), safely terminating via MCTS stagnation braking across 3 futile dispatches (8 flat rollouts each). Neither ReCodeAgent nor werðan achieved a successful compilation on `crust.dict`.
 
 ## 4. Benchmark Target 3: `crust.libwecan` (C $\to$ Safe Rust CAN Frame Bit Manipulation)
 
@@ -211,7 +223,7 @@ A forensic comparison against ReCodeAgent's execution traces (`recodeagent.crust
 |:---|:---:|:---:|:---:|:---:|
 | **`crust.libwecan`** | 15 (Char) + 1 (Bin) | **0.0% (0 / 18 passed)** | **0.0% (`cargo test` exit 101; 12/15 char tests pass in isolation)** — Clean compilation (`compilation_success: true`), 78 LLM requests, 986s engine wall time | **Evaluated (Honest Telemetry)** |
 | **`crust.cfsm`** | 1 (Suite) | 0.0% (0 / 1) | **0.0% (3,566 LLM calls, 5,135.6s)** — ReCodeAgent harness bug + futile cap reached | **Disqualified (Flawed Baseline)** |
-| **`crust.dict`** | 6 (Bins) + 55 (Char) | 0.0% (0 / 6) | **0.0% (517 LLM calls, 2,968s)** — API signature mismatch against test harness | **Evaluated (Honest Telemetry)** |
+| **`crust.dict`** | 6 (Bins) + 55 (Char) | 0.0% (0 / 6) | **0.0% (51 LLM calls, 852.9s)** — Neither system compiled crust.dict cleanly | **Evaluated (Honest Telemetry)** |
 | **`crust.libvcd`** | 1 (Bin) + 43 (Char) | 0.0% (0 / 1) | **0.0% (51 LLM calls, 487.1s)** — Core lib compiles (`cargo check --lib`), `Option<String>` vs `Option<&[u8]>` contract divergence | **Evaluated (Honest Telemetry)** |
 | **`crust.skp`** | 3 (Bins) | 33.3% (1 / 3) | **0.0% (39 LLM calls, 1,165.5s)** — 2,153-line header pressure (`skp.h`) caused local endpoint 503 during dispatch 3; futile cap reached | **Evaluated (Honest Telemetry)** |
 

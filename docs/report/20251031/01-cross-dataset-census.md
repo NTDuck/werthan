@@ -70,9 +70,9 @@ To evaluate werðan's DAEDALUS architecture and Frequent Intentional Compaction 
    - Forensic analysis revealed an inherent defect in ReCodeAgent's benchmark test harness (`test.rs` assigning `state_a` handlers inside `state_b_on_enter` while asserting `state_b`), which made the test suite fail to pass regardless of implementation. Coupled with `bin/mario/main.c` exhausting futile dispatch attempts, `crust.cfsm` met the methodology criteria for a project that continuously fails or is flawed by itself, and was therefore disqualified.
 2. **`crust.dict` Empirical Evaluation**:
    - A memory-intensive, pointer-dense hash table testing allocator safety, dynamic growth, key-value lifecycle management, and strict C ABI integration compatibility.
-   - ReCodeAgent scored 0.0% (0 / 6 tests passing).
-   - werðan executed 517 real LLM requests (2,968s engine wall time) on `swift-1.5-qwen3.8-27b` under ADR-0018 Frequent Intentional Compaction.
-   - The run recorded `compilation_success: false` and `test_pass_rate: 0.0` in `benchmarks/results/daemon/crust-dict.json`. While ADR-0018 successfully prevented context bloat and repetitive loops throughout 517 calls, the generated library diverged in its type signatures from the reference test harness (e.g. `DictType` represented as `u8` rather than an enum, `r#type` vs `type_`, `DictAlloc` as fn pointer rather than a struct), producing 30 compilation errors on `cargo test`.
+   - ReCodeAgent scored 0.0% ($0 / 6$ tests passing, compilation failed).
+   - werðan executed 51 real LLM requests ($852.9\text{ s}$ engine wall time, $868.8\text{ s}$ campaign wall time) on `swift-1.5-qwen3.8-27b` under ADR-0018 Frequent Intentional Compaction.
+   - The run recorded `compilation_success: false` and `test_pass_rate: 0.0` in `benchmarks/results/daemon/crust-dict.json` with 18 unimplemented stubs after reset. The MCTS stagnation detector terminated each dispatch after 8 flat rollouts across 3 futile dispatches, parking the module safely. Neither ReCodeAgent nor werðan achieved a successful compilation on `crust.dict`.
 3. **`crust.libvcd` Empirical Follow-up**:
    - Evaluated 238 lines of C VCD waveform parsing logic (`src/vcd.c`, `src/vcd.h`).
    - ReCodeAgent failed with **0.0% pass rate** ($0 / 1$).
