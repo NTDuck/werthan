@@ -106,7 +106,7 @@ These keys exist in `.env`/`.env.example` but no code reads them today; they are
 
 ## 3. Invocation
 
-The daemon binary (`werðan/bins/daemon`) accepts:
+The daemon binary (`werðan/bins/daemon`) runs headless from a declarative configuration file (`--benchmark <path>` or `--config <path>`) against a target project, and invokes the modernization system honestly: every rollout and phase dispatches real LLM calls through the configured OpenAI-compatible transport, recording exact request counts, wall times, compilation outcomes, and test results without synthetic mocks or simulated shortcuts.
 
 ```bash
 # Run one benchmark campaign over a migration.yml

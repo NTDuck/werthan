@@ -32,7 +32,7 @@ Header declarations and target API surfaces reach codegen through two formal mec
 
 ## 4. Honesty Gate
 
-A run whose engine completes but issued zero inference requests (`llm_requests == 0`) is recorded as dishonest and fails the campaign. The `CountingCompletionModel` atomic request counter supplies the audit. A failed LLM exchange never degrades to reasoning prose; the original error propagates. No mock output exists anywhere in the benchmark paths.
+The daemon runs headless from a declarative campaign config file (`migration.yml`) against a target project and invokes the modernization system honestly: every rollout and phase dispatches real LLM inference requests without synthetic mocks or simulated shortcuts. A run whose engine completes but issued zero inference requests (`llm_requests == 0`) is recorded as dishonest and fails the campaign. The `CountingCompletionModel` atomic request counter supplies the audit. A failed LLM exchange never degrades to reasoning prose; the original error propagates. No mock output exists anywhere in the benchmark paths.
 
 ## 5. Result Artifacts (`BenchResult`)
 
