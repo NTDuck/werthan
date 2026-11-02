@@ -332,19 +332,7 @@ impl self::ExecutionHarness for self::CargoHarness {
         }
         let source_relative = self.source_file_for(module_id);
         let source_path = self.workspace_root.join(&source_relative);
-        let is_rust = source_relative
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .is_some_and(|ext_str| ext_str.eq_ignore_ascii_case("rs"));
-        let is_submodule = source_relative
-            .file_name()
-            .and_then(|name_os| name_os.to_str())
-            .is_some_and(|name_str| name_str != "lib.rs");
-        let candidate_to_write = if is_rust && is_submodule {
-            Self::normalize_rust_imports(candidate_code)
-        } else {
-            candidate_code.to_string()
-        };
+        let candidate_to_write = candidate_code.to_string();
         if let ::core::result::Result::Err(write_error) =
             ::std::fs::write(&source_path, candidate_to_write)
         {
@@ -482,19 +470,7 @@ impl self::CargoHarness {
             }
         };
         let target_path = self.workspace_root.join(&target_relative);
-        let is_rust = target_relative
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .is_some_and(|ext_str| ext_str.eq_ignore_ascii_case("rs"));
-        let is_submodule = target_relative
-            .file_name()
-            .and_then(|name_os| name_os.to_str())
-            .is_some_and(|name_str| name_str != "lib.rs");
-        let candidate_to_write = if is_rust && is_submodule {
-            Self::normalize_rust_imports(candidate_code)
-        } else {
-            candidate_code.to_string()
-        };
+        let candidate_to_write = candidate_code.to_string();
         if let ::core::result::Result::Err(write_error) =
             ::std::fs::write(&target_path, candidate_to_write)
         {
@@ -843,7 +819,7 @@ mod cargo_harness_tests {
     }
 
     #[test]
-    fn test_cargo_harness_submodule_candidate_writes_crate_glob() {
+    fn test_cargo_harness_submodule_candidate_does_not_inject_crate_glob() {
         let workspace_root = self::make_temp_workspace("submodule-glob");
         let harness = self::CargoHarness::builder()
             .workspace_root(workspace_root.clone())
@@ -855,7 +831,7 @@ mod cargo_harness_tests {
         let _ = harness.execute_candidate("matrix.c", candidate_code, &empty_suite, "rust");
         let matrix_file = workspace_root.join("src/matrix.rs");
         let written_source = ::std::fs::read_to_string(matrix_file).expect("matrix written");
-        ::core::assert!(written_source.starts_with("use crate::*\x3b\n"));
+        ::core::assert_eq!(written_source, candidate_code);
         let _ = ::std::fs::remove_dir_all(workspace_root);
     }
     /// Skip guard for machines without a node runtime on PATH.
