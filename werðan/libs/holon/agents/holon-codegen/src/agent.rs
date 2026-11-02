@@ -14,7 +14,7 @@ Strictly adhere to the exact function signatures, argument counts, and parameter
 specified with N arguments, you must define it with exactly those N arguments so that integration tests compile. \
 All translated functions, types, and constants must be declared pub so they are accessible by external test suites. \
 Do NOT wrap the output in 'pub mod <name> {{ ... }}'. Output only top-level items (functions, structs, constants) for this single module - the module is already declared by the crate root. Do NOT output code for other modules. \
-In Rust, always annotate public structs and enums with `#[derive(Clone, Debug, PartialEq)]` so callers and test suites can clone, inspect, and assert equivalence. \
+In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors. \
 The code must compile on its own and must not reference crates outside ::core and ::std. \
 Do not use architecture-specific SIMD intrinsics (such as std::arch){separator} write standard, portable, bounds-safe loops."
     )
@@ -111,7 +111,7 @@ pub fn render_codegen_prompt(
     let context_block = problem_model.render_prompt_context();
     let target_language = &problem_model.target_language;
     ::std::format!(
-        "[PROBLEM CONTEXT]\n{context_block}\n\n[STRATEGY]\n{} - {}\n\nWrite the complete {target_language} implementation of the target module now. Never return source-language code. The output must be valid {target_language}. All translated functions, types, and constants must be declared pub so they are accessible by external test suites. Do NOT wrap the output in `pub mod <name> {{ ... }}`. Output only top-level items (functions, structs, constants) — the module is already declared by the crate root. In Rust, always annotate public structs and enums with `#[derive(Clone, Debug, PartialEq)]` so callers and test suites can clone, inspect, and assert equivalence.",
+        "[PROBLEM CONTEXT]\n{context_block}\n\n[STRATEGY]\n{} - {}\n\nWrite the complete {target_language} implementation of the target module now. Never return source-language code. The output must be valid {target_language}. All translated functions, types, and constants must be declared pub so they are accessible by external test suites. Do NOT wrap the output in `pub mod <name> {{ ... }}`. Output only top-level items (functions, structs, constants) — the module is already declared by the crate root. In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors.",
         hypothesis.strategy_id,
         hypothesis.description,
     )
@@ -728,7 +728,7 @@ mod tests {
     #[test]
     fn test_codegen_system_prompt_instructs_derive() {
         let prompt = self::codegen_system_prompt("rust");
-        let instruction = "In Rust, always annotate public structs and enums with `#[derive(Clone, Debug, PartialEq)]` so callers and test suites can clone, inspect, and assert equivalence.";
+        let instruction = "In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors.";
         ::std::assert!(prompt.contains(instruction));
     }
 
@@ -742,7 +742,7 @@ mod tests {
             instantiated: false,
         };
         let prompt = self::render_codegen_prompt(&problem_model, &hypothesis);
-        let instruction = "In Rust, always annotate public structs and enums with `#[derive(Clone, Debug, PartialEq)]` so callers and test suites can clone, inspect, and assert equivalence.";
+        let instruction = "In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors.";
         ::std::assert!(prompt.contains(instruction));
     }
     #[test]

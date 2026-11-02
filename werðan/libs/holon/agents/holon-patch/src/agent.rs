@@ -120,7 +120,7 @@ pub fn render_repair_prompt(
     let diagnostic_trace = self::compact_diagnostic_trace(&fault.diagnostic_trace, MAX_DIAGNOSTIC_LINES);
     let target_language = &problem_model.target_language;
     ::std::format!(
-        "[PROBLEM CONTEXT]\n{context_block}\n\n[CANDIDATE CODE]\n{candidate_code}\n\n[FAULT SUMMARY]\n{fault_summary}\n\n[DIAGNOSTIC TRACE]\n{diagnostic_trace}\n\nFix all compilation, borrow, lifetime, and type mismatch errors listed above. If types, structs, or functions from sibling modules are needed, use `use crate::*;` or `use crate::<module>::*;` rather than redefining conflicting duplicate types locally. In Rust, always annotate public structs and enums with `#[derive(Clone, Debug, PartialEq)]` so callers and test suites can clone, inspect, and assert equivalence.\n\nReturn the repaired complete {target_language} module now.",
+        "[PROBLEM CONTEXT]\n{context_block}\n\n[CANDIDATE CODE]\n{candidate_code}\n\n[FAULT SUMMARY]\n{fault_summary}\n\n[DIAGNOSTIC TRACE]\n{diagnostic_trace}\n\nFix all compilation, borrow, lifetime, and type mismatch errors listed above. If types, structs, or functions from sibling modules are needed, use `use crate::*;` or `use crate::<module>::*;` rather than redefining conflicting duplicate types locally. In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors.\n\nReturn the repaired complete {target_language} module now.",
     )
 }
 
@@ -719,7 +719,7 @@ Keep every public signature from the candidate unchanged unless a contract requi
 Strictly adhere to the exact function signatures, argument counts, and parameter types defined in [EXPORT OBLIGATIONS]. If an exported function is \
 specified with N arguments, you must define it with exactly those N arguments so that integration tests compile. \
 Do NOT wrap the output in 'pub mod <name> {{ ... }}'. Output only top-level items (functions, structs, constants) for this single module - the module is already declared by the crate root. Do NOT output code for other modules. \
-In Rust, always annotate public structs and enums with `#[derive(Clone, Debug, PartialEq)]` so callers and test suites can clone, inspect, and assert equivalence. \
+In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors. \
 The repaired code must compile and must satisfy every rule card. Return only repaired source."
     )
 }
@@ -786,7 +786,7 @@ mod tests {
     #[test]
     fn test_patch_system_prompt_instructs_derive() {
         let prompt = self::patch_system_prompt("rust");
-        let instruction = "In Rust, always annotate public structs and enums with `#[derive(Clone, Debug, PartialEq)]` so callers and test suites can clone, inspect, and assert equivalence.";
+        let instruction = "In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors.";
         ::std::assert!(prompt.contains(instruction));
     }
 
@@ -796,7 +796,7 @@ mod tests {
         let fault = ::holon_blackboard::FaultRecord::default();
         let problem_model = ::holon_blackboard::ProblemModelSlice::new();
         let prompt = self::render_repair_prompt(candidate_code, &fault, &problem_model);
-        let instruction = "In Rust, always annotate public structs and enums with `#[derive(Clone, Debug, PartialEq)]` so callers and test suites can clone, inspect, and assert equivalence.";
+        let instruction = "In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors.";
         ::std::assert!(prompt.contains(instruction));
     }
     #[test]
