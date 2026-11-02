@@ -49,6 +49,8 @@ fn contract_val_apatch_02_fault_informed_prompt() {
     ::std::assert!(prompt.contains("RULE_PT_02"));
     ::std::assert!(prompt.contains("[FAULT SUMMARY]"));
     ::std::assert!(prompt.contains("[DIAGNOSTIC TRACE]"));
+    ::std::assert!(prompt.contains("lifetime, and type mismatch errors"));
+    ::std::assert!(prompt.contains("use crate"));
 }
 
 #[test]

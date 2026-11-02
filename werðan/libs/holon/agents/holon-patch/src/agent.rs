@@ -120,7 +120,7 @@ pub fn render_repair_prompt(
     let diagnostic_trace = self::compact_diagnostic_trace(&fault.diagnostic_trace, MAX_DIAGNOSTIC_LINES);
     let target_language = &problem_model.target_language;
     ::std::format!(
-        "[PROBLEM CONTEXT]\n{context_block}\n\n[CANDIDATE CODE]\n{candidate_code}\n\n[FAULT SUMMARY]\n{fault_summary}\n\n[DIAGNOSTIC TRACE]\n{diagnostic_trace}\n\nReturn the repaired complete {target_language} module now.",
+        "[PROBLEM CONTEXT]\n{context_block}\n\n[CANDIDATE CODE]\n{candidate_code}\n\n[FAULT SUMMARY]\n{fault_summary}\n\n[DIAGNOSTIC TRACE]\n{diagnostic_trace}\n\nFix all compilation, borrow, lifetime, and type mismatch errors listed above. If types, structs, or functions from sibling modules are needed, use `use crate::*;` or `use crate::<module>::*;` rather than redefining conflicting duplicate types locally.\n\nReturn the repaired complete {target_language} module now.",
     )
 }
 
