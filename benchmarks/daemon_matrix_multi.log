@@ -1,0 +1,28 @@
+[benchmark] Campaign crust-matrix_multiplication-bench starting.
+2026-11-02T01:35:27.250638Z  INFO daemon::bench_runner: purged 2 implementation stub files under /home/ayin/projs/werthan/werðan/bins/daemon/../../../benchmarks/outputs/crust/matrix_multiplication/rust/src so the system translates from scratch
+2026-11-02T01:35:50.219532Z  INFO daemon::bench_runner: campaign crust-matrix_multiplication-bench: rule extraction issued 0 requests across 6 vertices with 0 failures
+2026-11-02T01:35:50.219571Z  INFO daemon::bench_runner: campaign crust-matrix_multiplication-bench: configured LLM completion backend
+2026-11-02T01:35:50.219594Z  INFO daemon::bench_runner: campaign crust-matrix_multiplication-bench: starting engine execution
+2026-11-02T01:35:50.219596Z  INFO global_engine: MacroEngine::run loop: step 1, state S0IntentPreflight
+2026-11-02T01:35:50.219620Z  INFO global_engine: MacroEngine::run loop: step 2, state S1Assess
+2026-11-02T01:35:50.219632Z  INFO global_engine: MacroEngine::run loop: step 3, state S2MapDag
+2026-11-02T01:35:50.219644Z  INFO global_engine: MacroEngine::run loop: step 4, state S3ExtractRules
+2026-11-02T01:35:50.219661Z  INFO global_engine: MacroEngine::run loop: step 5, state S4BriefContracts
+2026-11-02T01:35:50.219664Z  INFO global_engine: MacroEngine::run loop: step 6, state S5IterativeDag
+2026-11-02T01:35:50.219667Z  INFO global_engine: dispatch_module: vertex main.c mode Initial
+2026-11-02T01:35:55.057923Z  INFO holon_engine: module main.c rollout 1/64: tests=6, last_pass_rate=None
+2026-11-02T01:36:05.357972Z  INFO holon_engine: module main.c rollout 1 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:36:05.358010Z  WARN holon_engine: module main.c rollout 1 compilation failed: INTRINSIC
+2026-11-02T01:36:05.358018Z  INFO holon_engine: module main.c rollout 2/64: tests=6, last_pass_rate=Some(0.0)
+2026-11-02T01:36:17.419848Z  INFO holon_engine: module main.c rollout 2 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:36:17.419873Z  WARN holon_engine: module main.c rollout 2 compilation failed: INTRINSIC
+2026-11-02T01:36:17.419880Z  INFO holon_engine: module main.c rollout 3/64: tests=6, last_pass_rate=Some(0.0)
+2026-11-02T01:36:28.061074Z  INFO holon_engine: module main.c rollout 3 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:36:28.061112Z  WARN holon_engine: module main.c rollout 3 compilation failed: INTRINSIC
+2026-11-02T01:36:28.061118Z  INFO holon_engine: module main.c rollout 4/64: tests=6, last_pass_rate=Some(0.0)
+2026-11-02T01:36:37.538557Z  INFO holon_engine: module main.c rollout 4 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:36:37.538580Z  WARN holon_engine: module main.c rollout 4 compilation failed: INTRINSIC
+2026-11-02T01:36:37.538587Z  INFO holon_engine: module main.c rollout 5/64: tests=7, last_pass_rate=Some(0.0)
+2026-11-02T01:36:46.883295Z  INFO holon_engine: module main.c rollout 5 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:36:46.883314Z  WARN holon_engine: module main.c rollout 5 compilation failed: INTRINSIC
+2026-11-02T01:36:46.883319Z  INFO holon_engine: module main.c rollout 6/64: tests=8, last_pass_rate=Some(0.0)

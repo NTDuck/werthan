@@ -7,3 +7,12 @@
 [submodule "madr"]
 	path = .omp/rules/references/madr
 	url = https://github.com/adr/madr
+[submodule "rig"]
+	path = .omp/rules/references/rig
+	url = https://github.com/0xPlaygrounds/rig
+[submodule "benchmarks/assets/ReCodeAgent"]
+	path = benchmarks/assets/ReCodeAgent
+	url = https://github.com/Intelligent-CAT-Lab/ReCodeAgent
+[submodule "werðan/libs/shared/tools/references/oh-my-pi"]
+	path = werðan/libs/shared/tools/references/oh-my-pi
+	url = https://github.com/can1357/oh-my-pi

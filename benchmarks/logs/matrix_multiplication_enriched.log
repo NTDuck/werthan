@@ -1,0 +1,728 @@
+[benchmark] Campaign crust-matrix_multiplication-bench starting.
+2026-11-02T07:57:12.628547Z  INFO daemon::bench_runner: purged 2 implementation stub files under /home/ayin/projs/werthan/werðan/bins/daemon/../../../benchmarks/outputs/crust/matrix_multiplication/rust/src so the system translates from scratch
+2026-11-02T07:57:12.631115Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=24027
+2026-11-02T07:57:25.319408Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=12688 completion_len=5121 prompt_tokens=8253 completion_tokens=1645 total_tokens=9898
+2026-11-02T07:57:25.319444Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=[ { "rule_id": "EXPORT_OBLIGATION", "given": "The module `matrix_multiplication` is being modernized from C to Rust. The target API surface requires the `matrix` module to expose public functions corresponding to the legacy C header declara
+2026-11-02T07:57:25.319518Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7089
+2026-11-02T07:57:30.905326Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5585 completion_len=2771 prompt_tokens=2171 completion_tokens=782 total_tokens=2953
+2026-11-02T07:57:30.905354Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=[ { "rule_id": "EXPORT_OBLIGATION", "given": "The target Rust crate `matrix_multiplication` is being modernized from the legacy C source. The API surface requires the library to expose public modules `matrix` and `utils` as defined in `src/
+2026-11-02T07:57:30.905553Z  INFO daemon::bench_runner: campaign crust-matrix_multiplication-bench: rule extraction issued 0 requests across 5 vertices with 0 failures
+2026-11-02T07:57:30.905572Z  INFO daemon::bench_runner: campaign crust-matrix_multiplication-bench: configured LLM completion backend
+2026-11-02T07:57:30.905593Z  INFO daemon::bench_runner: campaign crust-matrix_multiplication-bench: starting engine execution
+2026-11-02T07:57:30.905595Z  INFO global_engine: MacroEngine run loop iteration step=1 macro_state=S0IntentPreflight
+2026-11-02T07:57:30.905598Z  INFO global_engine: starting discovery phase phase=S0IntentPreflight shard_count=1
+2026-11-02T07:57:30.905616Z  INFO global_engine: critic audited batch phase=S0IntentPreflight batch=["matrix.c", "utils.c"] verdict=Pass
+2026-11-02T07:57:30.905620Z  INFO global_engine: discovery phase completed successfully phase=S0IntentPreflight
+2026-11-02T07:57:30.905621Z  INFO global_engine: MacroEngine run loop iteration step=2 macro_state=S1Assess
+2026-11-02T07:57:30.905622Z  INFO global_engine: starting discovery phase phase=S1Assess shard_count=1
+2026-11-02T07:57:30.905632Z  INFO global_engine: critic audited batch phase=S1Assess batch=["matrix.c", "utils.c"] verdict=Pass
+2026-11-02T07:57:30.905633Z  INFO global_engine: discovery phase completed successfully phase=S1Assess
+2026-11-02T07:57:30.905635Z  INFO global_engine: MacroEngine run loop iteration step=3 macro_state=S2MapDag
+2026-11-02T07:57:30.905636Z  INFO global_engine: starting discovery phase phase=S2MapDag shard_count=1
+2026-11-02T07:57:30.905646Z  INFO global_engine: critic audited batch phase=S2MapDag batch=["matrix.c", "utils.c"] verdict=Pass
+2026-11-02T07:57:30.905647Z  INFO global_engine: discovery phase completed successfully phase=S2MapDag
+2026-11-02T07:57:30.905648Z  INFO global_engine: MacroEngine run loop iteration step=4 macro_state=S3ExtractRules
+2026-11-02T07:57:30.905650Z  INFO global_engine: starting discovery phase phase=S3ExtractRules shard_count=2
+2026-11-02T07:57:30.905661Z  INFO global_engine: critic audited batch phase=S3ExtractRules batch=["RULE_000_EXPORT_OBLIGATION", "RULE_001_GEN_MATRIX_SEQ", "RULE_002_GEN_MATRIX_RAND", "RULE_003_FREE_MATRIX", "RULE_004_MULT_DIM_CHECK", "RULE_005_MULT_METHOD_INVALID", "RULE_006_ALGO1_NAIIVE", "RULE_007_ALGO2_AVX", "RULE_008_ALGO3_IJK", "RULE_009_TEST_GEN_4X4", "RULE_010_TEST_MULT_8X8", "RULE_011_TEST_MULT_INVALID"] verdict=Pass
+2026-11-02T07:57:30.905663Z  INFO global_engine: critic audited batch phase=S3ExtractRules batch=["RULE_000_EXPORT_OBLIGATION", "RULE_001_PRINT_ARRAY_HEADER", "RULE_002_PRINT_ARRAY_TYPE_DISPATCH", "RULE_003_PRINT_FLOAT_FORMAT", "RULE_004_PRINT_FLOAT_NEWLINE", "RULE_005_PRINT_ARRAY_RETURN", "RULE_006_PRINT_FLOAT_RETURN"] verdict=Pass
+2026-11-02T07:57:30.905670Z  INFO global_engine: discovery phase completed successfully phase=S3ExtractRules
+2026-11-02T07:57:30.905677Z  INFO global_engine: MacroEngine run loop iteration step=5 macro_state=S4BriefContracts
+2026-11-02T07:57:30.905678Z  INFO global_engine: starting discovery phase phase=S4BriefContracts shard_count=0
+2026-11-02T07:57:30.905681Z  INFO global_engine: discovery phase completed successfully phase=S4BriefContracts
+2026-11-02T07:57:30.905682Z  INFO global_engine: MacroEngine run loop iteration step=6 macro_state=S5IterativeDag
+2026-11-02T07:57:30.905684Z  INFO global_engine: evaluating transform wave ready set ready_count=2
+2026-11-02T07:57:30.905686Z  INFO global_engine: dispatch_module: vertex matrix.c mode Initial
+2026-11-02T07:57:30.905691Z  INFO global_engine: module micro-state transitioned vertex=matrix.c from=Some(M0Blocked) to=M1ContextHydration
+2026-11-02T07:57:30.905904Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=23266
+2026-11-02T07:57:41.937502Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=11031 completion_len=4820 prompt_tokens=7898 completion_tokens=2095 total_tokens=9993
+2026-11-02T07:57:41.937543Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=#[test] fn test_generate_matrix_sequential_values() { let x = 4; let y = 4; let matrix = matrix::generate_matrix(x, y, false); assert_eq!(matrix.len(), x); for i in 0..x { assert_eq!(matrix[i].len(), y); for j in 0..y { let expected = (j + 
+2026-11-02T07:57:41.937726Z  INFO holon_engine: module matrix.c rollout 1/64: tests=10, last_pass_rate=None
+2026-11-02T07:57:41.937735Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=0
+2026-11-02T07:57:41.937909Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=23269
+2026-11-02T07:57:49.203683Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=7265 completion_len=2030 prompt_tokens=7913 completion_tokens=515 total_tokens=8428
+2026-11-02T07:57:49.203707Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=[ { "strategy_id": "STRAT_001_IDIOMATIC_VEC", "description": "Translate the C code to idiomatic Rust using `Vec<Vec<f32>>` for matrix representation. Replace manual memory management (`malloc`/`free`) with Rust's ownership system. Implement
+2026-11-02T07:57:49.203890Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=0 is_repair=false
+2026-11-02T07:57:49.204116Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=24407
+2026-11-02T07:57:58.550100Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=9346 completion_len=3804 prompt_tokens=8156 completion_tokens=1369 total_tokens=9525
+2026-11-02T07:57:58.550149Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { // Use a simple deterministic pseudo-random
+2026-11-02T07:58:01.818218Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27082
+2026-11-02T07:58:05.159140Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=3340 completion_len=3 prompt_tokens=9256 completion_tokens=4 total_tokens=9260
+2026-11-02T07:58:05.159163Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T07:58:05.159462Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=6680
+2026-11-02T07:58:06.297700Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1138 completion_len=18 prompt_tokens=2158 completion_tokens=7 total_tokens=2165
+2026-11-02T07:58:06.297727Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:58:06.297926Z  INFO holon_engine: module matrix.c rollout 1 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T07:58:06.297944Z  INFO holon_engine: module matrix.c rollout 2/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T07:58:06.297950Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=1
+2026-11-02T07:58:06.297954Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=1 is_repair=true
+2026-11-02T07:58:06.298165Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=28221
+2026-11-02T07:58:15.332603Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=9034 completion_len=3466 prompt_tokens=9574 completion_tokens=1331 total_tokens=10905
+2026-11-02T07:58:15.332645Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T07:58:15.643505Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T07:58:19.141812Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=3498 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T07:58:19.141837Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T07:58:19.142133Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5732
+2026-11-02T07:58:20.149963Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1007 completion_len=18 prompt_tokens=1858 completion_tokens=7 total_tokens=1865
+2026-11-02T07:58:20.149981Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:58:20.150129Z  INFO holon_engine: module matrix.c rollout 2 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T07:58:20.150145Z  INFO holon_engine: module matrix.c rollout 3/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T07:58:20.150153Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=2
+2026-11-02T07:58:20.150158Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=2 is_repair=true
+2026-11-02T07:58:20.150377Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27887
+2026-11-02T07:58:29.279993Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=9129 completion_len=3466 prompt_tokens=9531 completion_tokens=1326 total_tokens=10857
+2026-11-02T07:58:29.280035Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T07:58:29.531702Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T07:58:30.992347Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1460 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T07:58:30.992366Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T07:58:30.992673Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5732
+2026-11-02T07:58:32.011885Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1019 completion_len=18 prompt_tokens=1858 completion_tokens=7 total_tokens=1865
+2026-11-02T07:58:32.011909Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:58:32.012130Z  INFO holon_engine: module matrix.c rollout 3 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T07:58:32.012143Z  INFO holon_engine: module matrix.c rollout 4/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T07:58:32.012148Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=3
+2026-11-02T07:58:32.012151Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=3 is_repair=true
+2026-11-02T07:58:32.012336Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27887
+2026-11-02T07:58:38.850865Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=6838 completion_len=3466 prompt_tokens=9531 completion_tokens=1326 total_tokens=10857
+2026-11-02T07:58:38.850897Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T07:58:39.102597Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T07:58:39.214897Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=112 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T07:58:39.214912Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T07:58:39.215231Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5732
+2026-11-02T07:58:40.088283Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=873 completion_len=18 prompt_tokens=1858 completion_tokens=7 total_tokens=1865
+2026-11-02T07:58:40.088307Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:58:40.088539Z  INFO holon_engine: module matrix.c rollout 4 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T07:58:40.088556Z  INFO holon_engine: module matrix.c rollout 5/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T07:58:40.088563Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=4
+2026-11-02T07:58:40.088566Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=4 is_repair=true
+2026-11-02T07:58:40.088757Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27887
+2026-11-02T07:58:45.449887Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5361 completion_len=3466 prompt_tokens=9531 completion_tokens=1326 total_tokens=10857
+2026-11-02T07:58:45.449918Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T07:58:45.701701Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T07:58:45.812917Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=111 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T07:58:45.812934Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T07:58:45.813338Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5732
+2026-11-02T07:58:46.681620Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=868 completion_len=18 prompt_tokens=1858 completion_tokens=7 total_tokens=1865
+2026-11-02T07:58:46.681640Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:58:46.681848Z  INFO holon_engine: module matrix.c rollout 5 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T07:58:46.681868Z  INFO holon_engine: module matrix.c rollout 6/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T07:58:46.681873Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=5
+2026-11-02T07:58:46.681876Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=5 is_repair=true
+2026-11-02T07:58:46.682126Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27887
+2026-11-02T07:58:52.044223Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5362 completion_len=3466 prompt_tokens=9531 completion_tokens=1326 total_tokens=10857
+2026-11-02T07:58:52.044261Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T07:58:52.295710Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T07:58:52.406022Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=110 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T07:58:52.406038Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T07:58:52.406271Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5732
+2026-11-02T07:58:53.311209Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=904 completion_len=18 prompt_tokens=1858 completion_tokens=7 total_tokens=1865
+2026-11-02T07:58:53.311229Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:58:53.311386Z  INFO holon_engine: module matrix.c rollout 6 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T07:58:53.311399Z  INFO holon_engine: module matrix.c rollout 7/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T07:58:53.311404Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=6
+2026-11-02T07:58:53.311407Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=6 is_repair=true
+2026-11-02T07:58:53.311609Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27887
+2026-11-02T07:58:58.675372Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5363 completion_len=3466 prompt_tokens=9531 completion_tokens=1326 total_tokens=10857
+2026-11-02T07:58:58.675405Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T07:58:58.926922Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T07:58:59.037680Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=110 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T07:58:59.037702Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T07:58:59.037942Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5732
+2026-11-02T07:58:59.117907Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=79 completion_len=18 prompt_tokens=1858 completion_tokens=7 total_tokens=1865
+2026-11-02T07:58:59.117926Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:58:59.118060Z  INFO holon_engine: module matrix.c rollout 7 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T07:58:59.118081Z  INFO holon_engine: module matrix.c rollout 8/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T07:58:59.118093Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=7
+2026-11-02T07:58:59.118096Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=7 is_repair=true
+2026-11-02T07:58:59.118295Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27887
+2026-11-02T07:59:04.455009Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5336 completion_len=3466 prompt_tokens=9531 completion_tokens=1326 total_tokens=10857
+2026-11-02T07:59:04.455041Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T07:59:04.706918Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T07:59:04.793680Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=86 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T07:59:04.793696Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.8
+2026-11-02T07:59:04.793939Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5732
+2026-11-02T07:59:04.873341Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=79 completion_len=18 prompt_tokens=1858 completion_tokens=7 total_tokens=1865
+2026-11-02T07:59:04.873360Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:59:04.873503Z  INFO holon_engine: module matrix.c rollout 8 eval: compiles=true, pass_rate=0, reward=0.36000000000000004
+2026-11-02T07:59:04.873518Z  INFO holon_engine: module matrix.c rollout 9/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T07:59:04.873523Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=8
+2026-11-02T07:59:04.873526Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=8 is_repair=true
+2026-11-02T07:59:04.873724Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27887
+2026-11-02T07:59:10.233225Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5359 completion_len=3466 prompt_tokens=9531 completion_tokens=1326 total_tokens=10857
+2026-11-02T07:59:10.233255Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T07:59:10.484841Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T07:59:10.570033Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=85 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T07:59:10.570048Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T07:59:10.570370Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5732
+2026-11-02T07:59:10.648992Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=78 completion_len=18 prompt_tokens=1858 completion_tokens=7 total_tokens=1865
+2026-11-02T07:59:10.649006Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:59:10.649186Z  INFO holon_engine: module matrix.c rollout 9 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T07:59:10.649206Z  WARN holon_engine: stagnation detected, breaking rollout loop early module_id=matrix.c flat_count=8
+2026-11-02T07:59:10.649215Z  INFO global_engine: dispatch_module: vertex matrix.c finished with outcome BudgetExhausted { module_id: "matrix.c", proof_trace: "Rollout budget exhausted on parentless module matrix.c with no contract counterparty", best_candidate: Some("pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> {\n    let mut matrix = Vec::with_capacity(x);\n    for i in 0..x {\n        let mut row = Vec::with_capacity(y);\n        for j in 0..y {\n            if random {\n                // Use a simple deterministic pseudo-random value based on position\n                // to avoid external dependencies while satisfying the \"random\" flag logic\n                let val = ((i * 31 + j * 17) % 100) as f32 / 100.0;\n                row.push(val);\n            } else {\n                row.push((j + i * x) as f32);\n            }\n        }\n        matrix.push(row);\n    }\n    matrix\n}\n\npub fn free_matrix(matrix: &mut Vec<Vec<f32>>) -> i32 {\n    matrix.clear();\n    0\n}\n\npub fn multiply(\n    m1: &Vec<Vec<f32>>,\n    m2: &Vec<Vec<f32>>,\n    r: &mut Vec<Vec<f32>>,\n    method: i32,\n) -> i32 {\n    let x1 = m1.len();\n    let y1 = if x1 > 0 { m1[0].len() } else { 0 };\n    let x2 = m2.len();\n    let y2 = if x2 > 0 { m2[0].len() } else { 0 };\n\n    if y1 != x2 {\n        println!(\n            \"The number of columns in the first matrix must be equal to the number of rows in the second matrix. \\n\"\n        );\n        return -1;\n    }\n\n    match method {\n        1 => {\n            algorithm1(m1, m2, r, x1, y1, x2, y2);\n        }\n        2 => {\n            algorithm2(m1, m2, r, x1);\n        }\n        3 => {\n            algorithm3(m1, m2, r, x1, y1, x2, y2);\n        }\n        _ => {\n            println!(\"Choose the correct method!\\n\");\n            return -1;\n        }\n    }\n    0\n}\n\npub fn algorithm1(\n    m1: &Vec<Vec<f32>>,\n    m2: &Vec<Vec<f32>>,\n    r: &mut Vec<Vec<f32>>,\n    x1: usize,\n    y1: usize,\n    _x2: usize,\n    y2: usize,\n) -> i32 {\n    // Ensure result matrix has correct dimensions\n    if r.len() != x1 {\n        *r = vec![vec![0.0; y2]; x1];\n    } else {\n        for i in 0..x1 {\n            if r[i].len() != y2 {\n                r[i] = vec![0.0; y2];\n            }\n        }\n    }\n\n    for i in 0..x1 {\n        for j in 0..y2 {\n            let mut sum = 0.0f32;\n            for k in 0..y1 {\n                sum += m1[i][k] * m2[k][j];\n            }\n            r[i][j] = sum;\n        }\n    }\n    0\n}\n\npub fn algorithm2(a: &Vec<Vec<f32>>, bb: &Vec<Vec<f32>>, c: &mut Vec<Vec<f32>>, size: usize) -> i32 {\n    // Transpose bb into b\n    let mut b = vec![vec![0.0f32; size]; size];\n    for i in 0..size {\n        for j in 0..size {\n            b[i][j] = bb[j][i];\n        }\n    }\n\n    // Initialize c to zero\n    for i in 0..size {\n        for j in 0..size {\n            c[i][j] = 0.0;\n        }\n    }\n\n    // Perform multiplication using standard loops (portable replacement for AVX2 intrinsics)\n    // The legacy code used AVX2 to process 8 elements at a time, but the mathematical result\n    // is identical to the standard dot product accumulation.\n    for i in 0..size {\n        for j in 0..size {\n            let mut sum = 0.0f32;\n            for k in 0..size {\n                sum += a[i][k] * b[k][j];\n            }\n            c[i][j] = sum;\n        }\n    }\n    0\n}\n\npub fn algorithm3(\n    m1: &Vec<Vec<f32>>,\n    m2: &Vec<Vec<f32>>,\n    r: &mut Vec<Vec<f32>>,\n    x1: usize,\n    y1: usize,\n    _x2: usize,\n    y2: usize,\n) -> i32 {\n    // Ensure result matrix has correct dimensions and is zeroed\n    if r.len() != x1 {\n        *r = vec![vec![0.0; y2]; x1];\n    } else {\n        for i in 0..x1 {\n            if r[i].len() != y2 {\n                r[i] = vec![0.0; y2];\n            } else {\n                for j in 0..y2 {\n                    r[i][j] = 0.0;\n                }\n            }\n        }\n    }\n\n    // I-K-J loop order\n    for i in 0..x1 {\n        for k in 0..y1 {\n            let m1_ik = m1[i][k];\n            for j in 0..y2 {\n                r[i][j] += m1_ik * m2[k][j];\n            }\n        }\n    }\n    0\n}"), best_reward: 0.38 }
+2026-11-02T07:59:10.649241Z  INFO global_engine: module matrix.c exhausted its rollout budget without a contract counterparty and parked at futile dispatch 1
+2026-11-02T07:59:10.649251Z  INFO global_engine: dispatch_module: vertex utils.c mode Initial
+2026-11-02T07:59:10.649259Z  INFO global_engine: module micro-state transitioned vertex=utils.c from=Some(M0Blocked) to=M1ContextHydration
+2026-11-02T07:59:10.649465Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4200
+2026-11-02T07:59:14.747360Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=4097 completion_len=1971 prompt_tokens=1062 completion_tokens=774 total_tokens=1836
+2026-11-02T07:59:14.747384Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=#[test] fn test_print_array_header_format() { let matrix: Vec<Vec<f32>> = vec![vec![1.0, 2.0], vec![3.0, 4.0]]; let x = 2; let y = 2; let name = "TestMatrix"; let type_str = "float"; let result = utils::print_array(&matrix, x, y, name, type
+2026-11-02T07:59:14.747589Z  INFO holon_engine: module utils.c rollout 1/64: tests=7, last_pass_rate=None
+2026-11-02T07:59:14.747600Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=0
+2026-11-02T07:59:14.747724Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4203
+2026-11-02T07:59:19.365803Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=4618 completion_len=1917 prompt_tokens=1077 completion_tokens=487 total_tokens=1564
+2026-11-02T07:59:19.365832Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=[ { "strategy_id": "STRAT_001_DIRECT_TRANSLATION", "description": "Translate C functions directly to Rust using `Vec<Vec<f32>>` for matrices, `&str` for strings, and `println!`/`print!` macros. Maintain the exact function signatures adapted
+2026-11-02T07:59:19.366030Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=0 is_repair=false
+2026-11-02T07:59:19.366148Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5467
+2026-11-02T07:59:21.189765Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1823 completion_len=505 prompt_tokens=1365 completion_tokens=178 total_tokens=1543
+2026-11-02T07:59:21.189784Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T07:59:21.441381Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T07:59:22.288406Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=847 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T07:59:22.288427Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T07:59:22.288721Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T07:59:22.780767Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=492 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T07:59:22.780788Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T07:59:22.780926Z  INFO holon_engine: module utils.c rollout 1 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T07:59:22.780941Z  INFO holon_engine: module utils.c rollout 2/64: tests=7, last_pass_rate=Some(0.0)
+2026-11-02T07:59:22.781058Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4200
+2026-11-02T07:59:26.906532Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=4125 completion_len=1974 prompt_tokens=1062 completion_tokens=774 total_tokens=1836
+2026-11-02T07:59:26.906559Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=#[test] fn test_print_array_header_format() { let matrix: Vec<Vec<f32>> = vec![vec![1.0, 2.0], vec![3.0, 4.0]]; let x = 2; let y = 2; let name = "TestMatrix"; let type_str = "float"; let result = utils::print_array(&matrix, x, y, name, type
+2026-11-02T07:59:26.906871Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=1
+2026-11-02T07:59:26.906880Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=1 is_repair=true
+2026-11-02T07:59:26.906997Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5780
+2026-11-02T07:59:28.701759Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1794 completion_len=564 prompt_tokens=1532 completion_tokens=196 total_tokens=1728
+2026-11-02T07:59:28.701781Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, name: &str, type_str: &str) -> i3
+2026-11-02T07:59:28.802828Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4738
+2026-11-02T07:59:29.314195Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=511 completion_len=18 prompt_tokens=1266 completion_tokens=7 total_tokens=1273
+2026-11-02T07:59:29.314212Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:59:29.314304Z  INFO holon_engine: module utils.c rollout 2 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T07:59:29.314317Z  WARN holon_engine: module utils.c rollout 2 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T07:59:29.314321Z  INFO holon_engine: module utils.c rollout 3/64: tests=7, last_pass_rate=Some(0.0)
+2026-11-02T07:59:29.314433Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4200
+2026-11-02T07:59:33.831839Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=4517 completion_len=2707 prompt_tokens=1062 completion_tokens=998 total_tokens=2060
+2026-11-02T07:59:33.831869Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=#[test] fn test_print_array_header_format() { let matrix: Vec<Vec<f32>> = vec![vec![1.0, 2.0], vec![3.0, 4.0]]; let name = "TestMatrix"; let type_str = "float"; let result = utils::print_array(&matrix, 2, 2, name, type_str); assert_eq!(resu
+2026-11-02T07:59:33.832102Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=2
+2026-11-02T07:59:33.832113Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=2 is_repair=true
+2026-11-02T07:59:33.832233Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5711
+2026-11-02T07:59:35.778776Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1946 completion_len=505 prompt_tokens=1524 completion_tokens=173 total_tokens=1697
+2026-11-02T07:59:35.778793Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T07:59:36.030277Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T07:59:36.907221Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=876 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T07:59:36.907248Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T07:59:36.907533Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T07:59:37.612396Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=704 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T07:59:37.612412Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T07:59:37.612546Z  INFO holon_engine: module utils.c rollout 3 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T07:59:37.612562Z  INFO holon_engine: module utils.c rollout 4/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T07:59:37.612569Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=3
+2026-11-02T07:59:37.612571Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=3 is_repair=true
+2026-11-02T07:59:37.612826Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5780
+2026-11-02T07:59:39.876101Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=2263 completion_len=564 prompt_tokens=1532 completion_tokens=196 total_tokens=1728
+2026-11-02T07:59:39.876125Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, name: &str, type_str: &str) -> i3
+2026-11-02T07:59:39.977101Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=8038
+2026-11-02T07:59:41.198805Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1221 completion_len=18 prompt_tokens=2194 completion_tokens=7 total_tokens=2201
+2026-11-02T07:59:41.198829Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:59:41.198980Z  INFO holon_engine: module utils.c rollout 4 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T07:59:41.198990Z  WARN holon_engine: module utils.c rollout 4 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T07:59:41.198993Z  INFO holon_engine: module utils.c rollout 5/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T07:59:41.198998Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=4
+2026-11-02T07:59:41.199000Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=4 is_repair=true
+2026-11-02T07:59:41.199170Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5711
+2026-11-02T07:59:42.690291Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1491 completion_len=505 prompt_tokens=1524 completion_tokens=173 total_tokens=1697
+2026-11-02T07:59:42.690316Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T07:59:42.941964Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T07:59:43.072095Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=130 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T07:59:43.072112Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T07:59:43.072344Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T07:59:43.150273Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=77 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T07:59:43.150304Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T07:59:43.150409Z  INFO holon_engine: module utils.c rollout 5 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T07:59:43.150426Z  INFO holon_engine: module utils.c rollout 6/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T07:59:43.150431Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=5
+2026-11-02T07:59:43.150434Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=5 is_repair=true
+2026-11-02T07:59:43.150546Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5780
+2026-11-02T07:59:44.719960Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1569 completion_len=564 prompt_tokens=1532 completion_tokens=196 total_tokens=1728
+2026-11-02T07:59:44.719983Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, name: &str, type_str: &str) -> i3
+2026-11-02T07:59:44.820951Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=8038
+2026-11-02T07:59:46.254612Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1433 completion_len=18 prompt_tokens=2194 completion_tokens=7 total_tokens=2201
+2026-11-02T07:59:46.254638Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:59:46.254841Z  INFO holon_engine: module utils.c rollout 6 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T07:59:46.254852Z  WARN holon_engine: module utils.c rollout 6 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T07:59:46.254857Z  INFO holon_engine: module utils.c rollout 7/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T07:59:46.254863Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=6
+2026-11-02T07:59:46.254867Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=6 is_repair=true
+2026-11-02T07:59:46.255015Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5711
+2026-11-02T07:59:47.743129Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1488 completion_len=505 prompt_tokens=1524 completion_tokens=173 total_tokens=1697
+2026-11-02T07:59:47.743157Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T07:59:47.994829Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T07:59:48.098801Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=103 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T07:59:48.098820Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T07:59:48.099197Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T07:59:48.177945Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=78 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T07:59:48.177962Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T07:59:48.178176Z  INFO holon_engine: module utils.c rollout 7 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T07:59:48.178191Z  INFO holon_engine: module utils.c rollout 8/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T07:59:48.178197Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=7
+2026-11-02T07:59:48.178205Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=7 is_repair=true
+2026-11-02T07:59:48.178340Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5780
+2026-11-02T07:59:49.774623Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1596 completion_len=564 prompt_tokens=1532 completion_tokens=196 total_tokens=1728
+2026-11-02T07:59:49.774646Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, name: &str, type_str: &str) -> i3
+2026-11-02T07:59:49.875768Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=8038
+2026-11-02T07:59:49.980488Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=104 completion_len=18 prompt_tokens=2194 completion_tokens=7 total_tokens=2201
+2026-11-02T07:59:49.980508Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T07:59:49.980653Z  INFO holon_engine: module utils.c rollout 8 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T07:59:49.980663Z  WARN holon_engine: module utils.c rollout 8 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T07:59:49.980667Z  INFO holon_engine: module utils.c rollout 9/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T07:59:49.980672Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=8
+2026-11-02T07:59:49.980674Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=8 is_repair=true
+2026-11-02T07:59:49.980803Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5711
+2026-11-02T07:59:51.467867Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1487 completion_len=505 prompt_tokens=1524 completion_tokens=173 total_tokens=1697
+2026-11-02T07:59:51.467886Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T07:59:51.719561Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T07:59:51.823962Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=104 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T07:59:51.823980Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T07:59:51.824311Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T07:59:51.902767Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=78 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T07:59:51.902784Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T07:59:51.903000Z  INFO holon_engine: module utils.c rollout 9 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T07:59:51.903020Z  WARN holon_engine: stagnation detected, breaking rollout loop early module_id=utils.c flat_count=8
+2026-11-02T07:59:51.903024Z  INFO global_engine: dispatch_module: vertex utils.c finished with outcome BudgetExhausted { module_id: "utils.c", proof_trace: "Rollout budget exhausted on parentless module utils.c with no contract counterparty", best_candidate: Some("pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 {\n    for i in 0..x {\n        for j in 0..y {\n            print!(\"{:10.2} \", matrix[i][j]);\n        }\n        println!();\n    }\n    0\n}\n\npub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, type_str: &str) -> i32 {\n    println!(\"------------{}--------------\", name);\n    if type_str == \"float\" {\n        print_float_array(matrix, x, y);\n    } else {\n        print!(\"unsupported {}\", type_str);\n    }\n    0\n}"), best_reward: 0.366 }
+2026-11-02T07:59:51.913176Z  INFO global_engine: module utils.c exhausted its rollout budget without a contract counterparty and parked at futile dispatch 1
+2026-11-02T07:59:51.913454Z  INFO global_engine: MacroEngine run loop iteration step=7 macro_state=S5IterativeDag
+2026-11-02T07:59:51.913467Z  INFO global_engine: evaluating transform wave ready set ready_count=2
+2026-11-02T07:59:51.913469Z  INFO global_engine: dispatch_module: vertex matrix.c mode Initial
+2026-11-02T07:59:51.913536Z  INFO global_engine: module micro-state transitioned vertex=matrix.c from=Some(M0Blocked) to=M1ContextHydration
+2026-11-02T07:59:51.913560Z  INFO holon_engine: module matrix.c rollout 1/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T07:59:51.913566Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=9
+2026-11-02T07:59:51.913569Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=9 is_repair=true
+2026-11-02T07:59:51.913802Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27887
+2026-11-02T07:59:57.273687Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5359 completion_len=3466 prompt_tokens=9531 completion_tokens=1326 total_tokens=10857
+2026-11-02T07:59:57.273717Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T07:59:57.575361Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T07:59:57.683120Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=107 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T07:59:57.683138Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T07:59:57.683483Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T07:59:58.851349Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1167 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T07:59:58.851370Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T07:59:58.851567Z  INFO holon_engine: module matrix.c rollout 1 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T07:59:58.851583Z  INFO holon_engine: module matrix.c rollout 2/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T07:59:58.851592Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=10
+2026-11-02T07:59:58.851596Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=10 is_repair=true
+2026-11-02T07:59:58.851770Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:00:07.747851Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=8896 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:00:07.747892Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:00:07.999403Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:00:08.109314Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=109 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:00:08.109332Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:00:08.109730Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:00:09.478351Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1368 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:00:09.478367Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:00:09.478695Z  INFO holon_engine: module matrix.c rollout 2 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:00:09.478707Z  INFO holon_engine: module matrix.c rollout 3/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:00:09.478712Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=11
+2026-11-02T08:00:09.478715Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=11 is_repair=true
+2026-11-02T08:00:09.478883Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:00:15.640061Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=6161 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:00:15.640095Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:00:15.891936Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:00:16.001392Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=109 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:00:16.001413Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:00:16.001796Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:00:17.166903Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1165 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:00:17.166923Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:00:17.167113Z  INFO holon_engine: module matrix.c rollout 3 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:00:17.167125Z  INFO holon_engine: module matrix.c rollout 4/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:00:17.167131Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=12
+2026-11-02T08:00:17.167134Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=12 is_repair=true
+2026-11-02T08:00:17.167346Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:00:22.576055Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5408 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:00:22.576088Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:00:22.827603Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:00:22.935684Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=108 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:00:22.935712Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:00:22.935955Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:00:24.276628Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1340 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:00:24.276649Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:00:24.276875Z  INFO holon_engine: module matrix.c rollout 4 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:00:24.276890Z  INFO holon_engine: module matrix.c rollout 5/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:00:24.276898Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=13
+2026-11-02T08:00:24.276903Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=13 is_repair=true
+2026-11-02T08:00:24.277076Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:00:29.682987Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5405 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:00:29.683029Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:00:29.934799Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:00:30.043529Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=108 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:00:30.043549Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:00:30.043811Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:00:31.424094Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1380 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:00:31.424118Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:00:31.424402Z  INFO holon_engine: module matrix.c rollout 5 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:00:31.424421Z  INFO holon_engine: module matrix.c rollout 6/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:00:31.424429Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=14
+2026-11-02T08:00:31.424433Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=14 is_repair=true
+2026-11-02T08:00:31.424609Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:00:36.831495Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5406 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:00:36.831527Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:00:37.083027Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:00:37.192057Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=109 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:00:37.192076Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:00:37.192327Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:00:37.297004Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=104 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:00:37.297025Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:00:37.297126Z  INFO holon_engine: module matrix.c rollout 6 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:00:37.297140Z  INFO holon_engine: module matrix.c rollout 7/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:00:37.297145Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=15
+2026-11-02T08:00:37.297148Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=15 is_repair=true
+2026-11-02T08:00:37.297294Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:00:42.703051Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5405 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:00:42.703080Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:00:42.954839Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:00:43.036689Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=81 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:00:43.036710Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.8
+2026-11-02T08:00:43.036986Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:00:43.141942Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=104 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:00:43.141959Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:00:43.142149Z  INFO holon_engine: module matrix.c rollout 7 eval: compiles=true, pass_rate=0, reward=0.36000000000000004
+2026-11-02T08:00:43.142161Z  INFO holon_engine: module matrix.c rollout 8/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:00:43.142167Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=16
+2026-11-02T08:00:43.142170Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=16 is_repair=true
+2026-11-02T08:00:43.142473Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:00:48.548873Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5406 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:00:48.548910Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:00:48.800597Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:00:48.909067Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=108 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:00:48.909092Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:00:48.909380Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:00:50.602697Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1693 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:00:50.602728Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:00:50.602895Z  INFO holon_engine: module matrix.c rollout 8 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:00:50.602916Z  WARN holon_engine: stagnation detected, breaking rollout loop early module_id=matrix.c flat_count=8
+2026-11-02T08:00:50.602925Z  INFO global_engine: dispatch_module: vertex matrix.c finished with outcome BudgetExhausted { module_id: "matrix.c", proof_trace: "Rollout budget exhausted on parentless module matrix.c with no contract counterparty", best_candidate: Some("pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> {\n    let mut matrix = Vec::with_capacity(x);\n    for i in 0..x {\n        let mut row = Vec::with_capacity(y);\n        for j in 0..y {\n            if random {\n                // Use a simple deterministic pseudo-random value based on position\n                // to avoid external dependencies while satisfying the \"random\" flag logic\n                let val = ((i * 31 + j * 17) % 100) as f32 / 100.0;\n                row.push(val);\n            } else {\n                row.push((j + i * x) as f32);\n            }\n        }\n        matrix.push(row);\n    }\n    matrix\n}\n\npub fn free_matrix(matrix: &mut Vec<Vec<f32>>) -> i32 {\n    matrix.clear();\n    0\n}\n\npub fn multiply(\n    m1: &Vec<Vec<f32>>,\n    m2: &Vec<Vec<f32>>,\n    r: &mut Vec<Vec<f32>>,\n    method: i32,\n) -> i32 {\n    let x1 = m1.len();\n    let y1 = if x1 > 0 { m1[0].len() } else { 0 };\n    let x2 = m2.len();\n    let y2 = if x2 > 0 { m2[0].len() } else { 0 };\n\n    if y1 != x2 {\n        println!(\n            \"The number of columns in the first matrix must be equal to the number of rows in the second matrix. \\n\"\n        );\n        return -1;\n    }\n\n    match method {\n        1 => {\n            algorithm1(m1, m2, r, x1, y1, x2, y2);\n        }\n        2 => {\n            algorithm2(m1, m2, r, x1);\n        }\n        3 => {\n            algorithm3(m1, m2, r, x1, y1, x2, y2);\n        }\n        _ => {\n            println!(\"Choose the correct method!\\n\");\n            return -1;\n        }\n    }\n    0\n}\n\npub fn algorithm1(\n    m1: &Vec<Vec<f32>>,\n    m2: &Vec<Vec<f32>>,\n    r: &mut Vec<Vec<f32>>,\n    x1: usize,\n    y1: usize,\n    _x2: usize,\n    y2: usize,\n) -> i32 {\n    // Ensure result matrix has correct dimensions\n    if r.len() != x1 {\n        *r = vec![vec![0.0; y2]; x1];\n    } else {\n        for i in 0..x1 {\n            if r[i].len() != y2 {\n                r[i] = vec![0.0; y2];\n            }\n        }\n    }\n\n    for i in 0..x1 {\n        for j in 0..y2 {\n            let mut sum = 0.0f32;\n            for k in 0..y1 {\n                sum += m1[i][k] * m2[k][j];\n            }\n            r[i][j] = sum;\n        }\n    }\n    0\n}\n\npub fn algorithm2(a: &Vec<Vec<f32>>, bb: &Vec<Vec<f32>>, c: &mut Vec<Vec<f32>>, size: usize) -> i32 {\n    // Transpose bb into b\n    let mut b = vec![vec![0.0f32; size]; size];\n    for i in 0..size {\n        for j in 0..size {\n            b[i][j] = bb[j][i];\n        }\n    }\n\n    // Initialize c to zero\n    for i in 0..size {\n        for j in 0..size {\n            c[i][j] = 0.0;\n        }\n    }\n\n    // Perform multiplication using standard loops (portable replacement for AVX2 intrinsics)\n    // The legacy code used AVX2 to process 8 elements at a time, but the mathematical result\n    // is identical to the standard dot product accumulation.\n    for i in 0..size {\n        for j in 0..size {\n            let mut sum = 0.0f32;\n            for k in 0..size {\n                sum += a[i][k] * b[k][j];\n            }\n            c[i][j] = sum;\n        }\n    }\n    0\n}\n\npub fn algorithm3(\n    m1: &Vec<Vec<f32>>,\n    m2: &Vec<Vec<f32>>,\n    r: &mut Vec<Vec<f32>>,\n    x1: usize,\n    y1: usize,\n    _x2: usize,\n    y2: usize,\n) -> i32 {\n    // Ensure result matrix has correct dimensions and is zeroed\n    if r.len() != x1 {\n        *r = vec![vec![0.0; y2]; x1];\n    } else {\n        for i in 0..x1 {\n            if r[i].len() != y2 {\n                r[i] = vec![0.0; y2];\n            } else {\n                for j in 0..y2 {\n                    r[i][j] = 0.0;\n                }\n            }\n        }\n    }\n\n    // I-K-J loop order\n    for i in 0..x1 {\n        for k in 0..y1 {\n            let m1_ik = m1[i][k];\n            for j in 0..y2 {\n                r[i][j] += m1_ik * m2[k][j];\n            }\n        }\n    }\n    0\n}"), best_reward: 0.38 }
+2026-11-02T08:00:50.602965Z  INFO global_engine: module matrix.c exhausted its rollout budget without a contract counterparty and parked at futile dispatch 2
+2026-11-02T08:00:50.602981Z  INFO global_engine: dispatch_module: vertex utils.c mode Initial
+2026-11-02T08:00:50.602991Z  INFO global_engine: module micro-state transitioned vertex=utils.c from=Some(M0Blocked) to=M1ContextHydration
+2026-11-02T08:00:50.603003Z  INFO holon_engine: module utils.c rollout 1/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:00:50.603010Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=9
+2026-11-02T08:00:50.603014Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=9 is_repair=true
+2026-11-02T08:00:50.603152Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5780
+2026-11-02T08:00:52.177428Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1574 completion_len=572 prompt_tokens=1532 completion_tokens=196 total_tokens=1728
+2026-11-02T08:00:52.177457Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, name: &str, type_str: &str) -> i3
+2026-11-02T08:00:52.278593Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=8046
+2026-11-02T08:00:53.815016Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1536 completion_len=18 prompt_tokens=2194 completion_tokens=7 total_tokens=2201
+2026-11-02T08:00:53.815041Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T08:00:53.815228Z  INFO holon_engine: module utils.c rollout 1 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T08:00:53.815245Z  WARN holon_engine: module utils.c rollout 1 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T08:00:53.815251Z  INFO holon_engine: module utils.c rollout 2/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:00:53.815259Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=10
+2026-11-02T08:00:53.815263Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=10 is_repair=true
+2026-11-02T08:00:53.815426Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5719
+2026-11-02T08:00:55.130965Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1315 completion_len=505 prompt_tokens=1524 completion_tokens=173 total_tokens=1697
+2026-11-02T08:00:55.130993Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T08:00:55.432663Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T08:00:55.562718Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=130 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T08:00:55.562755Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T08:00:55.563042Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T08:00:56.947936Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1384 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T08:00:56.947957Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:00:56.948155Z  INFO holon_engine: module utils.c rollout 2 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T08:00:56.948170Z  INFO holon_engine: module utils.c rollout 3/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:00:56.948178Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=11
+2026-11-02T08:00:56.948182Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=11 is_repair=true
+2026-11-02T08:00:56.948336Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5780
+2026-11-02T08:00:58.578791Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1630 completion_len=564 prompt_tokens=1532 completion_tokens=196 total_tokens=1728
+2026-11-02T08:00:58.578819Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, name: &str, type_str: &str) -> i3
+2026-11-02T08:00:58.679729Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=8038
+2026-11-02T08:01:00.203133Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1523 completion_len=18 prompt_tokens=2194 completion_tokens=7 total_tokens=2201
+2026-11-02T08:01:00.203160Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T08:01:00.203366Z  INFO holon_engine: module utils.c rollout 3 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T08:01:00.203378Z  WARN holon_engine: module utils.c rollout 3 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T08:01:00.203384Z  INFO holon_engine: module utils.c rollout 4/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:01:00.203392Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=12
+2026-11-02T08:01:00.203396Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=12 is_repair=true
+2026-11-02T08:01:00.203563Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5711
+2026-11-02T08:01:01.519814Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1316 completion_len=505 prompt_tokens=1524 completion_tokens=173 total_tokens=1697
+2026-11-02T08:01:01.519839Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T08:01:01.771451Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T08:01:02.628583Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=857 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T08:01:02.628620Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T08:01:02.629088Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T08:01:03.970972Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1341 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T08:01:03.970996Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:01:03.971202Z  INFO holon_engine: module utils.c rollout 4 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T08:01:03.971216Z  INFO holon_engine: module utils.c rollout 5/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:01:03.971223Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=13
+2026-11-02T08:01:03.971225Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=13 is_repair=true
+2026-11-02T08:01:03.971344Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5780
+2026-11-02T08:01:05.579853Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1608 completion_len=564 prompt_tokens=1532 completion_tokens=196 total_tokens=1728
+2026-11-02T08:01:05.579872Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, name: &str, type_str: &str) -> i3
+2026-11-02T08:01:05.680817Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=8038
+2026-11-02T08:01:06.242748Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=561 completion_len=18 prompt_tokens=2194 completion_tokens=7 total_tokens=2201
+2026-11-02T08:01:06.242770Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T08:01:06.242925Z  INFO holon_engine: module utils.c rollout 5 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T08:01:06.242939Z  WARN holon_engine: module utils.c rollout 5 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T08:01:06.242943Z  INFO holon_engine: module utils.c rollout 6/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:01:06.242948Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=14
+2026-11-02T08:01:06.242950Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=14 is_repair=true
+2026-11-02T08:01:06.243066Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5711
+2026-11-02T08:01:07.734917Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1491 completion_len=505 prompt_tokens=1524 completion_tokens=173 total_tokens=1697
+2026-11-02T08:01:07.734939Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T08:01:07.986547Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T08:01:08.048289Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=61 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T08:01:08.048309Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T08:01:08.048624Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T08:01:09.072864Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1024 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T08:01:09.072888Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:01:09.073113Z  INFO holon_engine: module utils.c rollout 6 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T08:01:09.073128Z  INFO holon_engine: module utils.c rollout 7/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:01:09.073134Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=15
+2026-11-02T08:01:09.073141Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=15 is_repair=true
+2026-11-02T08:01:09.073262Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5780
+2026-11-02T08:01:10.648599Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1575 completion_len=564 prompt_tokens=1532 completion_tokens=196 total_tokens=1728
+2026-11-02T08:01:10.648617Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, name: &str, type_str: &str) -> i3
+2026-11-02T08:01:10.749801Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=8038
+2026-11-02T08:01:11.311404Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=561 completion_len=18 prompt_tokens=2194 completion_tokens=7 total_tokens=2201
+2026-11-02T08:01:11.311426Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T08:01:11.311639Z  INFO holon_engine: module utils.c rollout 7 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T08:01:11.311652Z  WARN holon_engine: module utils.c rollout 7 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T08:01:11.311656Z  INFO holon_engine: module utils.c rollout 8/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:01:11.311662Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=16
+2026-11-02T08:01:11.311664Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=16 is_repair=true
+2026-11-02T08:01:11.311933Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5711
+2026-11-02T08:01:12.803558Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1491 completion_len=505 prompt_tokens=1524 completion_tokens=173 total_tokens=1697
+2026-11-02T08:01:12.803580Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T08:01:13.055292Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T08:01:13.143978Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=88 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T08:01:13.143999Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T08:01:13.144295Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T08:01:14.489272Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1344 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T08:01:14.489296Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:01:14.489504Z  INFO holon_engine: module utils.c rollout 8 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T08:01:14.489536Z  WARN holon_engine: stagnation detected, breaking rollout loop early module_id=utils.c flat_count=8
+2026-11-02T08:01:14.489540Z  INFO global_engine: dispatch_module: vertex utils.c finished with outcome BudgetExhausted { module_id: "utils.c", proof_trace: "Rollout budget exhausted on parentless module utils.c with no contract counterparty", best_candidate: Some("pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 {\n    for i in 0..x {\n        for j in 0..y {\n            print!(\"{:10.2} \", matrix[i][j]);\n        }\n        println!();\n    }\n    0\n}\n\npub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, type_str: &str) -> i32 {\n    println!(\"------------{}--------------\", name);\n    if type_str == \"float\" {\n        print_float_array(matrix, x, y);\n    } else {\n        print!(\"unsupported {}\", type_str);\n    }\n    0\n}"), best_reward: 0.366 }
+2026-11-02T08:01:14.489560Z  INFO global_engine: module utils.c exhausted its rollout budget without a contract counterparty and parked at futile dispatch 2
+2026-11-02T08:01:14.489586Z  INFO global_engine: MacroEngine run loop iteration step=8 macro_state=S5IterativeDag
+2026-11-02T08:01:14.489591Z  INFO global_engine: evaluating transform wave ready set ready_count=2
+2026-11-02T08:01:14.489593Z  INFO global_engine: dispatch_module: vertex matrix.c mode Initial
+2026-11-02T08:01:14.489604Z  INFO global_engine: module micro-state transitioned vertex=matrix.c from=Some(M0Blocked) to=M1ContextHydration
+2026-11-02T08:01:14.489617Z  INFO holon_engine: module matrix.c rollout 1/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:01:14.489623Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=17
+2026-11-02T08:01:14.489626Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=17 is_repair=true
+2026-11-02T08:01:14.489826Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:01:19.894138Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5404 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:01:19.894167Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:01:20.195835Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:01:20.304517Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=108 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:01:20.304540Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:01:20.304865Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:01:21.466063Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1161 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:01:21.466084Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:01:21.466378Z  INFO holon_engine: module matrix.c rollout 1 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:01:21.466396Z  INFO holon_engine: module matrix.c rollout 2/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:01:21.466405Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=18
+2026-11-02T08:01:21.466409Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=18 is_repair=true
+2026-11-02T08:01:21.466580Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:01:26.868851Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5402 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:01:26.868891Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:01:27.120583Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:01:27.229776Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=109 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:01:27.229806Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:01:27.230065Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:01:27.334906Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=104 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:01:27.334928Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:01:27.335085Z  INFO holon_engine: module matrix.c rollout 2 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:01:27.335107Z  INFO holon_engine: module matrix.c rollout 3/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:01:27.335117Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=19
+2026-11-02T08:01:27.335121Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=19 is_repair=true
+2026-11-02T08:01:27.335302Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:01:32.740169Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5404 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:01:32.740209Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:01:32.991968Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:01:33.099748Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=107 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:01:33.099769Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:01:33.099979Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:01:33.205642Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=105 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:01:33.205667Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:01:33.205792Z  INFO holon_engine: module matrix.c rollout 3 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:01:33.205810Z  INFO holon_engine: module matrix.c rollout 4/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:01:33.205817Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=20
+2026-11-02T08:01:33.205820Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=20 is_repair=true
+2026-11-02T08:01:33.206192Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:01:38.612227Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5406 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:01:38.619411Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:01:38.871669Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:01:38.980115Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=108 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:01:38.980133Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:01:38.980510Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:01:39.085378Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=104 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:01:39.085398Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:01:39.085541Z  INFO holon_engine: module matrix.c rollout 4 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:01:39.085558Z  INFO holon_engine: module matrix.c rollout 5/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:01:39.085565Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=21
+2026-11-02T08:01:39.085568Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=21 is_repair=true
+2026-11-02T08:01:39.085787Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:01:44.491708Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5405 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:01:44.491740Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:01:44.743968Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:01:44.854320Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=110 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:01:44.854339Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:01:44.854680Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:01:44.960010Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=105 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:01:44.960027Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:01:44.960226Z  INFO holon_engine: module matrix.c rollout 5 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:01:44.960240Z  INFO holon_engine: module matrix.c rollout 6/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:01:44.960248Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=22
+2026-11-02T08:01:44.960251Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=22 is_repair=true
+2026-11-02T08:01:44.960476Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:01:50.367055Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5406 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:01:50.367087Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:01:50.628903Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:01:50.737149Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=108 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:01:50.737166Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:01:50.737566Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:01:50.842137Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=104 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:01:50.842161Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:01:50.842364Z  INFO holon_engine: module matrix.c rollout 6 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:01:50.842378Z  INFO holon_engine: module matrix.c rollout 7/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:01:50.842386Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=23
+2026-11-02T08:01:50.842388Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=23 is_repair=true
+2026-11-02T08:01:50.842544Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:01:56.249688Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5407 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:01:56.249721Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:01:56.501112Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:01:56.610703Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=109 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:01:56.610723Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:01:56.610998Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:01:56.716702Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=105 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:01:56.716720Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:01:56.716823Z  INFO holon_engine: module matrix.c rollout 7 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:01:56.716838Z  INFO holon_engine: module matrix.c rollout 8/64: tests=10, last_pass_rate=Some(0.0)
+2026-11-02T08:01:56.716847Z  INFO holon_engine: selected expandable MCTS node module_id=matrix.c node_id=24
+2026-11-02T08:01:56.716850Z  INFO holon_engine: expanding MCTS search node module_id=matrix.c node_id=24 is_repair=true
+2026-11-02T08:01:56.717004Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=27950
+2026-11-02T08:02:02.123921Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=5406 completion_len=3466 prompt_tokens=9521 completion_tokens=1326 total_tokens=10847
+2026-11-02T08:02:02.123953Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> { let mut matrix = Vec::with_capacity(x); for i in 0..x { let mut row = Vec::with_capacity(y); for j in 0..y { if random { let val = ((i * 31 + j * 17) % 100) as f32 
+2026-11-02T08:02:02.375821Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=26748
+2026-11-02T08:02:02.485515Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=109 completion_len=3 prompt_tokens=9213 completion_tokens=4 total_tokens=9217
+2026-11-02T08:02:02.485536Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.9
+2026-11-02T08:02:02.485833Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=7608
+2026-11-02T08:02:02.591354Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=105 completion_len=9 prompt_tokens=2355 completion_tokens=4 total_tokens=2359
+2026-11-02T08:02:02.591376Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:02:02.591517Z  INFO holon_engine: module matrix.c rollout 8 eval: compiles=true, pass_rate=0, reward=0.38
+2026-11-02T08:02:02.591533Z  WARN holon_engine: stagnation detected, breaking rollout loop early module_id=matrix.c flat_count=8
+2026-11-02T08:02:02.591541Z  INFO global_engine: dispatch_module: vertex matrix.c finished with outcome BudgetExhausted { module_id: "matrix.c", proof_trace: "Rollout budget exhausted on parentless module matrix.c with no contract counterparty", best_candidate: Some("pub fn generate_matrix(x: usize, y: usize, random: bool) -> Vec<Vec<f32>> {\n    let mut matrix = Vec::with_capacity(x);\n    for i in 0..x {\n        let mut row = Vec::with_capacity(y);\n        for j in 0..y {\n            if random {\n                // Use a simple deterministic pseudo-random value based on position\n                // to avoid external dependencies while satisfying the \"random\" flag logic\n                let val = ((i * 31 + j * 17) % 100) as f32 / 100.0;\n                row.push(val);\n            } else {\n                row.push((j + i * x) as f32);\n            }\n        }\n        matrix.push(row);\n    }\n    matrix\n}\n\npub fn free_matrix(matrix: &mut Vec<Vec<f32>>) -> i32 {\n    matrix.clear();\n    0\n}\n\npub fn multiply(\n    m1: &Vec<Vec<f32>>,\n    m2: &Vec<Vec<f32>>,\n    r: &mut Vec<Vec<f32>>,\n    method: i32,\n) -> i32 {\n    let x1 = m1.len();\n    let y1 = if x1 > 0 { m1[0].len() } else { 0 };\n    let x2 = m2.len();\n    let y2 = if x2 > 0 { m2[0].len() } else { 0 };\n\n    if y1 != x2 {\n        println!(\n            \"The number of columns in the first matrix must be equal to the number of rows in the second matrix. \\n\"\n        );\n        return -1;\n    }\n\n    match method {\n        1 => {\n            algorithm1(m1, m2, r, x1, y1, x2, y2);\n        }\n        2 => {\n            algorithm2(m1, m2, r, x1);\n        }\n        3 => {\n            algorithm3(m1, m2, r, x1, y1, x2, y2);\n        }\n        _ => {\n            println!(\"Choose the correct method!\\n\");\n            return -1;\n        }\n    }\n    0\n}\n\npub fn algorithm1(\n    m1: &Vec<Vec<f32>>,\n    m2: &Vec<Vec<f32>>,\n    r: &mut Vec<Vec<f32>>,\n    x1: usize,\n    y1: usize,\n    _x2: usize,\n    y2: usize,\n) -> i32 {\n    // Ensure result matrix has correct dimensions\n    if r.len() != x1 {\n        *r = vec![vec![0.0; y2]; x1];\n    } else {\n        for i in 0..x1 {\n            if r[i].len() != y2 {\n                r[i] = vec![0.0; y2];\n            }\n        }\n    }\n\n    for i in 0..x1 {\n        for j in 0..y2 {\n            let mut sum = 0.0f32;\n            for k in 0..y1 {\n                sum += m1[i][k] * m2[k][j];\n            }\n            r[i][j] = sum;\n        }\n    }\n    0\n}\n\npub fn algorithm2(a: &Vec<Vec<f32>>, bb: &Vec<Vec<f32>>, c: &mut Vec<Vec<f32>>, size: usize) -> i32 {\n    // Transpose bb into b\n    let mut b = vec![vec![0.0f32; size]; size];\n    for i in 0..size {\n        for j in 0..size {\n            b[i][j] = bb[j][i];\n        }\n    }\n\n    // Initialize c to zero\n    for i in 0..size {\n        for j in 0..size {\n            c[i][j] = 0.0;\n        }\n    }\n\n    // Perform multiplication using standard loops (portable replacement for AVX2 intrinsics)\n    // The legacy code used AVX2 to process 8 elements at a time, but the mathematical result\n    // is identical to the standard dot product accumulation.\n    for i in 0..size {\n        for j in 0..size {\n            let mut sum = 0.0f32;\n            for k in 0..size {\n                sum += a[i][k] * b[k][j];\n            }\n            c[i][j] = sum;\n        }\n    }\n    0\n}\n\npub fn algorithm3(\n    m1: &Vec<Vec<f32>>,\n    m2: &Vec<Vec<f32>>,\n    r: &mut Vec<Vec<f32>>,\n    x1: usize,\n    y1: usize,\n    _x2: usize,\n    y2: usize,\n) -> i32 {\n    // Ensure result matrix has correct dimensions and is zeroed\n    if r.len() != x1 {\n        *r = vec![vec![0.0; y2]; x1];\n    } else {\n        for i in 0..x1 {\n            if r[i].len() != y2 {\n                r[i] = vec![0.0; y2];\n            } else {\n                for j in 0..y2 {\n                    r[i][j] = 0.0;\n                }\n            }\n        }\n    }\n\n    // I-K-J loop order\n    for i in 0..x1 {\n        for k in 0..y1 {\n            let m1_ik = m1[i][k];\n            for j in 0..y2 {\n                r[i][j] += m1_ik * m2[k][j];\n            }\n        }\n    }\n    0\n}"), best_reward: 0.38 }
+2026-11-02T08:02:02.591580Z  INFO global_engine: module matrix.c exhausted its rollout budget without a contract counterparty and parked at futile dispatch 3
+2026-11-02T08:02:02.591626Z  INFO global_engine: dispatch_module: vertex utils.c mode Initial
+2026-11-02T08:02:02.591638Z  INFO global_engine: module micro-state transitioned vertex=utils.c from=Some(M0Blocked) to=M1ContextHydration
+2026-11-02T08:02:02.591650Z  INFO holon_engine: module utils.c rollout 1/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:02:02.591659Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=17
+2026-11-02T08:02:02.591663Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=17 is_repair=true
+2026-11-02T08:02:02.591818Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5780
+2026-11-02T08:02:04.196226Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1604 completion_len=564 prompt_tokens=1532 completion_tokens=196 total_tokens=1728
+2026-11-02T08:02:04.196255Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, name: &str, type_str: &str) -> i3
+2026-11-02T08:02:04.347451Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=8038
+2026-11-02T08:02:04.904619Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=557 completion_len=18 prompt_tokens=2194 completion_tokens=7 total_tokens=2201
+2026-11-02T08:02:04.904641Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T08:02:04.904787Z  INFO holon_engine: module utils.c rollout 1 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T08:02:04.904803Z  WARN holon_engine: module utils.c rollout 1 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T08:02:04.904809Z  INFO holon_engine: module utils.c rollout 2/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:02:04.904817Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=18
+2026-11-02T08:02:04.904822Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=18 is_repair=true
+2026-11-02T08:02:04.904957Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5711
+2026-11-02T08:02:06.427663Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1522 completion_len=505 prompt_tokens=1524 completion_tokens=173 total_tokens=1697
+2026-11-02T08:02:06.427686Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T08:02:06.729516Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T08:02:06.791224Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=61 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T08:02:06.791245Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T08:02:06.791450Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T08:02:08.130612Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1339 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T08:02:08.130633Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:02:08.130876Z  INFO holon_engine: module utils.c rollout 2 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T08:02:08.130889Z  INFO holon_engine: module utils.c rollout 3/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:02:08.130896Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=19
+2026-11-02T08:02:08.130898Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=19 is_repair=true
+2026-11-02T08:02:08.131046Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5780
+2026-11-02T08:02:09.895757Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1764 completion_len=564 prompt_tokens=1532 completion_tokens=196 total_tokens=1728
+2026-11-02T08:02:09.895780Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, name: &str, type_str: &str) -> i3
+2026-11-02T08:02:09.996766Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=8038
+2026-11-02T08:02:10.552194Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=555 completion_len=18 prompt_tokens=2194 completion_tokens=7 total_tokens=2201
+2026-11-02T08:02:10.552210Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T08:02:10.552357Z  INFO holon_engine: module utils.c rollout 3 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T08:02:10.552376Z  WARN holon_engine: module utils.c rollout 3 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T08:02:10.552380Z  INFO holon_engine: module utils.c rollout 4/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:02:10.552387Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=20
+2026-11-02T08:02:10.552389Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=20 is_repair=true
+2026-11-02T08:02:10.552638Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5711
+2026-11-02T08:02:11.380048Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=827 completion_len=505 prompt_tokens=1524 completion_tokens=173 total_tokens=1697
+2026-11-02T08:02:11.380069Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T08:02:11.631520Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T08:02:11.719240Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=87 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T08:02:11.719256Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T08:02:11.719823Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T08:02:13.065840Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=1346 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T08:02:13.065864Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:02:13.066076Z  INFO holon_engine: module utils.c rollout 4 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T08:02:13.066101Z  INFO holon_engine: module utils.c rollout 5/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:02:13.066108Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=21
+2026-11-02T08:02:13.066111Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=21 is_repair=true
+2026-11-02T08:02:13.066329Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5780
+2026-11-02T08:02:13.962096Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=895 completion_len=564 prompt_tokens=1532 completion_tokens=196 total_tokens=1728
+2026-11-02T08:02:13.962114Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, name: &str, type_str: &str) -> i3
+2026-11-02T08:02:14.063093Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=8038
+2026-11-02T08:02:14.617980Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=554 completion_len=18 prompt_tokens=2194 completion_tokens=7 total_tokens=2201
+2026-11-02T08:02:14.618003Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T08:02:14.618197Z  INFO holon_engine: module utils.c rollout 5 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T08:02:14.618208Z  WARN holon_engine: module utils.c rollout 5 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T08:02:14.618213Z  INFO holon_engine: module utils.c rollout 6/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:02:14.618220Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=22
+2026-11-02T08:02:14.618222Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=22 is_repair=true
+2026-11-02T08:02:14.618341Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5711
+2026-11-02T08:02:15.446358Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=828 completion_len=505 prompt_tokens=1524 completion_tokens=173 total_tokens=1697
+2026-11-02T08:02:15.446376Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T08:02:15.697822Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T08:02:15.759409Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=61 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T08:02:15.759426Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T08:02:15.759706Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T08:02:16.567468Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=807 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T08:02:16.567484Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:02:16.567716Z  INFO holon_engine: module utils.c rollout 6 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T08:02:16.567730Z  INFO holon_engine: module utils.c rollout 7/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:02:16.567737Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=23
+2026-11-02T08:02:16.567739Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=23 is_repair=true
+2026-11-02T08:02:16.567854Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5780
+2026-11-02T08:02:17.463482Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=895 completion_len=564 prompt_tokens=1532 completion_tokens=196 total_tokens=1728
+2026-11-02T08:02:17.463509Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, name: &str, type_str: &str) -> i3
+2026-11-02T08:02:17.564697Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=8038
+2026-11-02T08:02:18.127256Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=562 completion_len=18 prompt_tokens=2194 completion_tokens=7 total_tokens=2201
+2026-11-02T08:02:18.127279Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=EXTRINSIC_CONTRACT
+2026-11-02T08:02:18.127496Z  INFO holon_engine: module utils.c rollout 7 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T08:02:18.127510Z  WARN holon_engine: module utils.c rollout 7 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T08:02:18.127514Z  INFO holon_engine: module utils.c rollout 8/64: tests=16, last_pass_rate=Some(0.0)
+2026-11-02T08:02:18.127522Z  INFO holon_engine: selected expandable MCTS node module_id=utils.c node_id=24
+2026-11-02T08:02:18.127524Z  INFO holon_engine: expanding MCTS search node module_id=utils.c node_id=24 is_repair=true
+2026-11-02T08:02:18.127651Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=5711
+2026-11-02T08:02:18.954980Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=827 completion_len=505 prompt_tokens=1524 completion_tokens=173 total_tokens=1697
+2026-11-02T08:02:18.955000Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 { for i in 0..x { for j in 0..y { print!("{:10.2} ", matrix[i][j]); } println!(); } 0 } pub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, t
+2026-11-02T08:02:19.206372Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4578
+2026-11-02T08:02:19.268173Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=61 completion_len=4 prompt_tokens=1224 completion_tokens=5 total_tokens=1229
+2026-11-02T08:02:19.268189Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=0.83
+2026-11-02T08:02:19.268384Z DEBUG bench_llm: dispatching LLM completion request model=swift-1.5-qwen3.8-27b prompt_chars=4504
+2026-11-02T08:02:20.263842Z  INFO bench_llm: LLM completion received model=swift-1.5-qwen3.8-27b latency_ms=995 completion_len=9 prompt_tokens=1202 completion_tokens=4 total_tokens=1206
+2026-11-02T08:02:20.263865Z DEBUG bench_llm: LLM answer preview model=swift-1.5-qwen3.8-27b answer_preview=INTRINSIC
+2026-11-02T08:02:20.264093Z  INFO holon_engine: module utils.c rollout 8 eval: compiles=true, pass_rate=0, reward=0.366
+2026-11-02T08:02:20.264109Z  WARN holon_engine: stagnation detected, breaking rollout loop early module_id=utils.c flat_count=8
+2026-11-02T08:02:20.264113Z  INFO global_engine: dispatch_module: vertex utils.c finished with outcome BudgetExhausted { module_id: "utils.c", proof_trace: "Rollout budget exhausted on parentless module utils.c with no contract counterparty", best_candidate: Some("pub fn print_float_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize) -> i32 {\n    for i in 0..x {\n        for j in 0..y {\n            print!(\"{:10.2} \", matrix[i][j]);\n        }\n        println!();\n    }\n    0\n}\n\npub fn print_array(matrix: &Vec<Vec<f32>>, x: usize, y: usize, name: &str, type_str: &str) -> i32 {\n    println!(\"------------{}--------------\", name);\n    if type_str == \"float\" {\n        print_float_array(matrix, x, y);\n    } else {\n        print!(\"unsupported {}\", type_str);\n    }\n    0\n}"), best_reward: 0.366 }
+2026-11-02T08:02:20.264155Z  INFO global_engine: module utils.c exhausted its rollout budget without a contract counterparty and parked at futile dispatch 3
+2026-11-02T08:02:20.264169Z  INFO global_engine: MacroEngine run loop iteration step=9 macro_state=S5IterativeDag
+2026-11-02T08:02:20.264174Z  INFO global_engine: evaluating transform wave ready set ready_count=2
+2026-11-02T08:02:20.274868Z  INFO daemon::bench_runner: campaign crust-matrix_multiplication-bench: finished engine execution in 289369 ms
+2026-11-02T08:02:20.274912Z  INFO evaluator: campaign crust-matrix_multiplication-bench: build timeout 180s, test timeout 180s, inference timeout 900s
+2026-11-02T08:02:20.325223Z  INFO evaluator: campaign crust-matrix_multiplication-bench: build command `cargo` failed with exit code Some(101): tr, type_str: &str) -> i32 {
+   |        ^^^^^^^^^^^
+help: provide the arguments
+   |
+72 |         utils::print_array(&r, /* usize */, /* usize */, "result", ARRAY_TYPE_CHAR);
+   |                                +++++++++++++++++++++++++
+
+For more information about this error, try `rustc --explain E0061`.
+error: could not compile `matrix_multiplication` (bin "test_matrix") due to 4 previous errors
+2026-11-02T08:02:20.425798Z  INFO evaluator: campaign crust-matrix_multiplication-bench: test command `cargo` exited with code Some(101), parsed passed 0 failed 0, pass rate 0.000
+2026-11-02T08:02:21.130637Z  INFO evaluator: campaign crust-matrix_multiplication-bench: differential verification outcome: equivalent=false, classification=ExitCodeMismatch { source: Some(0), target: Some(101) }
+2026-11-02T08:02:21.133192Z  INFO daemon::bench_runner: campaign crust-matrix_multiplication-bench: completed with 146 LLM requests in 289369 ms engine wall time
+[benchmark] crust-matrix_multiplication: check=failed rate=0.0% wall=308.5s unimplemented=0 error=module matrix.c exhausted the futile dispatch cap after 3 attempts

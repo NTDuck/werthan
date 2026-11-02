@@ -1,0 +1,296 @@
+//! Target workspace verification via the configured toolchain commands.
+//! Extracts test pass rates and check status for migration campaigns.
+
+/// Target workspace outcome after the configured build and test commands.
+#[derive(::core::clone::Clone, ::core::fmt::Debug)]
+pub struct WorkspaceValidation {
+    /// Whether the configured build command exited zero.
+    pub check_ok: ::core::primitive::bool,
+    /// Parsed test pass rate from the configured test command.
+    pub test_pass_rate: ::core::primitive::f64,
+}
+
+/// Run the configured build and test commands and parse outcomes.
+///
+/// Cargo test commands use terse-output counting from `test result:` lines.
+/// External toolchains use the test command exit code: success maps to a 1.0
+/// pass rate, failure to 0.0.
+pub fn validate_workspace(
+    bench_config: &super::bench_config::CampaignConfig,
+    workspace_root: &::std::path::Path,
+) -> self::WorkspaceValidation {
+    let build_timeout = bench_config.inference.build_timeout_secs;
+    let test_timeout = bench_config.inference.test_timeout_secs;
+    ::tracing::info!(
+        target: "evaluator",
+        "campaign {}: build timeout {}s, test timeout {}s, inference timeout {}s",
+        bench_config.campaign_id,
+        build_timeout,
+        test_timeout,
+        bench_config.inference.inference_timeout_secs
+    );
+    let target_source_file = ::std::path::PathBuf::from("src/lib.rs");
+    let target_workspace = workspace_root.to_path_buf();
+    let harness = ::holon_evaluator::cargo_harness::CargoHarness::with_timeouts(
+        target_workspace,
+        target_source_file,
+        build_timeout,
+        test_timeout,
+    );
+    let harness_commands = ::holon_evaluator::cargo_harness::HarnessCommands {
+        build_cmd: ::core::clone::Clone::clone(&bench_config.stack.target_build_cmd),
+        test_cmd: ::core::clone::Clone::clone(&bench_config.stack.target_test_cmd),
+        legacy_harness_cmd: ::core::clone::Clone::clone(
+            &bench_config.stack.legacy_test_harness_cmd,
+        ),
+    };
+    let (check_program, check_args) =
+        ::holon_evaluator::cargo_harness::CargoHarness::parse_command(
+            &harness_commands.build_cmd,
+        );
+    let (test_program, test_args) =
+        ::holon_evaluator::cargo_harness::CargoHarness::parse_command(
+            &harness_commands.test_cmd,
+        );
+    let check_arg_refs = check_args
+        .iter()
+        .map(::std::string::String::as_str)
+        .collect::<::std::vec::Vec<&::core::primitive::str>>();
+    let test_arg_refs = test_args
+        .iter()
+        .map(::std::string::String::as_str)
+        .collect::<::std::vec::Vec<&::core::primitive::str>>();
+    let check_res = harness.run_command(&check_program, &check_arg_refs, build_timeout);
+    let check_ok = match &check_res {
+        ::core::result::Result::Ok(output) => {
+            let code = output.status.code();
+            let exit_zero = code == ::core::option::Option::Some(0);
+            if exit_zero {
+                ::tracing::info!(
+                    target: "evaluator",
+                    "campaign {}: build command `{}` exited 0",
+                    bench_config.campaign_id,
+                    check_program,
+                );
+            } else {
+                let snippet_text = self::tail_output_snippet(output);
+                ::tracing::info!(
+                    target: "evaluator",
+                    "campaign {}: build command `{}` failed with exit code {:?}: {}",
+                    bench_config.campaign_id,
+                    check_program,
+                    code,
+                    snippet_text,
+                );
+            }
+            exit_zero
+        },
+        ::core::result::Result::Err(run_error) => {
+            ::tracing::info!(
+                target: "evaluator",
+                "campaign {}: build command `{}` errored: {}",
+                bench_config.campaign_id,
+                check_program,
+                run_error,
+            );
+            false
+        },
+    };
+    let test_res = harness.run_command(&test_program, &test_arg_refs, test_timeout);
+    let is_cargo_test = test_program == "cargo";
+    let test_pass_rate = match &test_res {
+        ::core::result::Result::Ok(output) => {
+            let code = output.status.code();
+            let exit_zero = code == ::core::option::Option::Some(0);
+            if !is_cargo_test {
+                // External toolchains report pass/fail through the exit code.
+                // Their output uses no cargo result-line format.
+                if exit_zero {
+                    ::tracing::info!(
+                        target: "evaluator",
+                        "campaign {}: test command `{}` exited 0, pass rate 1.0",
+                        bench_config.campaign_id,
+                        test_program,
+                    );
+                    1.0
+                } else {
+                    let snippet_text = self::tail_output_snippet(output);
+                    ::tracing::info!(
+                        target: "evaluator",
+                        "campaign {}: test command `{}` failed with exit code {:?}: {}",
+                        bench_config.campaign_id,
+                        test_program,
+                        code,
+                        snippet_text,
+                    );
+                    0.0
+                }
+            } else {
+                let stdout_text = ::std::string::String::from_utf8_lossy(&output.stdout);
+                let stderr_text = ::std::string::String::from_utf8_lossy(&output.stderr);
+                let mut combined = stdout_text.into_owned();
+                combined.push('\n');
+                combined.push_str(&stderr_text);
+                let counts = self::parse_test_counts(&combined);
+                let passed = counts.0;
+                let failed = counts.1;
+                let pass_rate = self::compute_pass_rate(passed, failed);
+                ::tracing::info!(
+                    target: "evaluator",
+                    "campaign {}: test command `{}` exited with code {:?}, parsed passed {} failed {}, pass rate {:.3}",
+                    bench_config.campaign_id,
+                    test_program,
+                    code,
+                    passed,
+                    failed,
+                    pass_rate,
+                );
+                pass_rate
+            }
+        },
+        ::core::result::Result::Err(run_error) => {
+            ::tracing::info!(
+                target: "evaluator",
+                "campaign {}: test command `{}` errored: {}",
+                bench_config.campaign_id,
+                test_program,
+                run_error,
+            );
+            0.0
+        },
+    };
+    let legacy_cmd = bench_config.stack.legacy_test_harness_cmd.trim();
+    if !legacy_cmd.is_empty() {
+        let legacy_dir = if bench_config.paths.input_legacy_dir.exists() {
+            bench_config.paths.input_legacy_dir.clone()
+        } else {
+            super::bench_config::repo_root().join(&bench_config.paths.input_legacy_dir)
+        };
+        let target_dir = if workspace_root.exists() {
+            workspace_root.to_path_buf()
+        } else {
+            bench_config.paths.workspace_root.clone()
+        };
+        let timeout = ::std::time::Duration::from_secs(test_timeout);
+        let float_tolerance = 1e-4;
+        let diff_report = super::differential::execute_differential_verification(
+            legacy_cmd,
+            &bench_config.stack.target_test_cmd,
+            &legacy_dir,
+            &target_dir,
+            timeout,
+            float_tolerance,
+        );
+        ::tracing::info!(
+            target: "evaluator",
+            "campaign {}: differential verification outcome: equivalent={}, classification={:?}",
+            bench_config.campaign_id,
+            diff_report.equivalent,
+            diff_report.classification,
+        );
+    }
+    self::WorkspaceValidation {
+        check_ok,
+        test_pass_rate,
+    }
+}
+
+/// Merge stdout+stderr like `CargoHarness::merge_logs` and keep the last 400
+/// characters for failure diagnostics.
+fn tail_output_snippet(output: &::std::process::Output) -> ::std::string::String {
+    let stdout_text = ::std::string::String::from_utf8_lossy(&output.stdout);
+    let stderr_text = ::std::string::String::from_utf8_lossy(&output.stderr);
+    let merged_text = ::std::format!("{}{}", stdout_text, stderr_text);
+    let trimmed_text = merged_text.trim();
+    let char_count = trimmed_text.chars().count();
+    if char_count <= 400 {
+        ::std::string::String::from(trimmed_text)
+    } else {
+        let skip_count = char_count - 400;
+        let snippet_chars = trimmed_text.chars().skip(skip_count);
+        snippet_chars.collect()
+    }
+}
+
+/// Parse the last test result line from cargo test output.
+pub fn parse_test_counts(output_text: &::core::primitive::str) -> (::core::primitive::u64, ::core::primitive::u64) {
+    let mut passed_total = 0;
+    let mut failed_total = 0;
+    for line in output_text.lines() {
+        let trimmed = line.trim();
+        let is_result_line = trimmed.starts_with("test result: ");
+        if !is_result_line {
+            continue;
+        }
+        let passed = self::extract_count_after(trimmed, "passed");
+        let failed = self::extract_count_after(trimmed, "failed");
+        passed_total += passed;
+        failed_total += failed;
+    }
+    (passed_total, failed_total)
+}
+
+/// Extract the numeric token preceding one keyword in a cargo test result line.
+pub fn extract_count_after(
+    line: &::core::primitive::str,
+    keyword: &::core::primitive::str,
+) -> ::core::primitive::u64 {
+    let keyword_token = ::std::format!(" {keyword}");
+    let marker = match line.rfind(&keyword_token) {
+        ::core::option::Option::Some(found) => found,
+        ::core::option::Option::None => return 0,
+    };
+    let prefix = &line[..marker];
+    let number = self::trailing_number(prefix);
+    let empty_number = number.is_empty();
+    if empty_number {
+        return 0;
+    }
+    number.parse::<::core::primitive::u64>().unwrap_or(0)
+}
+
+/// Extract the trailing digit run from one prefix segment.
+pub fn trailing_number(prefix: &::core::primitive::str) -> &::core::primitive::str {
+    let mut start_idx = prefix.len();
+    for (offset, digit_probe) in prefix.char_indices().rev() {
+        let is_digit = digit_probe.is_ascii_digit();
+        if !is_digit {
+            break;
+        }
+        start_idx = offset;
+    }
+    &prefix[start_idx..]
+}
+
+/// Compute the pass rate from parsed cargo test counts.
+pub fn compute_pass_rate(passed: ::core::primitive::u64, failed: ::core::primitive::u64) -> ::core::primitive::f64 {
+    let denominator = passed + failed;
+    let no_tests = denominator == 0;
+    if no_tests {
+        return 0.0;
+    }
+    (passed as ::core::primitive::f64) / (denominator as ::core::primitive::f64)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn parse_counts_from_mixed_suites() {
+        let output = "test result: ok. 0 passed\x3B 0 failed\x3B 0 ignored\n\
+                      test result: FAILED. 20 passed\x3B 2 failed\x3B 0 ignored\n";
+        let counts = super::parse_test_counts(output);
+        let passed = counts.0;
+        let failed = counts.1;
+        ::std::assert_eq!(passed, 20);
+        ::std::assert_eq!(failed, 2);
+        let rate = super::compute_pass_rate(passed, failed);
+        let diff = (rate - 20.0 / 22.0).abs();
+        ::std::assert!(diff < 1e-9, "rate was {rate}");
+    }
+
+    #[test]
+    fn zero_tests_yield_zero_rate() {
+        let rate = super::compute_pass_rate(0, 0);
+        ::std::assert_eq!(rate, 0.0);
+    }
+}

@@ -2,6 +2,24 @@
 members = [
     "werðan/.checks/*",
     "werðan/.examples/*",
+    "werðan/.experiments/*",
+    "werðan/bins/daemon",
+    "werðan/bins/interactive",
+    "werðan/libs/global/blackboard",
+    "werðan/libs/global/engine",
+    "werðan/libs/global/fsm",
+    "werðan/libs/global/agents/*",
+    "werðan/libs/shared/tools",
+    "werðan/libs/shared/configschema",
+    "werðan/libs/shared/agents/*",
+    "werðan/libs/holon/fsm",
+    "werðan/libs/holon/engine",
+    "werðan/libs/holon/blackboard",
+    "werðan/libs/holon/agents/*",
+]
+exclude = [
+    "benchmarks",
+    "workspace",
 ]
 resolver = "2"
 
@@ -19,18 +37,72 @@ plumbing = { path = "werðan/.checks/plumbing" }
 ste100 = { path = "werðan/.checks/ste100" }
 stepdown = { path = "werðan/.checks/stepdown" }
 turbofish = { path = "werðan/.checks/turbofish" }
+envload = { path = "werðan/.checks/envload" }
 
-# Crates that we choose to marry
-# See: https://blessed.rs/crates
+# Bins
+daemon = { path = "werðan/bins/daemon" }
+interactive = { path = "werðan/bins/interactive" }
+
+# Libs
+global-blackboard = { path = "werðan/libs/global/blackboard" }
+global-engine = { path = "werðan/libs/global/engine" }
+global-fsm = { path = "werðan/libs/global/fsm" }
+global-arbiter = { path = "werðan/libs/global/agents/arbiter" }
+global-workers = { path = "werðan/libs/global/agents/workers" }
+tools = { path = "werðan/libs/shared/tools" }
+configschema = { path = "werðan/libs/shared/configschema" }
+configurator = { path = "werðan/libs/shared/agents/configurator" }
+holon-fsm = { path = "werðan/libs/holon/fsm" }
+holon-engine = { path = "werðan/libs/holon/engine" }
+holon-blackboard = { path = "werðan/libs/holon/blackboard" }
+holon-strategy = { path = "werðan/libs/holon/agents/holon-strategy" }
+holon-codegen = { path = "werðan/libs/holon/agents/holon-codegen" }
+holon-testgen = { path = "werðan/libs/holon/agents/holon-testgen" }
+holon-patch = { path = "werðan/libs/holon/agents/holon-patch" }
+holon-evaluator = { path = "werðan/libs/holon/agents/holon-evaluator" }
+# External Crates
+futures = { version = "0.3" }
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
 serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
+serde_yaml_ng = { version = "0.10" }
+tokio = { version = "1.40", features = ["full"] }
+schemars = { version = "0.8" }
+sha2 = { version = "0.10" }
+similar = { version = "2.6" }
+quick-xml = { version = "0.36" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
+ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
+crossterm = { version = "0.28" }
+rig-core = { version = "0.9", default-features = false }
+bon = { version = "3.3" }
+dirs = { version = "6.0" }
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter"] }
+redb = { version = "4.4.0", default-features = false, features = ["std"] }
+regex = { version = "1.13" }
+anyhow = { version = "1.0" }
+globset = { version = "0.4" }
+ignore = { version = "0.4" }
+ast-grep-core = { version = "0.39", default-features = false, features = ["tree-sitter"] }
+tree-sitter = { version = "0.25" }
+tree-sitter-javascript = { version = "0.25" }
+tree-sitter-json = { version = "0.24" }
+tree-sitter-md = { version = "0.5" }
+tree-sitter-python = { version = "0.25" }
+tree-sitter-rust = { version = "0.24" }
+tree-sitter-toml-ng = { version = "0.7" }
+tree-sitter-typescript = { version = "0.23" }
+
 [workspace.lints.rust]
-# See: https://doc.rust-lang.org/rustc/lints/listing/index.html
+missing_docs = "allow"
 
 [workspace.lints.clippy]
-# See: https://rust-lang.github.io/rust-clippy/master/index.html
 missing_safety_doc = "allow"
 let_and_return = "allow"
+too_many_arguments = "allow"
 
 [workspace.metadata.rust-analyzer]
-# See: https://rust-analyzer.github.io/book/diagnostics.html
+diagnostics.disabled = [
+    "unresolved-proc-macro",
+]

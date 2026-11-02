@@ -1,0 +1,30 @@
+campaign_id: crust-kairocompiler-bench
+execution_mode: full_auto
+paths:
+  input_legacy_dir: benchmarks/assets/ReCodeAgent/data/tool_projects/crust/kairocompiler/c
+  workspace_root: benchmarks/outputs/crust/kairocompiler/rust
+  off_limits_globs: []
+stack:
+  source_language: c
+  binary_artifacts: []
+  use_ghidra_rea: false
+  target_language: rust
+  target_edition_or_framework: '2024'
+  target_build_cmd: cargo check
+  target_test_cmd: cargo test
+  legacy_test_harness_cmd: make test
+inference:
+  base_url: ''
+  model: swift-1.5-qwen3.8-27b
+  max_parallel_shards: 6
+  max_shards: 6
+  inference_max_tokens: 49152
+  inference_temperature: 0.2
+  inference_timeout_secs: 1200
+  build_timeout_secs: 300
+  test_timeout_secs: 300
+verification:
+  max_self_heal_retries: 6
+  require_byte_identical_io: false
+ariadne:
+  max_rollouts: 64

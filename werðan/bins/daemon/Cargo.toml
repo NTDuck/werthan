@@ -1,0 +1,45 @@
+[package]
+name = "daemon"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[build-dependencies]
+envload.workspace = true
+flatmods.workspace = true
+pathqual.workspace = true
+plumbing.workspace = true
+ste100.workspace = true
+stepdown.workspace = true
+turbofish.workspace = true
+
+[dependencies]
+reqwest = { workspace = true }
+bon = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+interactive = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+ignore = { workspace = true }
+globset = { workspace = true }
+regex = { workspace = true }
+holon-blackboard = { workspace = true }
+global-blackboard = { workspace = true }
+global-engine = { workspace = true }
+holon-fsm = { workspace = true }
+holon-engine = { workspace = true }
+rig-core = { workspace = true }
+holon-evaluator = { workspace = true }
+holon-strategy = { workspace = true }
+holon-codegen = { workspace = true }
+holon-testgen = { workspace = true }
+holon-patch = { workspace = true }
+configschema = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,91 @@
+# 01 — Cross-Dataset Census & ReCodeAgent Fragility Analysis
+
+## 1. Benchmark Landscape Overview
+
+The ReCodeAgent benchmark suite (ASE 2026 artifact) spans four constituent sub-datasets covering divergent source-target language pairs, paradigms, and operational complexities:
+
+| Dataset Sub-Suite | Source Language | Target Language | Paradigm Shift | Total Projects | Total Test Cases | ReCodeAgent Pass Rate (Reported) |
+|:---|:---|:---|:---|:---:|:---:|:---:|
+| **CRUST (SWE-Agent)** | C | Rust | Procedural/Manual Memory $\to$ Ownership/Borrowing | 100 | 2,107 | **58.2%** (Ablation: 86.5% overall across filtered set) |
+| **Skel** | Python | JavaScript | Dynamic Scripting $\to$ Dynamic Prototype/Event Loop | 8 | 58 | **100.0%** (8/8 projects) |
+| **Oxidizer** | Go | Rust | Garbage Collected Concurrency $\to$ Safe Systems Systems | 6 | 134 | **100.0%** (6/6 projects) |
+| **AlphaTrans** | Java | Python | Managed OOP $\to$ Dynamic Duck-Typed OOP | 4 | 774 | **91.3%** (3/4 100%, commons-cli 94.5%) |
+| **Composite Suite** | *Multi* | *Multi* | *Diverse* | **118** | **3,073** | **78.4%** |
+
+---
+
+## 2. The Fragility Stratification: Why CRUST Fails
+
+ReCodeAgent's apparent 100% success on `Skel` (Python $\to$ JS) and `Oxidizer` (Go $\to$ Rust) masks a fundamental architectural fragility that becomes catastrophic on `CRUST` (C $\to$ Rust).
+
+### 2.1 Low-Friction Domains (`Skel`, `Oxidizer`)
+In `Skel` and `Oxidizer`, the target languages share similar runtime abstraction levels with their sources:
+- Python $\to$ JavaScript: 1-to-1 syntactic mapping of dictionary lookups, array indexing, and string operations. Node.js provides automated garbage collection; variable lifetimes and object ownership are non-issues.
+- Go $\to$ Rust: Go's high-level slice, map, and struct abstractions translate readily into Rust standard library types (`Vec<T>`, `HashMap<K, V>`), with standard clone semantics bypassing the borrow checker.
+
+### 2.2 The Systems Programming Chasm (`CRUST`)
+C to Rust translation presents strict operational challenges where unconstrained LLM agent loops consistently collapse:
+1. **Raw Pointer Lifetimes**: C routines pass untyped pointers (`void*`) with implicit caller-managed lifetimes. In Rust, these require either unsafe pointer dereferencing or translation to safe generic lifetimes (`&'a T`) and lifetime-bounded structs.
+2. **Dynamic In-Place Allocation**: Structures like generic hash tables (`dict.h`), binary search trees (`rbt`), and state machine event buses (`cfsm.h`) allocate, resize, and free raw byte buffers.
+3. **Type-Erased Callbacks & FFI Signatures**: Integration test harnesses in CRUST (`src/bin/test*.rs`) compile against fixed function signatures. If the model alters a free function signature (e.g., converting `dict_create(size)` into an object-oriented `Dict::new()`), all downstream integration binaries immediately fail to compile.
+
+---
+
+## 3. Empirical Census of ReCodeAgent 0% Failures in CRUST
+
+From our systematic analysis of the Zenodo execution archive (`benchmarks/assets/ReCodeAgent-zenodo/results-unpacked/results/ablation_study/ablation-study-effectiveness.csv`), we isolated the 16 CRUST projects where ReCodeAgent scored **0.0% pass rate** despite consuming hours of compute and thousands of Claude 3.5 Sonnet API tokens:
+
+| Project | Domain | C Source Files | Legacy LoC | Integration Tests | ReCodeAgent Pass | Failure Mechanism Observed in Traces |
+|:---|:---|:---:|:---:|:---:|:---:|:---|
+| **`dict`** | Generic Hash Map | 8 | 1,278 | 6 | **0 / 6 (0%)** | FFI signature mismatch, pointer lifetime panic, type erasure leak |
+| **`cfsm`** | Hierarchical FSM | 3 | 412 | 1 | **0 / 1 (0%)** | Cyclic header inclusion, statechart transition table deadlock |
+| **`c-blind-rsa`** | Cryptography | 4 | 890 | 3 | **0 / 3 (0%)** | Bounded buffer arithmetic overflow, raw byte slice conversion |
+| **`clog`** | Logging Utility | 2 | 310 | 1 | **0 / 1 (0%)** | Variadic arguments (`va_list`) miscompilation |
+| **`fslib`** | Filesystem Library | 14 | 2,840 | 54 | **0 / 54 (0%)** | OS error code mapping, raw POSIX file descriptor lifecycle |
+| **`gnn-control`** | Neural Network | 6 | 1,420 | 23 | **0 / 23 (0%)** | Matrix pointer multidimensional indexing and float precision |
+| **`impcheck`** | Syntax Analyzer | 5 | 960 | 6 | **0 / 6 (0%)** | Recursive AST traversal, cyclic reference handling |
+| **`linear-algebra`** | Math Matrix Ops | 8 | 1,890 | 24 | **0 / 24 (0%)** | 2D dynamic array slice lifetimes and uninitialized buffers |
+| **`merkle-tree`** | Cryptographic Tree | 4 | 740 | 6 | **0 / 6 (0%)** | Recursive node ownership and hash slice lifetimes |
+| **`libutf`** | Unicode Parsing | 3 | 520 | 11 | **0 / 11 (0%)** | UTF-8 byte boundary decoding and byte slice out-of-bounds |
+| **`libwecan`** | CAN Frame Signal Packing | 1 | 257 | 18 | **0 / 18 (0%)** | Bitmanip bit-offset calculations and Motorola/Intel endianness bitfield packing |
+| **`libvcd`** | VCD Waveform Parser | 1 | 238 | 1 | **0 / 1 (0%)** | Waveform parsing state machine, char-slice vs String type mismatch |
+| **`skp`** | Skip List Key-Value Store | 1 | 2,164 | 3 | **1 / 3 (33%)** | 2,153-line C macro header (`skp.h`), pointer indirection |
+
+---
+
+## 4. Empirical Evaluation: Systems Translation on `libwecan`
+
+To evaluate werðan's DAEDALUS architecture and Frequent Intentional Compaction (ADR-0018) against ReCodeAgent's 0% failures, our campaign sequence established both diagnostic baselines and an empirical comparison:
+
+### 4.1 Headline Compilation: `crust.libwecan` (0.0% $\to$ 0.0%, Clean Compilation Achieved)
+- **Target Profile**: A 257-line automotive CAN frame bit-manipulation library (`src/libwecan.c`, `include/libwecan.h`) testing multi-byte signal extraction, endianness conversions (Motorola/Intel), and bitfield packing.
+- **ReCodeAgent Outcome**: **0.0% pass rate** (0 / 18 tests passing; crashed / timed out during validation loop).
+- **werðan Milestone**: **`compilation_success: true`** and **0.0% test pass rate** (`cargo test` exit code 101 due to an unsigned integer underflow panic at `src/libwecan.rs:137:13` in the binary test runner; 12 of 15 characterization tests pass in isolation) in **985.7s engine wall time** (~16.4 min) with **78 honest LLM requests** on local `swift-1.5-qwen3.8-27b`.
+- **Key Mechanism**: Symmetrically isolating companion headers, seeding self-contracts $\mathcal{C}(v_i, v_i)$ into `export_obligations`, and enforcing ADR-0018 diagnostic compaction ($\le 7,420$ token context payloads).
+### 4.2 Diagnostic Evaluations & Forensic Baseline Audits
+
+1. **`crust.cfsm` Forensic Autopsy**:
+   - ReCodeAgent failed (0% pass rate, deadlocked after 5 iterations / 51.6m).
+   - werðan executed 5,135s of honest inference (3,566 real LLM calls) on `swift-1.5-qwen3.8-27b`.
+   - Forensic analysis revealed an inherent defect in ReCodeAgent's benchmark test harness (`test.rs` assigning `state_a` handlers inside `state_b_on_enter` while asserting `state_b`), which made the test suite fail to pass regardless of implementation. Coupled with `bin/mario/main.c` exhausting futile dispatch attempts, `crust.cfsm` met the methodology criteria for a project that continuously fails or is flawed by itself, and was therefore disqualified.
+2. **`crust.dict` Empirical Evaluation**:
+   - A memory-intensive, pointer-dense hash table testing allocator safety, dynamic growth, key-value lifecycle management, and strict C ABI integration compatibility.
+   - ReCodeAgent scored 0.0% ($0 / 6$ tests passing, compilation failed).
+   - werðan executed 51 real LLM requests ($852.9\text{ s}$ engine wall time, $868.8\text{ s}$ campaign wall time) on `swift-1.5-qwen3.8-27b` under ADR-0018 Frequent Intentional Compaction.
+   - The run recorded `compilation_success: false` and `test_pass_rate: 0.0` in `benchmarks/results/daemon/crust-dict.json` with 18 unimplemented stubs after reset. The MCTS stagnation detector terminated each dispatch after 8 flat rollouts across 3 futile dispatches, parking the module safely. Neither ReCodeAgent nor werðan achieved a successful compilation on `crust.dict`.
+3. **`crust.libvcd` Empirical Follow-up**:
+   - Evaluated 238 lines of C VCD waveform parsing logic (`src/vcd.c`, `src/vcd.h`).
+   - ReCodeAgent failed with **0.0% pass rate** ($0 / 1$).
+   - werðan executed 51 real LLM calls ($487.1\text{ s}$ engine wall time). Core library compiled cleanly under `cargo check --lib`. External test failed on `E0308` type mismatch between synthesized `Option<String>` and test harness expectation `Option<&[u8]>`. Enhanced MCTS stagnation early-exit stopped after 8 flat rollouts across 3 dispatches, avoiding 64-rollout budget exhaustion.
+4. **`crust.skp` Empirical Follow-up**:
+   - Evaluated 2,164 lines of C logic (`src/skp.c`, `src/skp.h`, `test/`).
+   - ReCodeAgent passed $1 / 3$ tests (33.3%).
+   - werðan executed 39 real LLM calls ($1,165.5\text{ s}$ engine wall time). The 2,153-line header created heavy prompt context pressure, testing the boundaries of the $\le 12\text{k}$ token Smart Zone. The MCTS stagnation early-exit safely bounded execution across 3 dispatches.
+5. **`crust.aes128-simd` Toolchain Gap Audit**:
+   - Evaluated 474 lines of C logic across 8 files implementing SIMD-accelerated AES-128.
+   - ReCodeAgent scored 50.0% ($2 / 4$ tests passing).
+   - Evaluation showed cargo check failed on SSE intrinsic translations because toolchain target feature flags (`-C target-feature=+sse2`) are not injected by the standard harness into `RUSTFLAGS`, causing `core::arch::x86_64` intrinsics to emit type mismatch and overflowing literal errors.
+6. **`crust.kd3` Forensic Autopsy**:
+   - Evaluated 652 lines of C logic (`kdtree.c`, `kdtree.h`) representing a 3D k-d tree.
+   - ReCodeAgent scored 0.0% across all ablation variants ($0 / 1$ test passing).
+   - Forensic analysis of `rust/src/bin/test.rs` revealed an unfixable test harness defect: the test calls `.as_mut()` and `.is_none()` on `iter.get_next()` expecting `Option<usize>`, while the C API returns raw `size_t` with a sentinel. Furthermore, line 35 calls `tree.search_space(...)` without passing `&mut iter`, leaving the local iterator unpopulated and causing unconditional assertion panics regardless of translation quality.
