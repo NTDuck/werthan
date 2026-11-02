@@ -579,10 +579,13 @@ impl self::CargoHarness {
                 continue;
             }
             let decl_pattern = ::std::format!("pub mod {file_stem}\x3b");
+            let use_pattern = ::std::format!("pub use {file_stem}::*\x3b");
             if !existing_lib_text.contains(&decl_pattern) {
-                existing_lib_text.push_str(&::std::format!(
-                    "\npub mod {file_stem}\x3b\npub use {file_stem}::*\x3b\n"
-                ));
+                existing_lib_text.push_str(&::std::format!("\npub mod {file_stem}\x3b\n"));
+                modified = true;
+            }
+            if !existing_lib_text.contains(&use_pattern) {
+                existing_lib_text.push_str(&::std::format!("\npub use {file_stem}::*\x3b\n"));
                 modified = true;
             }
         }
@@ -644,6 +647,24 @@ mod cargo_harness_tests {
         let empty_suite = ::std::vec::Vec::<::std::string::String>::new();
         let outcome = harness.execute_candidate("src/lib.rs", candidate_code, &empty_suite, "rust");
         ::core::assert!(!outcome.compiles);
+        let _ = ::std::fs::remove_dir_all(workspace_root);
+    }
+
+    #[test]
+    fn test_sync_lib_modules_adds_reexports_when_pub_mod_already_exists() {
+        let workspace_root = self::make_temp_workspace("sync-modules");
+        let src_dir = workspace_root.join("src");
+        ::std::fs::write(src_dir.join("bitset.rs"), "pub struct BitSet\x3b").expect("module writes");
+        ::std::fs::write(src_dir.join("lib.rs"), "pub mod bitset\x3b\n").expect("lib writes");
+        let harness = self::CargoHarness::builder()
+            .workspace_root(workspace_root.clone())
+            .build_timeout_secs(10)
+            .test_timeout_secs(10)
+            .build();
+        harness.sync_lib_modules();
+        let lib_content = ::std::fs::read_to_string(src_dir.join("lib.rs")).expect("lib rereads");
+        ::core::assert!(lib_content.contains("pub mod bitset\x3b"));
+        ::core::assert!(lib_content.contains("pub use bitset::*\x3b"));
         let _ = ::std::fs::remove_dir_all(workspace_root);
     }
     #[test]
