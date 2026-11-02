@@ -26,6 +26,7 @@ holon-testgen = { workspace = true }
 holon-blackboard = { workspace = true }
 holon-fsm = { workspace = true }
 global-engine = { workspace = true }
+regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 rig-core = { workspace = true }

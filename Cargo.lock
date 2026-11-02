@@ -2112,6 +2112,7 @@ dependencies = [
  "holon-testgen",
  "pathqual",
  "plumbing",
+ "regex",
  "rig-core",
  "serde",
  "serde_json",

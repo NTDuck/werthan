@@ -124,8 +124,9 @@ impl<
         let budget = self.config.max_rollouts;
         let mut flat_count: ::core::primitive::usize = 0;
         let mut previous_best_reward = self.best_reward_score;
+        let mut plateau_detector = crate::plateau::PlateauDetector::new();
 
-        for _ in 0..budget {
+        for _rollout_index in 0..budget {
             let iter_res = self.step_core();
             match iter_res {
                 ::core::option::Option::Some(self::StepResult::Hardened { target_code, reward }) => {
@@ -152,9 +153,36 @@ impl<
                 ::core::option::Option::None => {}
             }
 
+            let total_tests = self.blackboard.characterization_tests.test_count();
+            let last_pass_rate = self.last_pass_rate.unwrap_or(0.0);
+            let passed_tests = (last_pass_rate * (total_tests as ::core::primitive::f64)).round()
+                as ::core::primitive::usize;
+            let passed_tests = passed_tests.min(total_tests);
+            let uncovered_count = total_tests.saturating_sub(passed_tests);
+            let coverage_sample = crate::plateau::CoverageSample {
+                rollout: self.rollout_count,
+                total_tests,
+                passed_tests,
+                uncovered_count,
+            };
+            plateau_detector.record(coverage_sample);
+
+            let parentless = self.blackboard.problem_model.parent_contracts.is_empty();
+            let plateau_should_break = plateau_detector.is_plateau()
+                && self.best_candidate_code.is_some()
+                && (!parentless || self.best_reward_score > 0.0);
+            if plateau_should_break {
+                ::tracing::warn!(
+                    target: "holon_engine",
+                    module_id = %self.blackboard.module_id,
+                    summary = %plateau_detector.summary(),
+                    "coverage plateau detected, breaking rollout loop early"
+                );
+                break;
+            }
+
             if (self.best_reward_score - previous_best_reward).abs() < 1e-6 {
                 flat_count += 1;
-                let parentless = self.blackboard.problem_model.parent_contracts.is_empty();
                 let should_break = flat_count >= 8
                     && self.best_candidate_code.is_some()
                     && (!parentless || self.best_reward_score > 0.0);

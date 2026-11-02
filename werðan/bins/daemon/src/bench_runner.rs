@@ -121,9 +121,11 @@ fn run_campaign_blocking(
             ::configschema::ConflictEscalation::AskHuman
         ),
     };
+    let futile_dispatch_cap = (bench_config.verification.max_self_heal_retries as ::core::primitive::usize).max(3);
     let mut engine = ::global_engine::MacroEngine::builder()
         .solver(solver)
         .hitl(hitl_gates)
+        .futile_dispatch_cap(futile_dispatch_cap)
         .build();
     engine.configure(seeded_board);
     ::tracing::info!("campaign {campaign_id}: starting engine execution");
