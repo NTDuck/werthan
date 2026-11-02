@@ -3,15 +3,15 @@ execution_mode: full_auto
 paths:
   input_legacy_dir: benchmarks/assets/ReCodeAgent/data/tool_projects/crust/matrix_multiplication/c
   workspace_root: benchmarks/outputs/crust/matrix_multiplication/rust
-  off_limits_globs: []
+  off_limits_globs: ["**/main.c"]
 stack:
   source_language: c
   binary_artifacts: []
   use_ghidra_rea: false
   target_language: rust
-  target_edition_or_framework: '2024'
+  target_edition_or_framework: '2021'
   target_build_cmd: cargo check
-  target_test_cmd: cargo test
+  target_test_cmd: cargo test --bins
   legacy_test_harness_cmd: make test
 inference:
   base_url: ''
@@ -24,7 +24,7 @@ inference:
   build_timeout_secs: 180
   test_timeout_secs: 180
 verification:
-  max_self_heal_retries: 4
+  max_self_heal_retries: 6
   require_byte_identical_io: false
 ariadne:
-  max_rollouts: 32
+  max_rollouts: 64

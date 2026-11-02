@@ -256,7 +256,12 @@ impl self::MacroEngine {
         }
         loop {
             self.steps_used += 1;
-            ::tracing::info!("MacroEngine::run loop: step {}, state {:?}", self.steps_used, self.statechart.state());
+            ::tracing::info!(
+                target: "global_engine",
+                step = self.steps_used,
+                macro_state = ?self.statechart.state(),
+                "MacroEngine run loop iteration"
+            );
             let budget_spent = self.steps_used > self.step_budget;
             if budget_spent {
                 return ::core::result::Result::Err(self::MacroEngineError::StepBudgetExhausted {
@@ -585,6 +590,12 @@ impl self::MacroEngine {
     fn run_discovery_phase(&mut self, phase: ::global_fsm::MacroState) -> ::core::result::Result<(), self::MacroEngineError> {
         const MAX_GUARD_RETRIES: ::core::primitive::usize = 1;
         let shards = self::batches::partition_shards(&self.board, phase, &self.regression_scope);
+        ::tracing::info!(
+            target: "global_engine",
+            phase = ?phase,
+            shard_count = shards.len(),
+            "starting discovery phase"
+        );
         let shard_clones = shards.to_vec();
         for (shard_index, shard) in shard_clones.into_iter().enumerate() {
             self.dispatch_phase_worker(shard, shard_index, ::core::option::Option::None);
@@ -624,6 +635,11 @@ impl self::MacroEngine {
         }
         self.run_stage_two(phase)?;
         self.run_reduce_stage(phase);
+        ::tracing::info!(
+            target: "global_engine",
+            phase = ?phase,
+            "discovery phase completed successfully"
+        );
         ::core::result::Result::Ok(())
     }
 
@@ -640,6 +656,13 @@ impl self::MacroEngine {
         let mut remediation_rounds = ::std::vec::Vec::new();
         for batch in batches {
             let record = self.critic.audit_batch(phase, &batch);
+            ::tracing::info!(
+                target: "global_engine",
+                phase = ?phase,
+                batch = ?batch,
+                verdict = ?record.verdict,
+                "critic audited batch"
+            );
             match record.verdict {
                 ::global_arbiter::CritiqueVerdict::RegressUpstream(_) => {
                     remediated.clear();
@@ -1015,6 +1038,11 @@ impl self::MacroEngine {
             return ::core::result::Result::Ok(());
         }
         let ready = self.compute_ready_set();
+        ::tracing::info!(
+            target: "global_engine",
+            ready_count = ready.len(),
+            "evaluating transform wave ready set"
+        );
         let ready_empty = ready.is_empty();
         if ready_empty {
             let detail = "no ready module while unhardened modules remain".to_string();
@@ -1089,20 +1117,6 @@ impl self::MacroEngine {
         ready
     }
 
-    /// Record one module micro-state change in the state vector and audit log.
-    fn set_module_state(&mut self, module_id: &::core::primitive::str, next_state: ::global_blackboard::ModuleMicroState) {
-        self.board.state.module_states.insert(module_id.to_string(), next_state);
-        self.transition_log.push((module_id.to_string(), next_state));
-    }
-
-    /// Report whether one module sits in the hardened micro-state.
-    fn is_module_hardened(&self, module_id: &::core::primitive::str) -> ::core::primitive::bool {
-        ::core::matches!(
-            self.board.state.module_states.get(module_id),
-            ::core::option::Option::Some(::global_blackboard::ModuleMicroState::M4Hardened)
-        )
-    }
-
     /// Dispatch the solver for one ready module and drive its micro-state transitions.
     fn dispatch_module(&mut self, module_id: &::core::primitive::str) {
         let mode = match self.warm_modes.remove(module_id) {
@@ -1122,8 +1136,7 @@ impl self::MacroEngine {
             }
         };
         let model = self.hydrate_problem_model(module_id);
-        self.board.state.module_states.insert(module_id.to_string(), next_state);
-        self.transition_log.push((module_id.to_string(), next_state));
+        self.set_module_state(module_id, next_state);
 
         self.solver_dispatches += 1;
         let outcome = self.solver.solve(module_id, &model, mode);
@@ -1257,6 +1270,28 @@ impl self::MacroEngine {
         }
         model
     }
+    /// Record one module micro-state change in the state vector and audit log.
+    fn set_module_state(&mut self, module_id: &::core::primitive::str, next_state: ::global_blackboard::ModuleMicroState) {
+        let prev_state = self.board.state.module_states.get(module_id).copied();
+        self.board.state.module_states.insert(module_id.to_string(), next_state);
+        self.transition_log.push((module_id.to_string(), next_state));
+        ::tracing::info!(
+            target: "global_engine",
+            vertex = %module_id,
+            from = ?prev_state,
+            to = ?next_state,
+            "module micro-state transitioned"
+        );
+    }
+
+    /// Report whether one module sits in the hardened micro-state.
+    fn is_module_hardened(&self, module_id: &::core::primitive::str) -> ::core::primitive::bool {
+        ::core::matches!(
+            self.board.state.module_states.get(module_id),
+            ::core::option::Option::Some(::global_blackboard::ModuleMicroState::M4Hardened)
+        )
+    }
+
 
     /// Re-key rules, contracts, and artifacts onto the condensed DAG.
     fn apply_condensation(&mut self, condensed: ::global_blackboard::CondensedDag) {

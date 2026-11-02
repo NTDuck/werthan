@@ -21,8 +21,11 @@ async fn main() {
     // Fault-path diagnostics (bench_llm warn!) require a global subscriber.
     // Without init, every warn is silently dropped and campaign logs lose
     // the evidence needed to diagnose empty-answer inference failures.
+    let default_filter = ::tracing_subscriber::EnvFilter::new(::core::env!("WERTHAN_LOG_LEVEL"));
+    let filter = ::tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or(default_filter);
     let _ = ::tracing_subscriber::fmt()
-        .with_max_level(::tracing::Level::INFO)
+        .with_env_filter(filter)
         .try_init();
     let args = ::std::env::args().collect::<::std::vec::Vec<::std::string::String>>();
     let cli = parse_args(&args);

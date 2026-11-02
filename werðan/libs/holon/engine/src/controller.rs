@@ -122,7 +122,7 @@ impl<
         self.initialize(mode);
 
         let budget = self.config.max_rollouts;
-        let mut flat_rollout_count: ::core::primitive::usize = 0;
+        let mut flat_count: ::core::primitive::usize = 0;
         let mut previous_best_reward = self.best_reward_score;
 
         for _ in 0..budget {
@@ -153,17 +153,18 @@ impl<
             }
 
             if (self.best_reward_score - previous_best_reward).abs() < 1e-6 {
-                flat_rollout_count += 1;
-                if flat_rollout_count >= 8 && self.best_candidate_code.is_some() {
-                    ::tracing::info!(
-                        "stagnation detected: reward flat at {:.4} across {} rollouts. Breaking early",
-                        self.best_reward_score,
-                        flat_rollout_count,
+                flat_count += 1;
+                if flat_count >= 8 && self.best_candidate_code.is_some() {
+                    ::tracing::warn!(
+                        target: "holon_engine",
+                        module_id = %self.blackboard.module_id,
+                        flat_count,
+                        "stagnation detected, breaking rollout loop early"
                     );
                     break;
                 }
             } else {
-                flat_rollout_count = 0;
+                flat_count = 0;
                 previous_best_reward = self.best_reward_score;
             }
         }
@@ -265,6 +266,12 @@ impl<
             self.config.ucb_c_exp,
             self.config.gamma_prior,
             self.config.softmax_temperature,
+        );
+        ::tracing::info!(
+            target: "holon_engine",
+            module_id = %self.blackboard.module_id,
+            node_id = expandable_id,
+            "selected expandable MCTS node"
         );
         let expansion_res = self.expand_node(expandable_id);
         let child_id = expansion_res.0;
@@ -368,6 +375,13 @@ impl<
         // The candidate compiled and passed all tests.
         // Continued rollouts waste compute budget.
         if (reward - HARDENED_REWARD_TARGET).abs() < HARDENED_REWARD_EPSILON {
+            ::tracing::info!(
+                target: "holon_engine",
+                module_id = %self.blackboard.module_id,
+                rollout = self.rollout_count,
+                reward,
+                "candidate passed Gate 5 proof receipt - module hardened"
+            );
             let res = self::StepResult::Hardened {
                 target_code: { candidate_code },
                 reward,
@@ -401,6 +415,13 @@ impl<
             ::core::option::Option::Some(node) => node.candidate_code.clone(),
             ::core::option::Option::None => ::core::option::Option::None,
         };
+        ::tracing::info!(
+            target: "holon_engine",
+            module_id = %self.blackboard.module_id,
+            node_id = selected_id,
+            is_repair = selected_code_opt.is_some(),
+            "expanding MCTS search node"
+        );
 
         match selected_code_opt {
             ::core::option::Option::None => {

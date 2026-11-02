@@ -44,7 +44,11 @@ pub fn seed_board(
 ) -> ::core::result::Result<self::SeedOutput, ::std::string::String> {
     let repo_root = super::bench_config::repo_root();
     let legacy_dir = repo_root.join(&bench_config.paths.input_legacy_dir);
-    let discovered = self::walk_legacy_sources(&legacy_dir, &bench_config.stack.source_language)?;
+    let discovered = self::walk_legacy_sources(
+        &legacy_dir,
+        &bench_config.stack.source_language,
+        &bench_config.paths.off_limits_globs,
+    )?;
     let entries = self::build_inventory(&legacy_dir, &discovered);
     let inventory_empty = entries.is_empty();
     if inventory_empty {
@@ -129,7 +133,11 @@ pub fn inventory_entries(
 ) -> ::core::result::Result<::std::vec::Vec<self::InventoryEntry>, ::std::string::String> {
     let repo_root = super::bench_config::repo_root();
     let legacy_dir = repo_root.join(&bench_config.paths.input_legacy_dir);
-    let walked = self::walk_legacy_sources(&legacy_dir, &bench_config.stack.source_language)?;
+    let walked = self::walk_legacy_sources(
+        &legacy_dir,
+        &bench_config.stack.source_language,
+        &bench_config.paths.off_limits_globs,
+    )?;
     let entries = self::build_inventory(&legacy_dir, &walked);
     ::core::result::Result::Ok(entries)
 }
@@ -138,12 +146,14 @@ pub fn inventory_entries(
 pub fn walk_legacy_sources(
     legacy_dir: &::std::path::Path,
     source_language: &::core::primitive::str,
+    off_limits_globs: &[::std::string::String],
 ) -> ::core::result::Result<::std::vec::Vec<::std::path::PathBuf>, ::std::string::String> {
     let wanted = self::source_extensions(source_language);
     let walk = ::ignore::WalkBuilder::new(legacy_dir)
         .hidden(false)
         .git_ignore(true)
         .build();
+    let compiled_globset = self::compile_off_limits_globset(off_limits_globs);
     let mut discovered = ::std::vec::Vec::new();
     for entry in walk {
         let dir_entry = match entry {
@@ -159,6 +169,19 @@ pub fn walk_legacy_sources(
         if !path_is_file {
             continue;
         }
+        let relative_path = match path.strip_prefix(legacy_dir) {
+            ::core::result::Result::Ok(relative) => relative,
+            ::core::result::Result::Err(_) => path,
+        };
+        let off_limits = self::is_off_limits_source(
+            relative_path,
+            path,
+            off_limits_globs,
+            compiled_globset.as_ref(),
+        );
+        if off_limits {
+            continue;
+        }
         let path_text = path.to_string_lossy();
         for extension in &wanted {
             let extension_matches = path_text.ends_with(extension);
@@ -170,7 +193,6 @@ pub fn walk_legacy_sources(
     discovered.sort();
     ::core::result::Result::Ok(discovered)
 }
-
 /// Return the file extensions that the harness treats as source files.
 fn source_extensions(
     source_language: &::core::primitive::str,
@@ -183,6 +205,63 @@ fn source_extensions(
         "go" => ::std::vec![".go"],
         _ => ::std::vec![".c", ".h"],
     }
+}
+
+/// Compile glob patterns from the off-limits list into a GlobSet.
+fn compile_off_limits_globset(
+    off_limits_globs: &[::std::string::String],
+) -> ::core::option::Option<::globset::GlobSet> {
+    if off_limits_globs.is_empty() {
+        return ::core::option::Option::None;
+    }
+    let mut builder = ::globset::GlobSetBuilder::new();
+    for pattern in off_limits_globs {
+        let mut glob_builder = ::globset::GlobBuilder::new(pattern);
+        glob_builder.literal_separator(false);
+        if let ::core::result::Result::Ok(built_glob) = glob_builder.build() {
+            builder.add(built_glob);
+        }
+    }
+    builder.build().ok()
+}
+
+/// Check whether a discovered source file path matches any off-limits glob or pattern.
+fn is_off_limits_source(
+    relative_path: &::std::path::Path,
+    full_path: &::std::path::Path,
+    off_limits_globs: &[::std::string::String],
+    compiled_globset: ::core::option::Option<&::globset::GlobSet>,
+) -> ::core::primitive::bool {
+    if off_limits_globs.is_empty() {
+        return false;
+    }
+    if let ::core::option::Option::Some(globset) = compiled_globset {
+        let matches_relative = globset.is_match(relative_path);
+        let matches_full = globset.is_match(full_path);
+        if matches_relative || matches_full {
+            return true;
+        }
+    }
+    let relative_str = relative_path.to_string_lossy().replace('\\', "/");
+    let full_str = full_path.to_string_lossy().replace('\\', "/");
+    for pattern in off_limits_globs {
+        let pattern_normalized = pattern.replace('\\', "/");
+        let matches_relative_exact = relative_str == pattern_normalized;
+        let contains_pattern = relative_str.contains(&pattern_normalized);
+        let full_contains_pattern = full_str.contains(&pattern_normalized);
+        if matches_relative_exact || contains_pattern || full_contains_pattern {
+            return true;
+        }
+        let trimmed_glob = pattern_normalized.trim_start_matches("**/");
+        let matches_trimmed = relative_str == trimmed_glob;
+        let suffix = ::std::format!("/{trimmed_glob}");
+        let ends_with_suffix = relative_str.ends_with(&suffix);
+        let full_ends_with_suffix = full_str.ends_with(&suffix);
+        if matches_trimmed || ends_with_suffix || full_ends_with_suffix {
+            return true;
+        }
+    }
+    false
 }
 
 
@@ -582,5 +661,54 @@ mod tests {
         let contract = &seeded.board.contracts.contracts[&self_key];
         ::std::assert!(contract.interface_spec.contains("extract"));
         ::std::assert!(contract.interface_spec.contains("insert"));
+    }
+    #[test]
+    fn walk_legacy_sources_respects_off_limits_globs() {
+        let pid_text = ::std::process::id();
+        let suffix = ::std::format!("daemon-walk-offlimits-{pid_text}");
+        let legacy_dir = ::std::env::temp_dir().join(suffix);
+        ::std::fs::create_dir_all(&legacy_dir).expect("temp legacy dir creates");
+        let main_c = legacy_dir.join("main.c");
+        let matrix_c = legacy_dir.join("matrix.c");
+        let utils_c = legacy_dir.join("utils.c");
+        ::std::fs::write(&main_c, "int main() { return 0\x3b }\n").expect("main.c writes");
+        ::std::fs::write(&matrix_c, "void mat() {}\n").expect("matrix.c writes");
+        ::std::fs::write(&utils_c, "void util() {}\n").expect("utils.c writes");
+
+        let off_limits = ::std::vec!["**/main.c".to_string()];
+        let discovered = super::walk_legacy_sources(&legacy_dir, "c", &off_limits)
+            .expect("walk legacy sources succeeds");
+
+        let discovered_names = discovered
+            .iter()
+            .map(|path_entry| {
+                path_entry
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .collect::<::std::vec::Vec<::std::string::String>>();
+
+        ::std::assert!(!discovered_names.contains(&"main.c".to_string()));
+        ::std::assert!(discovered_names.contains(&"matrix.c".to_string()));
+        ::std::assert!(discovered_names.contains(&"utils.c".to_string()));
+
+        let _ = ::std::fs::remove_dir_all(&legacy_dir);
+    }
+
+    #[test]
+    fn seed_board_for_matrix_multiplication_excludes_main_c() {
+        let repo_root = super::super::bench_config::repo_root();
+        let config_path = repo_root.join("benchmarks/assets/configs/ReCodeAgent/crust/matrix_multiplication.yml");
+        let config_text = ::std::fs::read_to_string(&config_path)
+            .expect("matrix_multiplication config reads");
+        let config = ::serde_yaml_ng::from_str::<super::super::bench_config::CampaignConfig>(&config_text)
+            .expect("config parses");
+        let seeded = super::seed_board(&config).expect("seed board succeeds");
+        let has_main_vertex = seeded.board.dag.vertices.contains(&"main.c".to_string());
+        ::std::assert!(!has_main_vertex, "main.c must not be in DAG vertices");
+        let has_main_inventory = seeded.board.inventory.contains("main.c");
+        ::std::assert!(!has_main_inventory, "main.c must not be in inventory");
     }
 }

@@ -88,6 +88,7 @@ All runtime keys are ingested at compile time: every workspace `build.rs` calls 
 | `TOOL_BASH_TIMEOUT_SECS` | `60` | shared tools `bash` | `BashTool` execution timeout (seconds). |
 | `TOOL_EVAL_TIMEOUT_SECS` | `60` | shared tools `eval` | `EvalTool` snippet timeout (seconds). |
 | `TOOL_GLOB_LIMIT` | `100` | shared tools `glob` | Maximum matches returned by `GlobTool`. |
+| `WERTHAN_LOG_LEVEL` | `"info"` | `daemon::main` | Compile-time default log level filter, overridable at runtime by `RUST_LOG`. |
 
 ### 2.2 Defined but Currently Unconsumed
 
@@ -104,7 +105,9 @@ These keys exist in `.env`/`.env.example` but no code reads them today; they are
 | `LLM_TEMPERATURE` | `0.2` |
 | `LLM_TIMEOUT_SECS` | `600` |
 
-## 3. Invocation
+## 3. Execution Layout & Logging
+
+### 3.1 Invocation
 
 The daemon binary (`werðan/bins/daemon`) runs headless from a declarative configuration file (`--benchmark <path>` or `--config <path>`) against a target project, and invokes the modernization system honestly: every rollout and phase dispatches real LLM calls through the configured OpenAI-compatible transport, recording exact request counts, wall times, compilation outcomes, and test results without synthetic mocks or simulated shortcuts.
 
@@ -125,6 +128,19 @@ cargo run -p daemon -- --smoke
 
 With no arguments, the daemon falls through to `interactive::run_daemon_server()`, which launches the interactive TUI cockpit ([product.md §3](product.md)).
 
+### 3.2 Tracing Subscriber & Target Filters
+
+The daemon configures a global `tracing_subscriber` with `EnvFilter` to stream structured diagnostics to stdout. The subscriber supports two filter mechanisms:
+- **Compile-Time Default**: `WERTHAN_LOG_LEVEL` (default: `"info"`), loaded from `.env` at build time by `envload` and baked into the binary.
+- **Runtime Dynamic Override**: `RUST_LOG` environment variable at runtime (e.g. `RUST_LOG="bench_llm=debug,holon_engine=trace"`), which takes precedence without recompilation.
+
+Structured logging spans and events partition across five canonical targets:
+- `global_engine`: Macro phase entries (S0–S6), task dispatch envelopes, and batch guard evaluations.
+- `holon_engine`: Module micro-state transitions (M0–M5), ARIADNE rollouts, UCB exploration choices, and stagnation warnings.
+- `bench_llm`: OpenAI-compatible transport telemetry, completion latency, prompt/completion token usage, and retry backoffs.
+- `tools`: Execution traces, parameters, durations, and exit statuses across the shared agent tool suite.
+- `evaluator`: Cargo compilation outcomes, short compiler error snippets, test suite execution pass rates, and Gate 5 proof acceptance/rejection.
+
 ## 4. Daemon Modes
 
 - **Single benchmark (`--benchmark` / `--config`)**: run one real modernization campaign over the configured legacy source, then validate the target workspace with `cargo check` and `cargo test` under configured timeouts, and write the per-project result JSON to `BENCH_RESULTS_DIR`.
@@ -134,11 +150,11 @@ With no arguments, the daemon falls through to `interactive::run_daemon_server()
 
 ### 4.1 Honesty Invariant
 
-The daemon is a config-driven, honest executor: every campaign runs from a `migration.yml` against a real legacy project, invokes the real engine over real inference requests, and records what actually happened. A run whose engine completes but issued zero inference requests (`llm_requests == 0`) is recorded as dishonest and fails the campaign; the `CountingCompletionModel` atomic request counter supplies the verifiable audit. No mock output, no fabricated telemetry, and no degraded-to-prose fallback exists anywhere in the benchmark paths. See [tech-spec/benchmark-harness.md §4](tech-spec/benchmark-harness.md) for the workspace-reset and honesty-gate mechanics.
+The daemon is a config-driven, honest executor: every campaign runs from a `migration.yml` against a real legacy project, invokes the real engine over real inference requests, and records what actually happened. A run whose engine completes but issued zero inference requests (`llm_requests == 0`) is recorded as dishonest and fails the campaign; the `CountingCompletionModel` atomic request counter supplies the verifiable audit. No mock output, no fabricated telemetry, and no degraded-to-prose fallback exists anywhere in the benchmark paths. See [tech-spec/benchmark-harness.md §5](tech-spec/benchmark-harness.md) for the workspace-reset and honesty-gate mechanics.
 
 ### Planned (not implemented)
 
-The daemon currently logs through a single ANSI/stdout `tracing_subscriber::fmt()` sink. The following are planned but unimplemented: a structured JSONL file sink with daily rolling appenders, and a `SIGINT` handler performing clean checkpoint flush and exit-code-0 termination. Do not build on these behaviors today.
+The following are planned but unimplemented: a structured JSONL file sink with daily rolling appenders, and a `SIGINT` handler performing clean checkpoint flush and exit-code-0 termination. Do not build on these behaviors today.
 
 ## 5. Results & Workspace Layout
 

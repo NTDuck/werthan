@@ -31,7 +31,7 @@ Every component under contract MUST be independently constructible in a test:
 
 ## 4. Assertion Catalog
 
-ID scheme: `VAL-<COMPONENT>-<NN>`. Components: `MACRO` (global engine/statechart), `BLACKBOARD-G` (global blackboard), `FWM` (worker/scatter-gather), `CRITIC` (semantic guard), `ARBITER`, `M2` (holon engine/MCTS controller), `BB` (local blackboard), `ASTR`/`AGEN`/`ATEST`/`APATCH` (holon agents), `AEVAL` (two-stage evaluator), `FSM` (module micro-FSM), `DAEMON`, `INTERACTIVE`, `TOOL`.
+ID scheme: `VAL-<COMPONENT>-<NN>`. Components: `MACRO` (global engine/statechart), `BLACKBOARD-G` (global blackboard), `FWM` (worker/scatter-gather), `CRITIC` (semantic guard), `ARBITER`, `M2` (holon engine/MCTS controller), `BB` (local blackboard), `ASTR`/`AGEN`/`ATEST`/`APATCH` (holon agents), `AEVAL` (two-stage evaluator), `FSM` (module micro-FSM), `DAEMON`, `INTERACTIVE`, `TOOL`, `GATE5` (proof receipt & benchmark validation).
 
 ### 4.1 MACRO — Deterministic Statechart Engine (Algorithm 1)
 
@@ -152,6 +152,7 @@ ID scheme: `VAL-<COMPONENT>-<NN>`. Components: `MACRO` (global engine/statechart
 - **VAL-DAEMON-03 (Phase gating).** The daemon cannot enter module transformation before preflight verification reports a passing harness (S0 INTENT gate) — a failing preflight yields a campaign that blocks/aborts before any LLM call.
 - **VAL-DAEMON-04 (Deterministic dry-run).** With a stub backend, a small 2-module DAG campaign completes deterministically: leaf module hardens first, parent second (topological order), events in FIFO order, result JSON serializes cleanly.
 - **VAL-DAEMON-05 (Smoke verification entrypoint).** `run_smoke_verification` executes the deterministic pipeline end-to-end and returns Ok on a healthy configuration; configuration errors surface as Err, never silently swallowed.
+- **VAL-DAEMON-06 (Gate 5 Proof Receipt & External Benchmark Metric Invariant).** External benchmark pass rate evaluation (`test_pass_rate`) is strictly decoupled from internal characterization tests: internal characterization tests generated/executed by the Holon solver (e.g. `tests/characterization.rs`, $B_{CT}$) do NOT count toward the external benchmark test pass rate metric (`test_pass_rate`). Only the external benchmark test suites shipped with the dataset (executed via `target_test_cmd` in `bench_validation.rs`) count toward evaluation criteria. Acceptance requires `test_pass_rate >= 0.50` (or 100%).
 
 ### 4.15 INTERACTIVE — TUI surface
 
@@ -163,6 +164,23 @@ ID scheme: `VAL-<COMPONENT>-<NN>`. Components: `MACRO` (global engine/statechart
 - **VAL-TOOL-01 (Read-only navigation tools).** Definition/references/symbol-body tools resolve legacy symbols without mutating any state (methodology: read-only deterministic tooling for out-of-shard lookups).
 - **VAL-TOOL-02 (Write tools scope).** Mutation tools write only within their declared target partition; attempts to touch other partitions are rejected.
 - **VAL-TOOL-03 (rig Tool trait compliance).** Each shared tool implements ::rig::tool::Tool with deterministic error types; tool errors display consistently (DisplayExt convention).
+
+### 4.17 GATE5 — Gate 5 (Proof Receipt) & Benchmark Validation Contracts
+
+- **VAL-GATE5-01 (External Benchmark Suite Metric Invariant).** Internal characterization tests generated/executed by the Holon solver (e.g. `tests/characterization.rs`) do NOT count toward the external benchmark test pass rate metric (`test_pass_rate`). Only the external benchmark test suites shipped with the dataset (executed via `target_test_cmd` in `bench_validation.rs`) count toward the evaluation criteria. A run is only acceptable if the external benchmark test suite achieves `test_pass_rate >= 0.50` (or 100%).
+- **VAL-GATE5-02 (Test Suite Immutability).** The target benchmark test suite is strictly excluded from the mutable candidate pool ($\text{TargetTestSuite} \cap \text{RepairCandidatePool} = \emptyset$). No agent or repair loop may alter test files, assertions, or test runners to fake a pass.
+- **VAL-GATE5-03 (Validation Command & Parser Invariant).**
+  - `bench_validation.rs::compute_pass_rate` returns `0.0` when `denominator == 0` (no `test result:` lines parsed).
+  - Standard `cargo test` skips `[[bin]]` targets by default when no lib/unit tests exist in the translated workspace; benchmark configs MUST set `target_test_cmd` to a command that actually executes the project's test target (e.g. `cargo test --bins` or `cargo test --bin <test_bin>`).
+  - `bench_validation.rs::parse_test_counts` aggregates across all `test result:` lines from all test binaries invoked by `target_test_cmd`.
+
+#### 4.17.1 Differential Verification Contracts & Behavioral Equivalence Invariants
+
+- **VAL-DIFF-01 (Fundamental Behavioral Equivalence Invariant).** For any candidate modernization unit $c'$ representing target program $P_t$ against legacy source program $P_s$, the deterministic execution harness verifies $Obs(P_s, x, \sigma) \equiv Obs(P_t, \phi(x), \phi(\sigma))$ across the scenario corpus $\mathcal{S} \times \Sigma$. Equivalence is evaluated across all six contract dimensions: (1) Return values, (2) State mutations, (3) Side effects, (4) Exceptions/errors, (5) Protocols (CLI/stdio/exit code), and (6) Ordering & timing.
+- **VAL-DIFF-02 (Separation of Source Correctness vs Translation Correctness).** A scenario failure where $P_s$ crashes, panics, leaks undefined memory, or violates preconditions is classified as `DIV_SOURCE` (Source Defect) or `DIV_HARNESS` (Harness Defect). Such scenarios are excluded from the candidate pass rate denominator and MUST NOT be attributed as a defect of target translation $P_t$.
+- **VAL-DIFF-03 (Anti-Gaming & Active Stub-Sensitivity Gate).** Candidates $c'$ that pass external or characterization tests via vacuous stubs (e.g. unconditional default returns, no-op bodies, or unimplemented sentinels) are rejected. The differential verification suite executes active exception-sentinel mutation checks ($\text{MutationScore} > 0.0$ and $\text{StubSensitivity} == \text{True}$) prior to module hardening transition ($M_2 \to M_4$).
+- **VAL-DIFF-04 (Deterministic Normalization & Tolerance Bounds).** Before comparing observations, the Behavior Comparator MUST apply semantic normalization: canonical dictionary/JSON key sorting, volatile runtime token masking (`<PTR>`, `<UUID>`, `<SANDBOX_PATH>`, `<TIMESTAMP>`), and float comparison bounded by $|a - b| \le \epsilon_{\text{abs}} + \epsilon_{\text{rel}} \cdot |a|$ ($\epsilon_{\text{abs}} = 10^{-6}, \epsilon_{\text{rel}} = 10^{-5}$). Bit-exact comparisons that fail due to floating-point representation differences or volatile pointer addresses are forbidden.
+- **VAL-DIFF-05 (Cryptographic Proof Receipt Persistence).** Every differential verification run must serialize and persist execution artifacts (`source-observations`, `target-observations`, `differential-report`, `coverage-report`, `mutation-report`, `verification-report`) on the blackboard. Hardening transition to $M_4$ and Stage 4 acceptance requires an immutable `verification-report` containing SHA-256 digests of the source/target runner binaries and the scenario corpus.
 
 ## 5. Maintenance Rules
 

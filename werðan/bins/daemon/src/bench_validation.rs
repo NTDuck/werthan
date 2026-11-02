@@ -22,6 +22,7 @@ pub fn validate_workspace(
     let build_timeout = bench_config.inference.build_timeout_secs;
     let test_timeout = bench_config.inference.test_timeout_secs;
     ::tracing::info!(
+        target: "evaluator",
         "campaign {}: build timeout {}s, test timeout {}s, inference timeout {}s",
         bench_config.campaign_id,
         build_timeout,
@@ -66,6 +67,7 @@ pub fn validate_workspace(
             let exit_zero = code == ::core::option::Option::Some(0);
             if exit_zero {
                 ::tracing::info!(
+                    target: "evaluator",
                     "campaign {}: build command `{}` exited 0",
                     bench_config.campaign_id,
                     check_program,
@@ -73,6 +75,7 @@ pub fn validate_workspace(
             } else {
                 let snippet_text = self::tail_output_snippet(output);
                 ::tracing::info!(
+                    target: "evaluator",
                     "campaign {}: build command `{}` failed with exit code {:?}: {}",
                     bench_config.campaign_id,
                     check_program,
@@ -84,6 +87,7 @@ pub fn validate_workspace(
         },
         ::core::result::Result::Err(run_error) => {
             ::tracing::info!(
+                target: "evaluator",
                 "campaign {}: build command `{}` errored: {}",
                 bench_config.campaign_id,
                 check_program,
@@ -103,6 +107,7 @@ pub fn validate_workspace(
                 // Their output uses no cargo result-line format.
                 if exit_zero {
                     ::tracing::info!(
+                        target: "evaluator",
                         "campaign {}: test command `{}` exited 0, pass rate 1.0",
                         bench_config.campaign_id,
                         test_program,
@@ -111,6 +116,7 @@ pub fn validate_workspace(
                 } else {
                     let snippet_text = self::tail_output_snippet(output);
                     ::tracing::info!(
+                        target: "evaluator",
                         "campaign {}: test command `{}` failed with exit code {:?}: {}",
                         bench_config.campaign_id,
                         test_program,
@@ -130,6 +136,7 @@ pub fn validate_workspace(
                 let failed = counts.1;
                 let pass_rate = self::compute_pass_rate(passed, failed);
                 ::tracing::info!(
+                    target: "evaluator",
                     "campaign {}: test command `{}` exited with code {:?}, parsed passed {} failed {}, pass rate {:.3}",
                     bench_config.campaign_id,
                     test_program,
@@ -143,6 +150,7 @@ pub fn validate_workspace(
         },
         ::core::result::Result::Err(run_error) => {
             ::tracing::info!(
+                target: "evaluator",
                 "campaign {}: test command `{}` errored: {}",
                 bench_config.campaign_id,
                 test_program,
@@ -151,6 +159,36 @@ pub fn validate_workspace(
             0.0
         },
     };
+    let legacy_cmd = bench_config.stack.legacy_test_harness_cmd.trim();
+    if !legacy_cmd.is_empty() {
+        let legacy_dir = if bench_config.paths.input_legacy_dir.exists() {
+            bench_config.paths.input_legacy_dir.clone()
+        } else {
+            super::bench_config::repo_root().join(&bench_config.paths.input_legacy_dir)
+        };
+        let target_dir = if workspace_root.exists() {
+            workspace_root.to_path_buf()
+        } else {
+            bench_config.paths.workspace_root.clone()
+        };
+        let timeout = ::std::time::Duration::from_secs(test_timeout);
+        let float_tolerance = 1e-4;
+        let diff_report = super::differential::execute_differential_verification(
+            legacy_cmd,
+            &bench_config.stack.target_test_cmd,
+            &legacy_dir,
+            &target_dir,
+            timeout,
+            float_tolerance,
+        );
+        ::tracing::info!(
+            target: "evaluator",
+            "campaign {}: differential verification outcome: equivalent={}, classification={:?}",
+            bench_config.campaign_id,
+            diff_report.equivalent,
+            diff_report.classification,
+        );
+    }
     self::WorkspaceValidation {
         check_ok,
         test_pass_rate,

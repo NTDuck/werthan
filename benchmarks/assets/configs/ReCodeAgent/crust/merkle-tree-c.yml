@@ -9,7 +9,7 @@ stack:
   binary_artifacts: []
   use_ghidra_rea: false
   target_language: rust
-  target_edition_or_framework: '2024'
+  target_edition_or_framework: '2021'
   target_build_cmd: cargo check
   target_test_cmd: cargo test
   legacy_test_harness_cmd: make test
@@ -24,7 +24,7 @@ inference:
   build_timeout_secs: 180
   test_timeout_secs: 180
 verification:
-  max_self_heal_retries: 4
+  max_self_heal_retries: 6
   require_byte_identical_io: false
 ariadne:
-  max_rollouts: 32
+  max_rollouts: 64

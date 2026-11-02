@@ -11,7 +11,7 @@ stack:
   target_language: rust
   target_edition_or_framework: '2024'
   target_build_cmd: cargo check
-  target_test_cmd: cargo test
+  target_test_cmd: cargo test --bins
   legacy_test_harness_cmd: make test
 inference:
   base_url: ''

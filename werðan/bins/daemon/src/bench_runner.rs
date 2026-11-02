@@ -306,6 +306,7 @@ fn reset_workspace(
             "failed to copy dataset to workspace for reset: {copy_error}"
         ));
     }
+    self::purge_implementation_stubs(workspace_root);
     ::core::option::Option::None
 }
 
@@ -343,6 +344,50 @@ fn copy_dir_recursive(
         }
     }
     ::core::result::Result::Ok(())
+}
+
+/// Truncate implementation stub files in workspace src so translation starts from scratch.
+fn purge_implementation_stubs(workspace_root: &::std::path::Path) {
+    let src_dir = workspace_root.join("src");
+    let read_res = ::std::fs::read_dir(&src_dir);
+    let entries = match read_res {
+        ::core::result::Result::Ok(dir_entries) => dir_entries,
+        ::core::result::Result::Err(_) => return,
+    };
+    let mut purged_count: ::core::primitive::usize = 0;
+    for entry_res in entries {
+        let entry = match entry_res {
+            ::core::result::Result::Ok(valid_entry) => valid_entry,
+            ::core::result::Result::Err(_) => continue,
+        };
+        let entry_path = entry.path();
+        let entry_is_file = entry_path.is_file();
+        if !entry_is_file {
+            continue;
+        }
+        let file_name = entry.file_name();
+        let file_name_text = file_name.to_string_lossy();
+        let is_root_file = file_name_text == "lib.rs" || file_name_text == "main.rs";
+        if is_root_file {
+            continue;
+        }
+        let extension_opt = entry_path.extension().and_then(|extension_os| extension_os.to_str());
+        let matches_target_extension = ::core::matches!(
+            extension_opt,
+            ::core::option::Option::Some("rs" | "js" | "py")
+        );
+        if matches_target_extension {
+            let purge_marker = "// purged for from-scratch translation\n";
+            let write_res = ::std::fs::write(&entry_path, purge_marker);
+            if write_res.is_ok() {
+                purged_count += 1;
+            }
+        }
+    }
+    let display_path = src_dir.display();
+    ::tracing::info!(
+        "purged {purged_count} implementation stub files under {display_path} so the system translates from scratch"
+    );
 }
 
 /// Build a failure result for a campaign that could not even seed.
@@ -563,8 +608,8 @@ mod tests {
             "the engine must issue real inference calls"
         );
         ::std::assert_eq!(
-            result.unimplemented_after_reset, 6,
-            "the reset must restore the six dataset stub markers regardless of the start state"
+            result.unimplemented_after_reset, 0,
+            "the reset purges implementation stubs so translation starts from scratch"
         );
         let honesty_failure = result
             .error
@@ -572,5 +617,50 @@ mod tests {
             .map(|error_text| error_text.contains("dishonest"))
             .unwrap_or(false);
         ::std::assert!(!honesty_failure, "run must pass the inference honesty gate");
+    }
+
+    #[test]
+    fn purge_implementation_stubs_overwrites_sibling_stubs_and_leaves_lib_intact() {
+        let pid_text = ::std::process::id();
+        let suffix = ::std::format!("daemon-purge-stubs-{pid_text}");
+        let workspace = ::std::env::temp_dir().join(suffix);
+        let src_dir = workspace.join("src");
+        ::std::fs::create_dir_all(&src_dir).expect("temp src dir creates");
+        let lib_path = src_dir.join("lib.rs");
+        let main_path = src_dir.join("main.rs");
+        let stub_module_path = src_dir.join("matrix.rs");
+        let lib_content = "pub mod matrix\x3b\n";
+        let main_content = "fn main() {}\n";
+        let stub_content = "pub fn generate_matrix() {\n    unimplemented!()\n}\n";
+        ::std::fs::write(&lib_path, lib_content).expect("lib writes");
+        ::std::fs::write(&main_path, main_content).expect("main writes");
+        ::std::fs::write(&stub_module_path, stub_content).expect("stub writes");
+
+        let before_unimplemented =
+            super::super::bench_harness::count_unimplemented(&workspace, "rust");
+        ::std::assert_eq!(before_unimplemented, 1);
+
+        super::purge_implementation_stubs(&workspace);
+
+        let after_lib = ::std::fs::read_to_string(&lib_path).expect("lib rereads");
+        ::std::assert_eq!(after_lib, lib_content, "lib.rs must not be purged");
+        let after_main = ::std::fs::read_to_string(&main_path).expect("main rereads");
+        ::std::assert_eq!(after_main, main_content, "main.rs must not be purged");
+
+        let after_stub = ::std::fs::read_to_string(&stub_module_path).expect("stub rereads");
+        ::std::assert_eq!(
+            after_stub, "// purged for from-scratch translation\n",
+            "sibling module must be overwritten with purge marker"
+        );
+        ::std::assert!(stub_module_path.exists(), "stub file must remain on disk");
+
+        let after_unimplemented =
+            super::super::bench_harness::count_unimplemented(&workspace, "rust");
+        ::std::assert_eq!(
+            after_unimplemented, 0,
+            "unimplemented count must be 0 after purge"
+        );
+
+        let _ = ::std::fs::remove_dir_all(&workspace);
     }
 }

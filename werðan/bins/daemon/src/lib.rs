@@ -11,3 +11,4 @@ pub mod bench_rules;
 pub mod bench_runner;
 pub mod bench_smoke;
 pub mod bench_validation;
+pub mod differential;

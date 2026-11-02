@@ -1,0 +1,20 @@
+{
+  "campaign_id": "crust-merkle-tree-c-bench",
+  "wall_time_ms": 514972,
+  "engine_wall_time_ms": 504193,
+  "llm_requests": 74,
+  "unimplemented_before": 0,
+  "unimplemented_after_reset": 27,
+  "compilation_success": false,
+  "test_pass_rate": 0.0,
+  "unimplemented_remaining": 27,
+  "solver_dispatches": 3,
+  "worker_executions": 4,
+  "structural_retries": 0,
+  "macro_states_visited": 3,
+  "total_lines": 1227,
+  "code_lines": 951,
+  "cocomo_effort_pm": 2.276673667838886,
+  "cocomo_duration_months": 3.417545511473177,
+  "error": "module test_merkle_tree.c exhausted the futile dispatch cap after 3 attempts"
+}

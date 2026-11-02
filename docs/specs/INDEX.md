@@ -9,12 +9,13 @@ Authority order: [`../references/METHODOLOGY.md`](../references/METHODOLOGY.md) 
 | File | Scope |
 | :--- | :--- |
 | [product.md](product.md) | User-facing behavior: frontends, interactive cockpit UX, slash commands, HITL gates, benchmark artifacts, success criteria. |
-| [product-config.md](product-config.md) | Operator-facing configuration: `migration.yml` schema, environment variables, CLI invocation, daemon modes, results layout. |
+| [product-config.md](product-config.md) | Operator-facing configuration: `migration.yml` schema, environment variables, execution layout & logging, daemon modes, results layout. |
 | [tech-spec.md](tech-spec.md) | Technical entry: methodology pinning, crate hierarchy, design rationale §2.1–2.6, pointers into the domain files. |
 | [tech-spec/engine-and-blackboard.md](tech-spec/engine-and-blackboard.md) | Global blackboard $\mathcal{G}$ (Definition 1), `GlobalStateVector`, `global-blackboard` module deconstruction, local 4-slice blackboard $\mathcal{B}^{(v_i)}$ (Definition 2). |
 | [tech-spec/statecharts-and-ariadne.md](tech-spec/statecharts-and-ariadne.md) | Harel statechart $\mathcal{H}$ (Definition 3), `TaskActivationEnvelope` (Definition 4), S0–S6 pipeline and two-stage guards, micro-FSM M0–M5, Kahn dispatch, ARIADNE MCTS controller and constants, evaluator, reward, regression tiers. |
 | [tech-spec/tools-and-configschema.md](tech-spec/tools-and-configschema.md) | 13 shared agent tools, `DisplayExt` error model, `configschema::CampaignConfig` schema, configurator agent. |
-| [tech-spec/benchmark-harness.md](tech-spec/benchmark-harness.md) | Daemon `bench_*` modules, workspace reset semantics, honesty gate, `BenchResult` fields, batch resume, LoC tiers, divergence roadmap. |
+| [tech-spec/benchmark-harness.md](tech-spec/benchmark-harness.md) | Daemon `bench_*` modules, workspace reset semantics, logging & observability, honesty gate, `BenchResult` fields, Gate 5 (Proof Receipt) & benchmark validation invariants, batch resume, LoC tiers, divergence roadmap. |
+| [tech-spec/differential-verification.md](tech-spec/differential-verification.md) | Behavioral equivalence contract ($Obs(P_s, x, \sigma) \equiv Obs(P_t, \phi(x), \phi(\sigma))$), 6 contract dimensions, differential pipeline, observation schema, nondeterminism controls, scenario sources, divergence taxonomy, persistent blackboard artifacts, evidence reporting schema. |
 | [validation-contracts.md](validation-contracts.md) | Implementation-agnostic validation contracts (`VAL-*` catalog) derived from the methodology; outrank implementation tests; replaces the former cucumber suites (superseding [ADR-0014](../decisions/0014-cucumber-bdd-verification.md)). |
 
 Section numbering note: `tech-spec.md` and `tech-spec/engine-and-blackboard.md` both preserve rationale sections `2.1`–`2.6`; the code comment at `werðan/libs/global/blackboard/src/state_vector.rs:54` cites `tech-spec 2.6`, which resolves to the engine-and-blackboard file. Never renumber these headings.
@@ -23,7 +24,7 @@ Section numbering note: `tech-spec.md` and `tech-spec/engine-and-blackboard.md` 
 
 1. **Operator running a campaign**: [product-config.md](product-config.md) → [product.md](product.md).
 2. **Contributing engine/harness code**: [tech-spec.md](tech-spec.md) → the matching `tech-spec/` domain file → [`../references/METHODOLOGY.md`](../references/METHODOLOGY.md).
-3. **Evaluating benchmark results**: [tech-spec/benchmark-harness.md](tech-spec/benchmark-harness.md) → `benchmarks/README.md`.
+3. **Evaluating benchmark results & verification**: [tech-spec/benchmark-harness.md](tech-spec/benchmark-harness.md) → [tech-spec/differential-verification.md](tech-spec/differential-verification.md) → `benchmarks/README.md`.
 
 ## ADR Map
 

@@ -1,0 +1,20 @@
+{
+  "campaign_id": "crust-matrix_multiplication-bench",
+  "wall_time_ms": 308533,
+  "engine_wall_time_ms": 289369,
+  "llm_requests": 146,
+  "unimplemented_before": 0,
+  "unimplemented_after_reset": 0,
+  "compilation_success": false,
+  "test_pass_rate": 0.0,
+  "unimplemented_remaining": 0,
+  "solver_dispatches": 6,
+  "worker_executions": 5,
+  "structural_retries": 0,
+  "macro_states_visited": 4,
+  "total_lines": 672,
+  "code_lines": 561,
+  "cocomo_effort_pm": 1.308043677709159,
+  "cocomo_duration_months": 2.7685760788091396,
+  "error": "module matrix.c exhausted the futile dispatch cap after 3 attempts"
+}

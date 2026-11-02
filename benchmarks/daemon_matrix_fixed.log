@@ -1,0 +1,110 @@
+[benchmark] Campaign crust-matrix_multiplication-bench starting.
+2026-11-02T01:24:06.479096Z  INFO daemon::bench_runner: purged 2 implementation stub files under /home/ayin/projs/werthan/werðan/bins/daemon/../../../benchmarks/outputs/crust/matrix_multiplication/rust/src so the system translates from scratch
+2026-11-02T01:24:36.511678Z  INFO daemon::bench_runner: campaign crust-matrix_multiplication-bench: rule extraction issued 0 requests across 6 vertices with 0 failures
+2026-11-02T01:24:36.511714Z  INFO daemon::bench_runner: campaign crust-matrix_multiplication-bench: configured LLM completion backend
+2026-11-02T01:24:36.511739Z  INFO daemon::bench_runner: campaign crust-matrix_multiplication-bench: starting engine execution
+2026-11-02T01:24:36.511742Z  INFO global_engine: MacroEngine::run loop: step 1, state S0IntentPreflight
+2026-11-02T01:24:36.511769Z  INFO global_engine: MacroEngine::run loop: step 2, state S1Assess
+2026-11-02T01:24:36.511783Z  INFO global_engine: MacroEngine::run loop: step 3, state S2MapDag
+2026-11-02T01:24:36.511796Z  INFO global_engine: MacroEngine::run loop: step 4, state S3ExtractRules
+2026-11-02T01:24:36.511814Z  INFO global_engine: MacroEngine::run loop: step 5, state S4BriefContracts
+2026-11-02T01:24:36.511817Z  INFO global_engine: MacroEngine::run loop: step 6, state S5IterativeDag
+2026-11-02T01:24:36.511820Z  INFO global_engine: dispatch_module: vertex main.c mode Initial
+2026-11-02T01:24:41.819394Z  INFO holon_engine: module main.c rollout 1/64: tests=7, last_pass_rate=None
+2026-11-02T01:24:52.324576Z  INFO holon_engine: module main.c rollout 1 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:24:52.324607Z  WARN holon_engine: module main.c rollout 1 compilation failed: INTRINSIC
+2026-11-02T01:24:52.324615Z  INFO holon_engine: module main.c rollout 2/64: tests=7, last_pass_rate=Some(0.0)
+2026-11-02T01:25:04.237444Z  INFO holon_engine: module main.c rollout 2 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:25:04.237464Z  WARN holon_engine: module main.c rollout 2 compilation failed: INTRINSIC
+2026-11-02T01:25:04.237468Z  INFO holon_engine: module main.c rollout 3/64: tests=11, last_pass_rate=Some(0.0)
+2026-11-02T01:25:08.613872Z  INFO holon_engine: module main.c rollout 3 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:25:08.613895Z  WARN holon_engine: module main.c rollout 3 compilation failed: INTRINSIC
+2026-11-02T01:25:08.613899Z  INFO holon_engine: module main.c rollout 4/64: tests=11, last_pass_rate=Some(0.0)
+2026-11-02T01:25:11.468352Z  INFO holon_engine: module main.c rollout 4 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:25:11.468391Z  WARN holon_engine: module main.c rollout 4 compilation failed: INTRINSIC
+2026-11-02T01:25:11.468395Z  INFO holon_engine: module main.c rollout 5/64: tests=11, last_pass_rate=Some(0.0)
+2026-11-02T01:25:13.751935Z  INFO holon_engine: module main.c rollout 5 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:25:13.751953Z  WARN holon_engine: module main.c rollout 5 compilation failed: INTRINSIC
+2026-11-02T01:25:13.751958Z  INFO holon_engine: module main.c rollout 6/64: tests=11, last_pass_rate=Some(0.0)
+2026-11-02T01:25:16.037904Z  INFO holon_engine: module main.c rollout 6 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:25:16.037924Z  WARN holon_engine: module main.c rollout 6 compilation failed: INTRINSIC
+2026-11-02T01:25:16.037928Z  INFO holon_engine: module main.c rollout 7/64: tests=11, last_pass_rate=Some(0.0)
+2026-11-02T01:25:18.324387Z  INFO holon_engine: module main.c rollout 7 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:25:18.324404Z  WARN holon_engine: module main.c rollout 7 compilation failed: INTRINSIC
+2026-11-02T01:25:18.324409Z  INFO holon_engine: module main.c rollout 8/64: tests=11, last_pass_rate=Some(0.0)
+2026-11-02T01:25:20.660630Z  INFO holon_engine: module main.c rollout 8 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:25:20.660648Z  WARN holon_engine: module main.c rollout 8 compilation failed: INTRINSIC
+2026-11-02T01:25:20.660653Z  INFO holon_engine::controller: stagnation detected: reward flat at 0.0000 across 8 rollouts. Breaking early
+2026-11-02T01:25:20.660664Z  INFO global_engine: dispatch_module: vertex main.c finished with outcome BudgetExhausted { module_id: "main.c", proof_trace: "Rollout budget exhausted on parentless module main.c with no contract counterparty", best_candidate: Some("pub mod matrix {\n    use std::vec;\n\n    pub type Matrix = Vec<Vec<f32>>;\n\n    pub fn generate_matrix(x: usize, y: usize, flag: bool) -> Matrix {\n        let mut m = vec![];\n        for i in 0..x {\n            let mut row = vec![];\n            for j in 0..y {\n                let val = if flag {\n                    (i * y + j) as f32\n                } else {\n                    0.0\n                };\n                row.push(val);\n            }\n            m.push(row);\n        }\n        m\n    }\n\n    pub fn free_matrix(m: &mut Matrix) {\n        m.clear();\n    }\n\n    pub fn multiply(\n        matrix1: &Matrix,\n        matrix2: &Matrix,\n        r: &mut Matrix,\n        method: i32,\n    ) -> i32 {\n        if matrix1.is_empty() || matrix2.is_empty() {\n            return -1;\n        }\n\n        let x1 = matrix1.len();\n        let y1 = if x1 > 0 { matrix1[0].len() } else { 0 };\n        let x2 = matrix2.len();\n        let y2 = if x2 > 0 { matrix2[0].len() } else { 0 };\n\n        if y1 != x2 {\n            return -2;\n        }\n\n        if method == 0 {\n            return -3;\n        }\n\n        if method == 2 {\n            if x1 != y1 || x2 != y2 || x1 != x2 {\n                return -4;\n            }\n        }\n\n        r.clear();\n        for i in 0..x1 {\n            let mut row = vec![];\n            for j in 0..y2 {\n                let mut sum = 0.0f32;\n                for k in 0..y1 {\n                    sum += matrix1[i][k] * matrix2[k][j];\n                }\n                row.push(sum);\n            }\n            r.push(row);\n        }\n\n        0\n    }\n}\n\npub mod utils {\n    pub const ARRAY_TYPE_CHAR: &str = \"float\";\n\n    pub fn print_array(name: &str, m: &Vec<Vec<f32>>, typ: &str) {\n        println!(\"{} ({}):\", name, typ);\n        for row in m.iter() {\n            for val in row.iter() {\n                print!(\"{:.2} \", val);\n            }\n            println!();\n        }\n    }\n}"), best_reward: 0.0 }
+2026-11-02T01:25:20.660688Z  INFO global_engine: module main.c exhausted its rollout budget without a contract counterparty and parked at futile dispatch 1
+2026-11-02T01:25:20.660696Z  INFO global_engine: dispatch_module: vertex matrix.c mode Initial
+2026-11-02T01:25:32.835009Z  INFO holon_engine: module matrix.c rollout 1/64: tests=12, last_pass_rate=None
+2026-11-02T01:25:48.736240Z  INFO holon_engine: module matrix.c rollout 1 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:25:48.736262Z  WARN holon_engine: module matrix.c rollout 1 compilation failed: INTRINSIC
+2026-11-02T01:25:48.736266Z  INFO holon_engine: module matrix.c rollout 2/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:25:58.080148Z  INFO holon_engine: module matrix.c rollout 2 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:25:58.080164Z  WARN holon_engine: module matrix.c rollout 2 compilation failed: INTRINSIC
+2026-11-02T01:25:58.080168Z  INFO holon_engine: module matrix.c rollout 3/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:26:07.440918Z  INFO holon_engine: module matrix.c rollout 3 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:26:07.440941Z  WARN holon_engine: module matrix.c rollout 3 compilation failed: INTRINSIC
+2026-11-02T01:26:07.440945Z  INFO holon_engine: module matrix.c rollout 4/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:26:14.208154Z  INFO holon_engine: module matrix.c rollout 4 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:26:14.208172Z  WARN holon_engine: module matrix.c rollout 4 compilation failed: INTRINSIC
+2026-11-02T01:26:14.208176Z  INFO holon_engine: module matrix.c rollout 5/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:26:19.524657Z  INFO holon_engine: module matrix.c rollout 5 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:26:19.524687Z  WARN holon_engine: module matrix.c rollout 5 compilation failed: INTRINSIC
+2026-11-02T01:26:19.524701Z  INFO holon_engine: module matrix.c rollout 6/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:26:24.191269Z  INFO holon_engine: module matrix.c rollout 6 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:26:24.191291Z  WARN holon_engine: module matrix.c rollout 6 compilation failed: INTRINSIC
+2026-11-02T01:26:24.191296Z  INFO holon_engine: module matrix.c rollout 7/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:26:28.856180Z  INFO holon_engine: module matrix.c rollout 7 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:26:28.856199Z  WARN holon_engine: module matrix.c rollout 7 compilation failed: INTRINSIC
+2026-11-02T01:26:28.856203Z  INFO holon_engine: module matrix.c rollout 8/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:26:33.518172Z  INFO holon_engine: module matrix.c rollout 8 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:26:33.518197Z  WARN holon_engine: module matrix.c rollout 8 compilation failed: INTRINSIC
+2026-11-02T01:26:33.518205Z  INFO holon_engine::controller: stagnation detected: reward flat at 0.0000 across 8 rollouts. Breaking early
+2026-11-02T01:26:33.518211Z  INFO global_engine: dispatch_module: vertex matrix.c finished with outcome BudgetExhausted { module_id: "matrix.c", proof_trace: "Rollout budget exhausted on parentless module matrix.c with no contract counterparty", best_candidate: Some("pub mod matrix {\n    use std::f32;\n\n    pub type Matrix = Vec<Vec<f32>>;\n\n    pub fn generate_matrix(x: usize, y: usize, random: bool) -> Matrix {\n        let mut matrix_data: Matrix = Vec::with_capacity(x);\n        for i in 0..x {\n            let mut row: Vec<f32> = Vec::with_capacity(y);\n            if !random {\n                for j in 0..y {\n                    row.push((j + i * x) as f32);\n                }\n            } else {\n                for _j in 0..y {\n                    row.push(rand_f32());\n                }\n            }\n            matrix_data.push(row);\n        }\n        matrix_data\n    }\n\n    pub fn free_matrix(matrix_data: &mut Matrix) -> i32 {\n        matrix_data.clear();\n        0\n    }\n\n    pub fn multiply(\n        m1: &Matrix,\n        m2: &Matrix,\n        r: &mut Matrix,\n        x1: usize,\n        y1: usize,\n        x2: usize,\n        y2: usize,\n        method: i32,\n    ) -> i32 {\n        if y1 != x2 {\n            println!(\"The number of columns in the first matrix must be equal to the number of rows in the second matrix. \\n\");\n            return -1;\n        }\n        match method {\n            1 => {\n                algorithm1(m1, m2, r, x1, y1, x2, y2);\n            }\n            2 => {\n                algorithm2(m1, m2, r, x1);\n            }\n            3 => {\n                algorithm3(m1, m2, r, x1, y1, x2, y2);\n            }\n            _ => {\n                println!(\"Choose the correct method!\\n\");\n                return -1;\n            }\n        }\n        0\n    }\n\n    pub fn algorithm1(\n        m1: &Matrix,\n        m2: &Matrix,\n        r: &mut Matrix,\n        x1: usize,\n        y1: usize,\n        _x2: usize,\n        y2: usize,\n    ) -> i32 {\n        for i in 0..x1 {\n            for j in 0..y2 {\n                r[i][j] = 0.0;\n                for k in 0..y1 {\n                    r[i][j] += m1[i][k] * m2[k][j];\n                }\n            }\n        }\n        0\n    }\n\n    pub fn algorithm2(a: &Matrix, bb: &Matrix, c: &mut Matrix, size: usize) -> i32 {\n        let mut b: Matrix = Vec::with_capacity(size);\n        for i in 0..size {\n            let mut row: Vec<f32> = Vec::with_capacity(size);\n            for j in 0..size {\n                row.push(bb[j][i]);\n            }\n            b.push(row);\n        }\n\n        for i in 0..size {\n            for j in 0..size {\n                c[i][j] = 0.0;\n            }\n        }\n\n        for i in 0..size {\n            for j in (0..size).step_by(8) {\n                let end = std::cmp::min(j + 8, size);\n                for k in 0..size {\n                    let mut sum = 0.0f32;\n                    for jj in j..end {\n                        sum += a[i][jj] * b[k][jj];\n                    }\n                    c[i][k] += sum;\n                }\n            }\n        }\n        0\n    }\n\n    pub fn algorithm3(\n        m1: &Matrix,\n        m2: &Matrix,\n        r: &mut Matrix,\n        x1: usize,\n        y1: usize,\n        _x2: usize,\n        y2: usize,\n    ) -> i32 {\n        for i in 0..x1 {\n            for j in 0..y2 {\n                r[i][j] = 0.0;\n            }\n        }\n        for i in 0..x1 {\n            for k in 0..y1 {\n                for j in 0..y2 {\n                    r[i][j] += m1[i][k] * m2[k][j];\n                }\n            }\n        }\n        0\n    }\n\n    fn rand_f32() -> f32 {\n        let mut state = std::time::SystemTime::now()\n            .duration_since(std::time::UNIX_EPOCH)\n            .unwrap()\n            .as_nanos() as u64;\n        state ^= state >> 33;\n        state = (state ^ (state << 7)) & 0x3F5AEB;\n        state ^= state >> 17;\n        (state % 10000) as f32 / 10000.0\n    }\n}\n\npub mod utils {\n    use crate::matrix::Matrix;\n\n    pub fn print_array(matrix_data: &Matrix) {\n        for row in matrix_data.iter() {\n            for val in row.iter() {\n                print!(\"{:.2} \", val);\n            }\n            println!();\n        }\n    }\n}"), best_reward: 0.0 }
+2026-11-02T01:26:33.518249Z  INFO global_engine: module matrix.c exhausted its rollout budget without a contract counterparty and parked at futile dispatch 1
+2026-11-02T01:26:33.518267Z  INFO global_engine: dispatch_module: vertex utils.c mode Initial
+2026-11-02T01:26:35.865908Z  INFO holon_engine: module utils.c rollout 1/64: tests=4, last_pass_rate=None
+2026-11-02T01:26:44.024525Z  INFO holon_engine: module utils.c rollout 1 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:26:44.024555Z  WARN holon_engine: module utils.c rollout 1 compilation failed: INTRINSIC
+2026-11-02T01:26:44.024563Z  INFO holon_engine: module utils.c rollout 2/64: tests=4, last_pass_rate=Some(0.0)
+2026-11-02T01:26:56.300257Z  INFO holon_engine: module utils.c rollout 2 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:26:56.300284Z  WARN holon_engine: module utils.c rollout 2 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T01:26:56.300292Z  INFO holon_engine: module utils.c rollout 3/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:27:01.641246Z  INFO holon_engine: module utils.c rollout 3 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:27:01.641269Z  WARN holon_engine: module utils.c rollout 3 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T01:27:01.641275Z  INFO holon_engine: module utils.c rollout 4/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:27:04.722814Z  INFO holon_engine: module utils.c rollout 4 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:27:04.722835Z  WARN holon_engine: module utils.c rollout 4 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T01:27:04.722843Z  INFO holon_engine: module utils.c rollout 5/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:27:07.805012Z  INFO holon_engine: module utils.c rollout 5 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:27:07.805037Z  WARN holon_engine: module utils.c rollout 5 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T01:27:07.805045Z  INFO holon_engine: module utils.c rollout 6/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:27:10.388343Z  INFO holon_engine: module utils.c rollout 6 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:27:10.388365Z  WARN holon_engine: module utils.c rollout 6 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T01:27:10.388373Z  INFO holon_engine: module utils.c rollout 7/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:27:12.971030Z  INFO holon_engine: module utils.c rollout 7 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:27:12.971064Z  WARN holon_engine: module utils.c rollout 7 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T01:27:12.971079Z  INFO holon_engine: module utils.c rollout 8/64: tests=12, last_pass_rate=Some(0.0)
+2026-11-02T01:27:15.554513Z  INFO holon_engine: module utils.c rollout 8 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:27:15.554535Z  WARN holon_engine: module utils.c rollout 8 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T01:27:15.554540Z  INFO holon_engine::controller: stagnation detected: reward flat at 0.0000 across 8 rollouts. Breaking early
+2026-11-02T01:27:15.554545Z  INFO global_engine: dispatch_module: vertex utils.c finished with outcome BudgetExhausted { module_id: "utils.c", proof_trace: "Rollout budget exhausted on parentless module utils.c with no contract counterparty", best_candidate: Some("pub mod matrix {\n    pub fn generate_matrix(x: usize, y: usize) -> Vec<Vec<f64>> {\n        let mut m = Vec::with_capacity(x);\n        for _ in 0..x {\n            m.push(vec![0.0; y]);\n        }\n        m\n    }\n\n    pub fn free_matrix(m: &mut Vec<Vec<f64>>) {\n        m.clear();\n    }\n\n    pub fn multiply(\n        a: &Vec<Vec<f64>>,\n        b: &Vec<Vec<f64>>,\n        method: i32,\n    ) -> (i32, Vec<Vec<f64>>) {\n        if method == 0 {\n            return (1, vec![]);\n        }\n\n        let x1 = a.len();\n        let y1 = if x1 > 0 { a[0].len() } else { 0 };\n        let x2 = b.len();\n        let y2 = if x2 > 0 { b[0].len() } else { 0 };\n\n        if y1 != x2 {\n            return (2, vec![]);\n        }\n\n        let mut r = vec![vec![0.0; y2]; x1];\n        for i in 0..x1 {\n            for j in 0..y2 {\n                let mut sum = 0.0;\n                for k in 0..y1 {\n                    sum += a[i][k] * b[k][j];\n                }\n                r[i][j] = sum;\n            }\n        }\n        (0, r)\n    }\n}\n\npub mod utils {\n    pub fn print_float_array(matrix: &Vec<Vec<f64>>, x: usize, y: usize) -> i32 {\n        for i in 0..x {\n            for j in 0..y {\n                print!(\"{:10.2} \", matrix[i][j]);\n            }\n            println!();\n        }\n        0\n    }\n\n    pub fn print_array(\n        matrix: &Vec<Vec<f64>>,\n        x: usize,\n        y: usize,\n        name: &str,\n        type_str: &str,\n    ) -> i32 {\n        println!(\"------------{}--------------\", name);\n        if type_str == \"float\" {\n            print_float_array(matrix, x, y);\n        } else {\n            print!(\"unsupported {}\", type_str);\n        }\n        0\n    }\n}"), best_reward: 0.0 }
+2026-11-02T01:27:15.554564Z  INFO global_engine: module utils.c exhausted its rollout budget without a contract counterparty and parked at futile dispatch 1
+2026-11-02T01:27:15.554572Z  INFO global_engine: MacroEngine::run loop: step 7, state S5IterativeDag
+2026-11-02T01:27:15.554576Z  INFO global_engine: dispatch_module: vertex main.c mode Initial
+2026-11-02T01:27:15.554587Z  INFO holon_engine: module main.c rollout 1/64: tests=11, last_pass_rate=Some(0.0)
+2026-11-02T01:27:19.857003Z  INFO holon_engine: module main.c rollout 1 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:27:19.857024Z  WARN holon_engine: module main.c rollout 1 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T01:27:19.857030Z  INFO holon_engine: module main.c rollout 2/64: tests=11, last_pass_rate=Some(0.0)
+2026-11-02T01:27:25.728857Z  INFO holon_engine: module main.c rollout 2 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:27:25.728878Z  WARN holon_engine: module main.c rollout 2 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T01:27:25.728882Z  INFO holon_engine: module main.c rollout 3/64: tests=11, last_pass_rate=Some(0.0)
+2026-11-02T01:27:28.880027Z  INFO holon_engine: module main.c rollout 3 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:27:28.880047Z  WARN holon_engine: module main.c rollout 3 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T01:27:28.880051Z  INFO holon_engine: module main.c rollout 4/64: tests=11, last_pass_rate=Some(0.0)
+2026-11-02T01:27:31.327837Z  INFO holon_engine: module main.c rollout 4 eval: compiles=false, pass_rate=0, reward=0
+2026-11-02T01:27:31.327861Z  WARN holon_engine: module main.c rollout 4 compilation failed: EXTRINSIC_CONTRACT
+2026-11-02T01:27:31.327866Z  INFO holon_engine: module main.c rollout 5/64: tests=11, last_pass_rate=Some(0.0)

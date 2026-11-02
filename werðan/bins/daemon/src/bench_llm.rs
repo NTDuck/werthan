@@ -176,6 +176,13 @@ impl ::rig::completion::CompletionModel for self::OpenAiCompatModel {
                     return ::core::result::Result::Err(build_error);
                 },
             };
+            let start_instant = ::std::time::Instant::now();
+            ::tracing::debug!(
+                target: "bench_llm",
+                model = %self.model_id,
+                prompt_chars = request_payload.to_string().len(),
+                "dispatching LLM completion request"
+            );
         let chat_url = ::std::format!("{}/chat/completions", self.base_url);
             let mut response = ::core::option::Option::None;
             let mut transport_failure = ::core::option::Option::None;
@@ -275,6 +282,27 @@ impl ::rig::completion::CompletionModel for self::OpenAiCompatModel {
             };
             let raw_text = self::response_text_of(&parsed_body);
             let answer_text = self::usable_answer(&raw_text);
+            let elapsed_ms = start_instant.elapsed().as_millis();
+            let prompt_toks = parsed_body.usage.as_ref().map(|usage| usage.prompt_tokens);
+            let compl_toks = parsed_body.usage.as_ref().map(|usage| usage.completion_tokens);
+            let total_toks = parsed_body.usage.as_ref().map(|usage| usage.total_tokens);
+            ::tracing::info!(
+                target: "bench_llm",
+                model = %self.model_id,
+                latency_ms = elapsed_ms,
+                completion_len = answer_text.len(),
+                prompt_tokens = prompt_toks,
+                completion_tokens = compl_toks,
+                total_tokens = total_toks,
+                "LLM completion received"
+            );
+            let answer_preview = self::error_snippet_of(&answer_text);
+            ::tracing::debug!(
+                target: "bench_llm",
+                model = %self.model_id,
+                answer_preview = %answer_preview,
+                "LLM answer preview"
+            );
             let answer_present = !answer_text.is_empty();
             if !answer_present {
                 // Fault-path diagnostics: without the response shape on
@@ -367,6 +395,17 @@ impl<M: ::rig::completion::CompletionModel> ::rig::completion::CompletionModel
     }
 }
 
+/// Token usage statistics from a chat-completions response.
+#[derive(::serde::Deserialize)]
+struct ChatCompletionsUsage {
+    #[serde(default)]
+    prompt_tokens: ::core::primitive::u64,
+    #[serde(default)]
+    completion_tokens: ::core::primitive::u64,
+    #[serde(default)]
+    total_tokens: ::core::primitive::u64,
+}
+
 /// Parsed OpenAI-compatible chat-completions response body.
 #[derive(::serde::Deserialize)]
 struct ChatCompletionsBody {
@@ -376,6 +415,8 @@ struct ChatCompletionsBody {
     /// Choice list. The daemon reads only the first text channel.
     #[serde(default)]
     choices: ::std::vec::Vec<self::ChatCompletionsChoice>,
+    #[serde(default)]
+    usage: ::core::option::Option<self::ChatCompletionsUsage>,
 }
 
 /// One choice in a chat-completions response.

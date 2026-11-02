@@ -1,6 +1,6 @@
 # Technical Specification: werðan Architecture (Entry Point)
 
-This file is the technical entry point. It pins the methodology authority, defines the workspace crate hierarchy, and preserves the six design rationale sections. Domain detail lives in the four files under [`tech-spec/`](tech-spec/).
+This file is the technical entry point. It pins the methodology authority, defines the workspace crate hierarchy, and preserves the six design rationale sections. Domain detail lives in the domain files under [`tech-spec/`](tech-spec/).
 
 ## 1. Methodology Authority
 
@@ -95,5 +95,6 @@ Behavior parity is verified by methodology validation contracts (`VAL-*` catalog
 | Definition 3 statechart 7-tuple, Definition 4 hydration, S0–S6 pipeline and guards, micro-FSM M0–M5, Kahn dispatch, MCTS controller + constants, generative subagents, evaluator, reward, regression tiers, warm-start | [tech-spec/statecharts-and-ariadne.md](tech-spec/statecharts-and-ariadne.md) |
 | 13-tool registry, `DisplayExt` error model, `configschema::CampaignConfig` shape, configurator agent | [tech-spec/tools-and-configschema.md](tech-spec/tools-and-configschema.md) |
 | Daemon `bench_*` modules, workspace reset, honesty gate, `BenchResult`, batch resume, LoC tiers, divergence roadmap | [tech-spec/benchmark-harness.md](tech-spec/benchmark-harness.md) |
+| Behavioral equivalence contract ($Obs(P_s, x, \sigma) \equiv Obs(P_t, \phi(x), \phi(\sigma))$), 6 contract dimensions, differential pipeline, observation schema, nondeterminism controls, scenario sources, divergence taxonomy, persistent blackboard artifacts, evidence reporting schema | [tech-spec/differential-verification.md](tech-spec/differential-verification.md) |
 
 Operator-facing configuration and CLI behavior: [product-config.md](product-config.md). User-facing behavior: [product.md](product.md).
