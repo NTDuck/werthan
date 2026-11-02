@@ -172,7 +172,7 @@ fn run_campaign_blocking(
     } else {
         ::core::option::Option::None
     };
-    let diff_error = if !validation.differential_equivalent {
+    let diff_error = if validation.differential_equivalent == ::core::option::Option::Some(false) {
         ::core::option::Option::Some(::std::format!(
             "differential verification divergence: {:?}",
             validation.differential_classification
@@ -208,6 +208,7 @@ fn run_campaign_blocking(
         unimplemented_after_reset,
         compilation_success,
         test_pass_rate: { validation.test_pass_rate },
+        differential_equivalent: { validation.differential_equivalent },
         unimplemented_remaining,
         solver_dispatches: { solver_dispatches },
         worker_executions: { engine.worker_executions() },
@@ -244,6 +245,9 @@ pub struct BenchResult {
     pub compilation_success: ::core::primitive::bool,
     /// Fraction of passed tests over passed plus failed tests.
     pub test_pass_rate: ::core::primitive::f64,
+    /// Differential behavioral equivalence outcome (Some(true) = equivalent, Some(false) = diverged, None = skipped/unconfigured).
+    #[serde(default)]
+    pub differential_equivalent: ::core::option::Option<::core::primitive::bool>,
     /// Remaining `unimplemented!()` marker count in workspace sources.
     pub unimplemented_remaining: ::core::primitive::usize,
     /// Solver dispatch count reported by the engine.
@@ -402,6 +406,7 @@ fn failed_result(campaign_id: &::core::primitive::str, reason: &::core::primitiv
         unimplemented_after_reset: 0,
         compilation_success: false,
         test_pass_rate: 0.0,
+        differential_equivalent: ::core::option::Option::None,
         unimplemented_remaining: 0,
         solver_dispatches: 0,
         worker_executions: 0,

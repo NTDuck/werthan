@@ -265,6 +265,7 @@ fn contract_val_daemon_06_external_test_success_maps_full_rate() {
     let validation = ::daemon::bench_validation::validate_workspace(&bench_config, &scratch_root);
     ::std::assert!(validation.check_ok);
     ::std::assert_eq!(validation.test_pass_rate, 1.0);
+    ::std::assert_eq!(validation.differential_equivalent, ::core::option::Option::None);
 }
 
 /// Contract: external test toolchains map a nonzero exit code to zero.
@@ -274,6 +275,7 @@ fn contract_val_daemon_07_external_test_failure_maps_zero_rate() {
     let bench_config = external_command_config("false");
     let validation = ::daemon::bench_validation::validate_workspace(&bench_config, &scratch_root);
     ::std::assert_eq!(validation.test_pass_rate, 0.0);
+    ::std::assert_eq!(validation.differential_equivalent, ::core::option::Option::None);
 }
 
 /// Contract: compilation success reflects only the final workspace artifact
@@ -285,7 +287,7 @@ fn contract_val_daemon_08_compilation_success_ignores_terminal_error() {
     let workspace_validation = ::daemon::bench_validation::WorkspaceValidation {
         check_ok: true,
         test_pass_rate: 1.0,
-        differential_equivalent: true,
+        differential_equivalent: ::core::option::Option::Some(true),
         differential_classification: ::core::option::Option::None,
     };
     let terminal_error = ::core::option::Option::Some(
@@ -300,6 +302,7 @@ fn contract_val_daemon_08_compilation_success_ignores_terminal_error() {
         unimplemented_after_reset: 0,
         compilation_success: { workspace_validation.check_ok },
         test_pass_rate: { workspace_validation.test_pass_rate },
+        differential_equivalent: { workspace_validation.differential_equivalent },
         unimplemented_remaining: 0,
         solver_dispatches: 0,
         worker_executions: 0,
@@ -316,6 +319,7 @@ fn contract_val_daemon_08_compilation_success_ignores_terminal_error() {
         "a passing workspace check with no stubs stays a compilation success even with an engine error"
     );
     ::std::assert!(bench_result.error.is_some(), "the engine error stays visible");
+    ::std::assert_eq!(bench_result.differential_equivalent, ::core::option::Option::Some(true));
 }
 
 /// Contract: differential verification failure lands in the `error` field
@@ -329,10 +333,10 @@ fn contract_val_daemon_09_differential_verification_divergence_lands_in_error() 
     let workspace_validation = ::daemon::bench_validation::WorkspaceValidation {
         check_ok: true,
         test_pass_rate: 1.0,
-        differential_equivalent: false,
+        differential_equivalent: ::core::option::Option::Some(false),
         differential_classification: ::core::option::Option::Some(classification),
     };
-    let diff_error = if !workspace_validation.differential_equivalent {
+    let diff_error = if workspace_validation.differential_equivalent == ::core::option::Option::Some(false) {
         ::core::option::Option::Some(::std::format!(
             "differential verification divergence: {:?}",
             workspace_validation.differential_classification
@@ -360,6 +364,7 @@ fn contract_val_daemon_09_differential_verification_divergence_lands_in_error() 
         unimplemented_after_reset: 0,
         compilation_success: { workspace_validation.check_ok },
         test_pass_rate: { workspace_validation.test_pass_rate },
+        differential_equivalent: { workspace_validation.differential_equivalent },
         unimplemented_remaining: 0,
         solver_dispatches: 1,
         worker_executions: 0,
@@ -374,6 +379,10 @@ fn contract_val_daemon_09_differential_verification_divergence_lands_in_error() 
     ::std::assert!(
         bench_result.compilation_success,
         "compilation success reflects workspace check ok and no stubs"
+    );
+    ::std::assert_eq!(
+        bench_result.differential_equivalent,
+        ::core::option::Option::Some(false)
     );
     let error_text = bench_result.error.expect("differential error must be recorded");
     ::std::assert!(

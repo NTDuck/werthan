@@ -8,8 +8,8 @@ pub struct WorkspaceValidation {
     pub check_ok: ::core::primitive::bool,
     /// Parsed test pass rate from the configured test command.
     pub test_pass_rate: ::core::primitive::f64,
-    /// Whether differential verification against legacy harness passed.
-    pub differential_equivalent: ::core::primitive::bool,
+    /// Differential behavioral equivalence outcome (Some(true) = equivalent, Some(false) = diverged, None = skipped/unconfigured).
+    pub differential_equivalent: ::core::option::Option<::core::primitive::bool>,
     /// Divergence classification if differential verification executed.
     pub differential_classification: ::core::option::Option<super::differential::DivergenceClassification>,
 }
@@ -193,11 +193,11 @@ pub fn validate_workspace(
             diff_report.classification,
         );
         (
-            diff_report.equivalent,
+            ::core::option::Option::Some(diff_report.equivalent),
             ::core::option::Option::Some(diff_report.classification),
         )
     } else {
-        (true, ::core::option::Option::None)
+        (::core::option::Option::None, ::core::option::Option::None)
     };
     self::WorkspaceValidation {
         check_ok,
