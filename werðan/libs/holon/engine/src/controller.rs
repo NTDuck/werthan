@@ -154,7 +154,11 @@ impl<
 
             if (self.best_reward_score - previous_best_reward).abs() < 1e-6 {
                 flat_count += 1;
-                if flat_count >= 8 && self.best_candidate_code.is_some() {
+                let parentless = self.blackboard.problem_model.parent_contracts.is_empty();
+                let should_break = flat_count >= 8
+                    && self.best_candidate_code.is_some()
+                    && (!parentless || self.best_reward_score > 0.0);
+                if should_break {
                     ::tracing::warn!(
                         target: "holon_engine",
                         module_id = %self.blackboard.module_id,
@@ -621,10 +625,74 @@ mod tests {
         );
     }
 
-    /// Flat rollouts at reward zero trigger stagnation early termination.
+    /// Distiller double emitting an Intrinsic fault, isolating the controller
+    /// stagnation gate from extrinsic contract conflict handling on parented modules.
+    #[derive(::core::clone::Clone, ::core::fmt::Debug)]
+    struct FixedIntrinsicDistiller;
+
+    impl ::holon_evaluator::DiagnosticDistiller for self::FixedIntrinsicDistiller {
+        fn distill_failure(
+            &self,
+            raw_logs: &::core::primitive::str,
+            _candidate_code: &::core::primitive::str,
+            _problem_model: &::holon_blackboard::ProblemModelSlice,
+        ) -> ::holon_blackboard::FaultRecord {
+            let cause_opt = ::core::option::Option::Some(::holon_blackboard::FaultCause::Intrinsic);
+            ::holon_blackboard::FaultRecord {
+                summary: "intrinsic fault".to_string(),
+                diagnostic_trace: ::std::string::ToString::to_string(raw_logs),
+                cause: { cause_opt },
+            }
+        }
+
+        fn audit_rules(
+            &self,
+            _candidate_code: &::core::primitive::str,
+            _problem_model: &::holon_blackboard::ProblemModelSlice,
+        ) -> ::core::primitive::f64 {
+            0.0
+        }
+    }
+
+    /// Flat rollouts at reward zero trigger stagnation early termination on parented modules.
     /// The search breaks after eight flat rollouts instead of exhausting the budget.
     #[test]
-    fn test_stagnation_early_exit_triggers_at_zero_reward() {
+    fn test_stagnation_early_exit_triggers_at_zero_reward_for_parented_module() {
+        let fake_model = self::ControllerFakeModel {
+            response_text: "pub fn factory_probe() -> u32 {\n    1\n}".to_string(),
+        };
+        let agents = self::build_test_pool(&fake_model);
+        let mut model = ::holon_blackboard::ProblemModelSlice::new();
+        let contract = ::holon_blackboard::EdgeContract {
+            parent_id: "module_upstream".to_string(),
+            interface_spec: "fn upstream_entry() -> u32".to_string(),
+            preconditions: ::std::vec::Vec::new(),
+        };
+        model.add_parent_contract(contract);
+        let mut controller = self::build_controller_with_distiller(agents, model, self::FixedIntrinsicDistiller);
+        let blocked = ::holon_fsm::StateMachine::new("test_module".to_string());
+        let machine = blocked.wake_ready().hydration_completed();
+
+        let outcome = controller.solve(machine);
+        ::std::assert!(
+            ::core::matches!(outcome, crate::types::EngineTypestateOutcome::BudgetExhausted { .. }),
+            "flat rollouts must yield BudgetExhausted outcome",
+        );
+        ::std::assert!(
+            controller.rollout_count <= 9,
+            "stagnation early-exit must terminate within 8-9 rollouts, actual was {}",
+            controller.rollout_count,
+        );
+        ::std::assert!(
+            controller.best_candidate_code.is_some(),
+            "best candidate code must be captured on initial rollout even at zero reward",
+        );
+    }
+
+    /// Parentless modules with zero reward must not exit rollouts early.
+    /// They must exhaust the full rollout budget (16).
+    #[test]
+    fn test_parentless_module_zero_reward_does_not_stagnate_early() {
         let fake_model = self::ControllerFakeModel {
             response_text: "pub fn factory_probe() -> u32 {\n    1\n}".to_string(),
         };
@@ -639,9 +707,9 @@ mod tests {
             ::core::matches!(outcome, crate::types::EngineTypestateOutcome::BudgetExhausted { .. }),
             "flat rollouts must yield BudgetExhausted outcome",
         );
-        ::std::assert!(
-            controller.rollout_count <= 9,
-            "stagnation early-exit must terminate within 8-9 rollouts, actual was {}",
+        ::std::assert_eq!(
+            controller.rollout_count, 16,
+            "parentless module with zero reward must exhaust full budget (16), actual was {}",
             controller.rollout_count,
         );
         ::std::assert!(
@@ -695,11 +763,25 @@ mod tests {
         self::ContractConflictHarness,
         self::FixedContractDistiller,
     > {
+        self::build_controller_with_distiller(agents, problem_model, self::FixedContractDistiller)
+    }
+
+    fn build_controller_with_distiller<D>(
+        agents: crate::agents::SubagentPool<self::ControllerFakeModel>,
+        problem_model: ::holon_blackboard::ProblemModelSlice,
+        distiller: D,
+    ) -> self::ClusterEngine<
+        self::ControllerFakeModel,
+        self::ContractConflictHarness,
+        D,
+    >
+    where
+        D: ::holon_evaluator::DiagnosticDistiller + 'static,
+    {
         let harness_value = self::ContractConflictHarness;
-        let distiller_value = self::FixedContractDistiller;
         let evaluator = ::holon_evaluator::TwoStageEvaluator::builder()
             .harness(harness_value)
-            .distiller(distiller_value)
+            .distiller(distiller)
             .build();
         let engine_config = crate::types::EngineConfig::default();
         let local_board = ::holon_blackboard::LocalBlackboard::new();
@@ -712,5 +794,4 @@ mod tests {
         controller.blackboard_mut().problem_model = problem_model;
         controller
     }
-
 }

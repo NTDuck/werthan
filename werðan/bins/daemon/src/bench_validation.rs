@@ -8,6 +8,10 @@ pub struct WorkspaceValidation {
     pub check_ok: ::core::primitive::bool,
     /// Parsed test pass rate from the configured test command.
     pub test_pass_rate: ::core::primitive::f64,
+    /// Whether differential verification against legacy harness passed.
+    pub differential_equivalent: ::core::primitive::bool,
+    /// Divergence classification if differential verification executed.
+    pub differential_classification: ::core::option::Option<super::differential::DivergenceClassification>,
 }
 
 /// Run the configured build and test commands and parse outcomes.
@@ -160,7 +164,7 @@ pub fn validate_workspace(
         },
     };
     let legacy_cmd = bench_config.stack.legacy_test_harness_cmd.trim();
-    if !legacy_cmd.is_empty() {
+    let (differential_equivalent, differential_classification) = if !legacy_cmd.is_empty() {
         let legacy_dir = if bench_config.paths.input_legacy_dir.exists() {
             bench_config.paths.input_legacy_dir.clone()
         } else {
@@ -188,10 +192,18 @@ pub fn validate_workspace(
             diff_report.equivalent,
             diff_report.classification,
         );
-    }
+        (
+            diff_report.equivalent,
+            ::core::option::Option::Some(diff_report.classification),
+        )
+    } else {
+        (true, ::core::option::Option::None)
+    };
     self::WorkspaceValidation {
         check_ok,
         test_pass_rate,
+        differential_equivalent,
+        differential_classification,
     }
 }
 

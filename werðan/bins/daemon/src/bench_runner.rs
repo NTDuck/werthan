@@ -172,8 +172,20 @@ fn run_campaign_blocking(
     } else {
         ::core::option::Option::None
     };
+    let diff_error = if !validation.differential_equivalent {
+        ::core::option::Option::Some(::std::format!(
+            "differential verification divergence: {:?}",
+            validation.differential_classification
+        ))
+    } else {
+        ::core::option::Option::None
+    };
     let engine_error = if engine_error.is_none() {
-        honesty_error
+        if honesty_error.is_some() {
+            honesty_error
+        } else {
+            diff_error
+        }
     } else {
         engine_error
     };
