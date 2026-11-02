@@ -3,7 +3,10 @@ execution_mode: full_auto
 paths:
   input_legacy_dir: benchmarks/assets/ReCodeAgent/data/tool_projects/crust/fslib/c
   workspace_root: benchmarks/outputs/crust/fslib/rust
-  off_limits_globs: []
+  off_limits_globs:
+    - "bin/**"
+    - "examples/**"
+    - "tests/**"
 stack:
   source_language: c
   binary_artifacts: []
