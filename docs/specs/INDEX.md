@@ -2,7 +2,7 @@
 
 This directory is the entry point for all werðan specifications. Read this file first; it routes to the right domain spec.
 
-Authority order: [`../references/METHODOLOGY.md`](../references/METHODOLOGY.md) is read-only ground truth and supersedes every file here on any conflict ([ADR-0005](../decisions/0005-methodology-source-of-truth.md)). These specs describe behavior as it is now.
+Authority order: [`../references/METHODOLOGY2.md`](../references/METHODOLOGY2.md) is read-only ground truth and supersedes every file here on any conflict ([ADR-0019](../decisions/0019-methodology2-egagm.md)). These specs describe behavior as it is now.
 
 ## Spec Map
 
@@ -23,7 +23,7 @@ Section numbering note: `tech-spec.md` and `tech-spec/engine-and-blackboard.md` 
 ## Reading Order
 
 1. **Operator running a campaign**: [product-config.md](product-config.md) → [product.md](product.md).
-2. **Contributing engine/harness code**: [tech-spec.md](tech-spec.md) → the matching `tech-spec/` domain file → [`../references/METHODOLOGY.md`](../references/METHODOLOGY.md).
+2. **Contributing engine/harness code**: [tech-spec.md](tech-spec.md) → the matching `tech-spec/` domain file → [`../references/METHODOLOGY2.md`](../references/METHODOLOGY2.md).
 3. **Evaluating benchmark results & verification**: [tech-spec/benchmark-harness.md](tech-spec/benchmark-harness.md) → [tech-spec/differential-verification.md](tech-spec/differential-verification.md) → `benchmarks/README.md`.
 
 ## ADR Map
@@ -36,7 +36,7 @@ Decision records live in [`../decisions/`](../decisions/). The ledger is append-
 | [ADR-0002](../decisions/0002-rig-completion-model-bridges.md) | Rig completion model bridges. Superseded. |
 | [ADR-0003](../decisions/0003-master-slave-tui-chatbot.md) | Master/slave TUI chatbot topology. Superseded. |
 | [ADR-0004](../decisions/0004-code-modernization-rig-rust-pipeline.md) | Code modernization Rig/Rust pipeline. Superseded by [ADR-0005](../decisions/0005-methodology-source-of-truth.md). |
-| [ADR-0005](../decisions/0005-methodology-source-of-truth.md) | METHODOLOGY.md is the single source of architectural truth. Accepted, canonical. |
+| [ADR-0005](../decisions/0005-methodology-source-of-truth.md) | METHODOLOGY.md is the single source of architectural truth. Superseded by [ADR-0019](../decisions/0019-methodology2-egagm.md). |
 | [ADR-0006](../decisions/0006-de-qwen-inference-transport.md) | All LLM transport over Rig's stock OpenAI-compatible provider. Superseded by [ADR-0016](../decisions/0016-daemon-owned-transport-deadlines.md). |
 | [ADR-0007](../decisions/0007-compile-time-env-ingestion.md) | Compile-time env ingestion via the `envload` crate in every workspace `build.rs`. Accepted. |
 | [ADR-0008](../decisions/0008-loc-tier-inference-scaling.md) | 118 benchmark configs retuned by legacy-codebase LoC tier. Accepted. |
@@ -50,6 +50,7 @@ Decision records live in [`../decisions/`](../decisions/). The ledger is append-
 | [ADR-0016](../decisions/0016-daemon-owned-transport-deadlines.md) | Daemon-owned reqwest transport with client-level deadlines inside `bench_llm::OpenAiCompatModel`. Accepted. |
 | [ADR-0017](../decisions/0017-language-agnostic-pipeline.md) | Language-agnostic pipeline: config-driven `target_language` plumbing, neutral fault sentinels, dialect-gated post-processing; `rust` is the sanctioned default. Accepted. |
 | [ADR-0018](../decisions/0018-frequent-intentional-compaction.md) | Frequent Intentional Compaction: semantic diagnostic filtering capping repair payloads within the SLM "Smart Zone" ($\le 12\text{k}$ tokens). Accepted. |
+| [ADR-0019](../decisions/0019-methodology2-egagm.md) | Pin METHODOLOGY2.md (EGAGM) as authoritative system methodology. Accepted, canonical. |
 
 ## Change Protocol
 
@@ -60,7 +61,7 @@ A behavioral change updates the spec files in the same commit as the code ([`.om
 - Changes crossing the product/tech boundary update both.
 - New architectural decisions append a numbered file under `docs/decisions/`; never rewrite an existing ADR body.
 
-Related reading: benchmark procedures live in [`../benchmarks.md`](../benchmarks.md) and `benchmarks/README.md`; foundational derivations in [`../references/METHODOLOGY-DRV.md`](../references/METHODOLOGY-DRV.md).
+Related reading: benchmark procedures live in [`../benchmarks.md`](../benchmarks.md) and `benchmarks/README.md`; foundational derivations in [`../references/METHODOLOGY2-DRV.md`](../references/METHODOLOGY2-DRV.md).
 
 New ADR tags (`ADR-XXXX`) appearing inline in any spec file MUST be resolvable through the table above; when adding a decision, create the numbered file under `docs/decisions/` and add its map row in the same commit.
 
