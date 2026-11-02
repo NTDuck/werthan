@@ -313,6 +313,7 @@ fn reset_workspace(
             "failed to copy dataset to workspace for reset: {copy_error}"
         ));
     }
+    self::sanitize_lib_manifest(workspace_root);
     ::core::option::Option::None
 }
 
@@ -350,6 +351,26 @@ fn copy_dir_recursive(
         }
     }
     ::core::result::Result::Ok(())
+}
+
+/// Sanitize src/lib.rs in target workspace to retain only module declarations.
+fn sanitize_lib_manifest(workspace_root: &::std::path::Path) {
+    let lib_path = workspace_root.join("src/lib.rs");
+    let content = match ::std::fs::read_to_string(&lib_path) {
+        ::core::result::Result::Ok(text) => text,
+        ::core::result::Result::Err(_) => return,
+    };
+    let mut cleaned = ::std::string::String::new();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("pub mod ") {
+            cleaned.push_str(trimmed);
+            cleaned.push('\n');
+        }
+    }
+    if !cleaned.is_empty() {
+        let _ = ::std::fs::write(&lib_path, cleaned);
+    }
 }
 
 
@@ -609,6 +630,23 @@ mod tests {
         let count = super::super::bench_harness::count_unimplemented(&dst_root, "rust");
         ::std::assert_eq!(count, 1, "unimplemented count must be preserved");
 
+        let _ = ::std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn sanitize_lib_manifest_retains_only_module_declarations() {
+        let pid_text = ::std::process::id();
+        let suffix = ::std::format!("daemon-sanitize-stubs-{pid_text}");
+        let temp_dir = ::std::env::temp_dir().join(suffix);
+        let src_dir = temp_dir.join("src");
+        ::std::fs::create_dir_all(&src_dir).expect("temp src dir creates");
+        let raw_lib = "pub mod bitset\x3b\npub mod fst\x3b\nuse fst::{Fst, StateData, ArcData}\x3b\npub fn assert_arc_equal() {}\n";
+        let lib_path = src_dir.join("lib.rs");
+        ::std::fs::write(&lib_path, raw_lib).expect("stub lib writes");
+        super::sanitize_lib_manifest(&temp_dir);
+        let sanitized = ::std::fs::read_to_string(&lib_path).expect("stub lib rereads");
+        let expected_lib = "pub mod bitset\x3b\npub mod fst\x3b\n";
+        ::core::assert_eq!(sanitized, expected_lib);
         let _ = ::std::fs::remove_dir_all(&temp_dir);
     }
 }
