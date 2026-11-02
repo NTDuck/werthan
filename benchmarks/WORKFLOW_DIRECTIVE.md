@@ -8,10 +8,21 @@
    - Generate / tune the benchmark config in `benchmarks/assets/configs/ReCodeAgent/`.
    - **Target Test Command Mandate**: Benchmark configs MUST set `target_test_cmd` to a command that actually executes the project's external test target (e.g. `cargo test --bins` or `cargo test --bin <test_bin>`). Standard `cargo test` skips `[[bin]]` targets by default when no lib/unit tests exist, which leads `parse_test_counts` to observe zero `test result:` lines and `compute_pass_rate` to return 0.0.
 2. **Stage 2 (System Execution)**:
-   - Run the system against the chosen project config via `./target/release/daemon --benchmark <config_path>`.
+   - **Supported Invocation Entrypoints**:
+     - `mise run daemon -- --benchmark <config_path>` (or `mise daemon -- --benchmark <config_path>`)
+     - `./target/release/daemon --benchmark <config_path>`
+     - `cargo run -p daemon --release -- --benchmark <config_path>`
+   - **Zero-Failure Invocation Mandate**: Running via `mise run daemon ...` or direct invocation MUST run cleanly without fatal crashes, panics, or runtime failures.
    - Entrypoint is the daemon binary.
    - Target translated workspace is generated under `benchmarks/outputs/...`.
    - Logs and traces collected under `benchmarks/logs/` and `benchmarks/results/`.
+
+   ### Direct Daemon Invocation Robustness Invariants
+   - **Host Toolchain & OpenSSL Invariant**: The daemon must execute cargo commands reliably; environment prerequisites (such as `LD_LIBRARY_PATH` for OpenSSL on NixOS) must be satisfied so subcommands (`cargo check`, `cargo test`) never crash on shared library linkage.
+   - **Inference Resilience**: Server endpoint (`WERTHAN_BASE_URL`, `WERTHAN_MODEL`) connectivity must be verified or retried without hard daemon panics.
+   - **Autonomous Directory Preparation**: The daemon must self-bootstrap any missing parent directories (`benchmarks/outputs/...`, `benchmarks/logs/`, `benchmarks/results/daemon/`).
+   - **Clean Top-Level Code Generation**: Codegen and repair pipelines must enforce un-nested, bare top-level items (no duplicate `pub mod <name>` blocks) so standard `mise run daemon` builds succeed immediately.
+   - **Graceful Bounded Termination**: Edge conflicts and futile dispatch caps must cleanly finalize into valid result receipts (`benchmarks/results/daemon/<campaign>.json`), never aborting with unhandled panics or dirty workspace states.
 
 3. **Stage 3 (Monitoring & Metrics Collection)**:
    - Wait for the run to complete via omp wait mechanism (no arbitrary sleep).
