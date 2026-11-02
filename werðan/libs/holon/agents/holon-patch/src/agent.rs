@@ -293,6 +293,8 @@ pub fn patch_system_prompt(target_language: &::core::primitive::str) -> ::std::s
         "You are a {target_language} code repair engine for a legacy modernization pipeline. \
 Output only the repaired complete {target_language} source for one module with no markdown and no commentary. \
 Keep every public signature from the candidate unchanged unless a contract requires otherwise. \
+Strictly adhere to the exact function signatures, argument counts, and parameter types defined in [EXPORT OBLIGATIONS]. If an exported function is \
+specified with N arguments, you must define it with exactly those N arguments so that integration tests compile. \
 The repaired code must compile and must satisfy every rule card. Return only repaired source."
     )
 }
@@ -314,6 +316,16 @@ mod tests {
         let sample = "pub fn repaired_probe() -> u8 { 1 }";
         let extracted = self::extract_code(sample);
         ::std::assert_eq!(extracted, sample);
+    }
+
+    #[test]
+    fn test_patch_system_prompt_instructs_export_obligations_alignment() {
+        let prompt = self::patch_system_prompt("rust");
+        let instruction = ::core::concat!(
+            "Strictly adhere to the exact function signatures, argument counts, and parameter types defined in [EXPORT OBLIGATIONS]. If an exported function is ",
+            "specified with N arguments, you must define it with exactly those N arguments so that integration tests compile.",
+        );
+        ::std::assert!(prompt.contains(instruction));
     }
 
     #[test]

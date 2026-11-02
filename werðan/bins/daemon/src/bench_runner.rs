@@ -50,8 +50,13 @@ fn run_campaign_blocking(
             campaign_started.elapsed().as_millis() as ::core::primitive::u64;
         return failed;
     }
+    let dataset_dir_opt = super::bench_rules::dataset_dir_for_workspace(&workspace_root);
+    let target_root = match &dataset_dir_opt {
+        ::core::option::Option::Some(dir) => dir.as_path(),
+        ::core::option::Option::None => &workspace_root,
+    };
     let api_surface_text =
-        super::bench_rules::target_api_surface(&workspace_root, &bench_config.stack.target_language);
+        super::bench_rules::target_api_surface(target_root, &bench_config.stack.target_language);
     let seed_res = super::bench_harness::seed_board(bench_config);
     let seed_output = match seed_res {
         ::core::result::Result::Ok(value) => value,
@@ -263,32 +268,16 @@ fn reset_workspace(
     _bench_config: &super::bench_config::CampaignConfig,
     workspace_root: &::std::path::Path,
 ) -> ::core::option::Option<::std::string::String> {
-    let repo_root = super::bench_config::repo_root();
-    let root_text = workspace_root
-        .strip_prefix(&repo_root)
-        .unwrap_or(workspace_root)
-        .to_string_lossy()
-        .to_string();
-    let outputs_prefix = "benchmarks/outputs/";
-    let not_outputs_rooted = !root_text.starts_with(outputs_prefix);
-    if not_outputs_rooted {
-        return ::core::option::Option::Some(::std::format!(
-            "workspace root path '{root_text}' is not under expected prefix '{outputs_prefix}'"
-        ));
-    }
-    let dataset_relative = root_text.replacen(
-        outputs_prefix,
-        "benchmarks/assets/ReCodeAgent/data/tool_projects/",
-        1,
-    );
-    let dataset_dir = repo_root.join(&dataset_relative);
-    let dataset_missing = !dataset_dir.is_dir();
-    if dataset_missing {
-        return ::core::option::Option::Some(::std::format!(
-            "pristine dataset directory not found at: {}",
-            dataset_dir.display()
-        ));
-    }
+    let dataset_dir_opt = super::bench_rules::dataset_dir_for_workspace(workspace_root);
+    let dataset_dir = match dataset_dir_opt {
+        ::core::option::Option::Some(dir) => dir,
+        ::core::option::Option::None => {
+            return ::core::option::Option::Some(::std::format!(
+                "pristine dataset directory not found for workspace root: {}",
+                workspace_root.display()
+            ));
+        }
+    };
     let remove_res = ::std::fs::remove_dir_all(workspace_root);
     if let ::core::result::Result::Err(remove_error) = remove_res {
         // A missing workspace root is already the pristine state the reset

@@ -10,6 +10,8 @@ pub fn codegen_system_prompt(target_language: &::core::primitive::str) -> ::std:
         "You are a {target_language} code synthesis engine for a legacy modernization pipeline. \
 Output only {target_language} source code for one module with no markdown and no commentary. \
 The code must define every item the contracts and rule cards require. \
+Strictly adhere to the exact function signatures, argument counts, and parameter types defined in [EXPORT OBLIGATIONS]. If an exported function is \
+specified with N arguments, you must define it with exactly those N arguments so that integration tests compile. \
 All translated functions, types, and constants must be declared pub so they are accessible by external test suites. \
 Do NOT wrap the output in `pub mod <name> {{ ... }}`. Output only top-level items (functions, structs, constants) — the module is already declared by the crate root. \
 The code must compile on its own and must not reference crates outside ::core and ::std. \
@@ -711,6 +713,15 @@ mod tests {
     fn test_codegen_system_prompt_instructs_no_pub_mod() {
         let prompt = self::codegen_system_prompt("rust");
         let instruction = "Do NOT wrap the output in `pub mod <name> { ... }`. Output only top-level items (functions, structs, constants) — the module is already declared by the crate root.";
+        ::std::assert!(prompt.contains(instruction));
+    }
+    #[test]
+    fn test_codegen_system_prompt_instructs_export_obligations_alignment() {
+        let prompt = self::codegen_system_prompt("rust");
+        let instruction = ::core::concat!(
+            "Strictly adhere to the exact function signatures, argument counts, and parameter types defined in [EXPORT OBLIGATIONS]. If an exported function is ",
+            "specified with N arguments, you must define it with exactly those N arguments so that integration tests compile.",
+        );
         ::std::assert!(prompt.contains(instruction));
     }
     #[test]

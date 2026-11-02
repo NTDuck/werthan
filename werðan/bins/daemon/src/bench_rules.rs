@@ -127,47 +127,88 @@ fn is_test_tree_entry(entry: &super::bench_harness::InventoryEntry) -> ::core::p
 /// their own source extension. Capturing the surface here grounds the
 /// extracted rule cards in the real required API instead of guessed
 /// signatures.
+/// Capture the target API surface from the pristine dataset directory or workspace.
+///
+/// When the workspace root is under `benchmarks/outputs/`, this resolves the
+/// corresponding pristine `dataset_dir` to capture target signatures before
+/// any workspace purging occurs.
 pub fn target_api_surface(
     workspace_root: &::std::path::Path,
     target_language: &::core::primitive::str,
 ) -> ::std::string::String {
+    let dataset_dir_opt = self::dataset_dir_for_workspace(workspace_root);
+    let effective_root = match &dataset_dir_opt {
+        ::core::option::Option::Some(dataset_dir) => dataset_dir.as_path(),
+        ::core::option::Option::None => workspace_root,
+    };
     let target_extension = self::target_source_extension(target_language);
-    let src_dir = workspace_root.join("src");
-    let walk = ::ignore::WalkBuilder::new(src_dir).build();
+    let src_dir = effective_root.join("src");
+    let walk_builder = ::ignore::WalkBuilder::new(src_dir);
+    let walk = walk_builder.build();
     let mut surfaces = ::std::vec::Vec::new();
-    for entry in walk.flatten() {
-        let path = entry.path();
-        let path_is_file = path.is_file();
+    for entry_res in walk.flatten() {
+        let entry_path = entry_res.path();
+        let path_is_file = entry_path.is_file();
         if !path_is_file {
             continue;
         }
-        let path_text = path.to_string_lossy();
+        let path_text = entry_path.to_string_lossy();
         let matches_target = path_text.ends_with(target_extension);
         if !matches_target {
             continue;
         }
-        let read_res = ::std::fs::read_to_string(path);
+        let read_res = ::std::fs::read_to_string(entry_path);
         let text = match read_res {
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(_) => continue,
         };
-        surfaces.push(::std::format!("// file: {}", path_text));
+        let file_header = ::std::format!("// file: {}", path_text);
+        surfaces.push(file_header);
         surfaces.push(text);
     }
     surfaces.join("\n")
+}
+
+/// Resolve the pristine dataset directory corresponding to a target workspace root.
+pub fn dataset_dir_for_workspace(
+    workspace_root: &::std::path::Path,
+) -> ::core::option::Option<::std::path::PathBuf> {
+    let repo_root = super::bench_config::repo_root();
+    let root_path_opt = workspace_root.strip_prefix(&repo_root);
+    let stripped_root = match root_path_opt {
+        ::core::result::Result::Ok(stripped) => stripped,
+        ::core::result::Result::Err(_) => workspace_root,
+    };
+    let root_lossy = stripped_root.to_string_lossy();
+    let root_text = root_lossy.to_string();
+    let outputs_prefix = "benchmarks/outputs/";
+    let starts_with_prefix = root_text.starts_with(outputs_prefix);
+    if !starts_with_prefix {
+        return ::core::option::Option::None;
+    }
+    let dataset_prefix = "benchmarks/assets/ReCodeAgent/data/tool_projects/";
+    let dataset_relative = root_text.replacen(outputs_prefix, dataset_prefix, 1);
+    let candidate = repo_root.join(dataset_relative);
+    let candidate_is_dir = candidate.is_dir();
+    if candidate_is_dir {
+        ::core::option::Option::Some(candidate)
+    } else {
+        ::core::option::Option::None
+    }
 }
 
 /// Return the source file extension the target language uses.
 ///
 /// Unknown or unset target languages fall back to the rust extension, which
 /// preserves the historical default behavior.
-fn target_source_extension(target_language: &::core::primitive::str) -> &'static ::core::primitive::str {
+pub fn target_source_extension(target_language: &::core::primitive::str) -> &'static ::core::primitive::str {
     match target_language {
         "javascript" | "js" => ".js",
         "python" | "py" => ".py",
         _ => ".rs",
     }
 }
+
 
 /// Collect header file texts that share the stem of one implementation entry.
 fn sibling_header_text(
@@ -374,5 +415,14 @@ mod tests {
         let cards = self::parse_rule_cards(response, "src/vec.c");
         ::std::assert_eq!(cards.len(), 1);
         ::std::assert_eq!(cards[0].rule_id, "RULE_000_COMPACT");
+    }
+
+    #[test]
+    fn target_api_surface_resolves_pristine_dataset_for_matrix_multiplication() {
+        let repo_root = super::super::bench_config::repo_root();
+        let workspace_root = repo_root.join("benchmarks/outputs/crust/matrix_multiplication/rust");
+        let surface = super::target_api_surface(&workspace_root, "rust");
+        ::std::assert!(surface.contains("pub fn print_array"));
+        ::std::assert!(surface.contains("pub fn multiply"));
     }
 }
