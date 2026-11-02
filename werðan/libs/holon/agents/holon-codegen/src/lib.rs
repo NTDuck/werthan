@@ -13,7 +13,7 @@ The code must define every item the contracts and rule cards require. \
 Strictly adhere to the exact function signatures, argument counts, and parameter types defined in [EXPORT OBLIGATIONS]. If an exported function is \
 specified with N arguments, you must define it with exactly those N arguments so that integration tests compile. \
 All translated functions, types, and constants must be declared pub so they are accessible by external test suites. \
-Do NOT wrap the output in `pub mod <name> {{ ... }}`. Output only top-level items (functions, structs, constants) — the module is already declared by the crate root. \
+Do NOT wrap the output in 'pub mod <name> {{ ... }}'. Output only top-level items (functions, structs, constants) for this single module - the module is already declared by the crate root. Do NOT output code for other modules. \
 The code must compile on its own and must not reference crates outside ::core and ::std. \
 Do not use architecture-specific SIMD intrinsics (such as std::arch){separator} write standard, portable, bounds-safe loops."
     )
@@ -712,7 +712,7 @@ mod tests {
     #[test]
     fn test_codegen_system_prompt_instructs_no_pub_mod() {
         let prompt = self::codegen_system_prompt("rust");
-        let instruction = "Do NOT wrap the output in `pub mod <name> { ... }`. Output only top-level items (functions, structs, constants) — the module is already declared by the crate root.";
+        let instruction = "Do NOT wrap the output in 'pub mod <name> { ... }'. Output only top-level items (functions, structs, constants) for this single module - the module is already declared by the crate root. Do NOT output code for other modules.";
         ::std::assert!(prompt.contains(instruction));
     }
     #[test]
