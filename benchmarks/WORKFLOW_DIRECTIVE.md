@@ -12,7 +12,7 @@
      - `mise run daemon -- --benchmark <config_path>` (or `mise daemon -- --benchmark <config_path>`)
      - `./target/release/daemon --benchmark <config_path>`
      - `cargo run -p daemon --release -- --benchmark <config_path>`
-   - **Zero-Failure Invocation Mandate**: Running via `mise run daemon ...` or direct invocation MUST run cleanly without fatal crashes, panics, or runtime failures.
+   - **Direct Invocation Mandate**: The daemon MUST be invokable directly via `mise run daemon -- --benchmark <config_path>` (which expands to `cargo run -p daemon -- --benchmark <config_path>`) and complete the full campaign without failure. Any invocation that errors out, panics, or fails to produce a result artifact (`benchmarks/results/daemon/<label>.json`) is a workflow violation. If direct invocation fails, fix the harness/engine and retry Stage 2 before falling back to `./target/release/daemon`.
    - Entrypoint is the daemon binary.
    - Target translated workspace is generated under `benchmarks/outputs/...`.
    - Logs and traces collected under `benchmarks/logs/` and `benchmarks/results/`.
