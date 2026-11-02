@@ -1188,14 +1188,24 @@ impl self::MacroEngine {
                 best_candidate,
                 best_reward,
             } => {
-                if let ::core::option::Option::Some(candidate_code) = best_candidate {
-                    if best_reward >= 0.5 {
+                if best_reward >= 0.5 {
+                    if let ::core::option::Option::Some(candidate_code) = best_candidate {
                         let artifact = ::global_blackboard::ModuleArtifact {
                             target_code: { candidate_code },
                             test_suite: ::std::vec::Vec::new(),
                         };
                         self.board.artifacts.commit(&module_id, artifact);
                     }
+                    self.set_module_state(
+                        &module_id,
+                        ::global_blackboard::ModuleMicroState::M4Hardened,
+                    );
+                    self.futile_dispatches.insert(module_id.to_string(), 0);
+                    ::tracing::info!(
+                        "parentless module {module_id} promoted to hardened with best reward {best_reward}"
+                    );
+                    let _ = &proof_trace;
+                    return;
                 }
                 self.board
                     .state
@@ -1926,6 +1936,69 @@ mod tests {
         let outcome = engine.run();
         let error = outcome.unwrap_err();
         ::std::assert!(::core::matches!(error, self::MacroEngineError::StepBudgetExhausted { .. }));
+    }
+
+    /// Solver that reports budget exhaustion with a preset reward and candidate.
+    #[derive(::core::fmt::Debug)]
+    struct MockBudgetExhaustedSolver {
+        reward: ::core::primitive::f64,
+        candidate_code: ::core::option::Option<::std::string::String>,
+    }
+
+    impl self::ModuleSolver for self::MockBudgetExhaustedSolver {
+        fn solve(
+            &mut self,
+            module_id: &::core::primitive::str,
+            _problem_model: &::holon_blackboard::ProblemModelSlice,
+            _mode: ::holon_fsm::ActivationMode,
+        ) -> self::SolverOutcome {
+            self::SolverOutcome::BudgetExhausted {
+                module_id: { module_id.to_string() },
+                proof_trace: "budget exhausted".to_string(),
+                best_candidate: self.candidate_code.clone(),
+                best_reward: self.reward,
+            }
+        }
+    }
+
+    #[test]
+    fn test_parentless_budget_exhausted_promotes_when_reward_ge_point_five() {
+        let solver = self::MockBudgetExhaustedSolver {
+            reward: 0.957,
+            candidate_code: ::core::option::Option::Some("fn a_candidate() {}".to_string()),
+        };
+        let boxed = ::std::boxed::Box::new(solver);
+        let mut engine = self::chain_engine(boxed);
+        engine.dispatch_module("a");
+        let module_state = engine.state_vector().module_states.get("a");
+        ::std::assert_eq!(
+            module_state,
+            ::core::option::Option::Some(&::global_blackboard::ModuleMicroState::M4Hardened)
+        );
+        let committed_artifact = engine.board().artifacts.get("a");
+        ::std::assert!(
+            ::core::matches!(committed_artifact, ::core::option::Option::Some(::core::option::Option::Some(_)))
+        );
+        let reset_counter = engine.futile_dispatches.get("a");
+        ::std::assert_eq!(reset_counter, ::core::option::Option::Some(&0));
+    }
+
+    #[test]
+    fn test_parentless_budget_exhausted_parks_when_reward_lt_point_five() {
+        let solver = self::MockBudgetExhaustedSolver {
+            reward: 0.49,
+            candidate_code: ::core::option::Option::Some("fn a_candidate() {}".to_string()),
+        };
+        let boxed = ::std::boxed::Box::new(solver);
+        let mut engine = self::chain_engine(boxed);
+        engine.dispatch_module("a");
+        let module_state = engine.state_vector().module_states.get("a");
+        ::std::assert_eq!(
+            module_state,
+            ::core::option::Option::Some(&::global_blackboard::ModuleMicroState::M0Blocked)
+        );
+        let counter = engine.futile_dispatches.get("a");
+        ::std::assert_eq!(counter, ::core::option::Option::Some(&1));
     }
 
     /// Stub solver that always reports an undocumented cycle for every dispatch.
