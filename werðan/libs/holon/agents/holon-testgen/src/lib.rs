@@ -8,7 +8,9 @@ pub fn testgen_system_prompt(target_language: &::core::primitive::str) -> ::std:
         "You are a {target_language} characterization test generator for a legacy modernization pipeline. \
 Output only complete test functions with no markdown and no commentary. \
 Every test follows the idiomatic {target_language} test conventions and every test is self contained. \
-Tests reference only public items passed in the prompt and use no external dependencies. Return only tests."
+Tests reference only public items passed in the prompt and use no external dependencies. \
+Construct argument structs directly with struct literals (e.g. DictArgs {{ key, val, alloc }}) and strictly adhere to declared function signatures and parameter counts. \
+Return only tests."
     )
 }
 
@@ -238,5 +240,12 @@ mod tests {
     fn test_split_entries_generic_language_drops_declarative_free_text() {
         let suite = self::split_test_entries_for("Some prose without declarations", "python");
         ::std::assert!(suite.is_empty());
+    }
+
+    #[test]
+    fn test_testgen_system_prompt_mandates_struct_literals_and_signatures() {
+        let prompt = self::testgen_system_prompt("rust");
+        let instruction = "Construct argument structs directly with struct literals (e.g. DictArgs { key, val, alloc }) and strictly adhere to declared function signatures and parameter counts.";
+        ::std::assert!(prompt.contains(instruction));
     }
 }
