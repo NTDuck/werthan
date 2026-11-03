@@ -3,7 +3,10 @@ execution_mode: full_auto
 paths:
   input_legacy_dir: benchmarks/assets/RepoMod-bench/dataset/jmespath/src
   workspace_root: benchmarks/outputs/RepoMod-bench/jmespath/rust
-  off_limits_globs: []
+  off_limits_globs:
+    - "internal/**"
+    - "fuzz/**"
+    - "compliance/**"
 stack:
   source_language: go
   binary_artifacts: []
