@@ -181,6 +181,24 @@ pub fn dataset_dir_for_workspace(
     };
     let root_lossy = stripped_root.to_string_lossy();
     let root_text = root_lossy.to_string();
+    let repomod_prefix = "benchmarks/outputs/RepoMod-bench/";
+    if let ::core::option::Option::Some(remainder) = root_text.strip_prefix(repomod_prefix) {
+        let project_name = remainder
+            .split('/')
+            .find(|segment| !segment.is_empty())
+            .unwrap_or(remainder);
+        if !project_name.is_empty() {
+            let candidate = repo_root
+                .join("benchmarks/assets/RepoMod-bench/dataset")
+                .join(project_name)
+                .join("dst");
+            let candidate_is_dir = candidate.is_dir();
+            if candidate_is_dir {
+                return ::core::option::Option::Some(candidate);
+            }
+        }
+        return ::core::option::Option::None;
+    }
     let outputs_prefix = "benchmarks/outputs/";
     let starts_with_prefix = root_text.starts_with(outputs_prefix);
     if !starts_with_prefix {
@@ -424,5 +442,37 @@ mod tests {
         let surface = super::target_api_surface(&workspace_root, "rust");
         ::std::assert!(surface.contains("pub fn print_array"));
         ::std::assert!(surface.contains("pub fn multiply"));
+    }
+
+    #[test]
+    fn dataset_dir_for_workspace_resolves_both_repomod_and_recodeagent() {
+        let repo_root = super::super::bench_config::repo_root();
+        let repomod_workspace = repo_root.join("benchmarks/outputs/RepoMod-bench/jmespath/rust");
+        let repomod_dir = super::dataset_dir_for_workspace(&repomod_workspace);
+        let expected_repomod_dir = repo_root
+            .join("benchmarks/assets/RepoMod-bench/dataset")
+            .join("jmespath")
+            .join("dst");
+        ::std::assert_eq!(
+            repomod_dir,
+            ::core::option::Option::Some(expected_repomod_dir)
+        );
+
+        let recode_workspace = repo_root.join("benchmarks/outputs/crust/matrix_multiplication/rust");
+        let recode_dir = super::dataset_dir_for_workspace(&recode_workspace);
+        let expected_recode_dir = repo_root
+            .join("benchmarks/assets/ReCodeAgent/data/tool_projects/crust/matrix_multiplication/rust");
+        ::std::assert_eq!(
+            recode_dir,
+            ::core::option::Option::Some(expected_recode_dir)
+        );
+    }
+
+    #[test]
+    fn target_api_surface_resolves_pristine_dataset_for_repomod_jmespath() {
+        let repo_root = super::super::bench_config::repo_root();
+        let workspace_root = repo_root.join("benchmarks/outputs/RepoMod-bench/jmespath/rust");
+        let surface = super::target_api_surface(&workspace_root, "rust");
+        ::std::assert!(surface.contains("pub fn search"));
     }
 }

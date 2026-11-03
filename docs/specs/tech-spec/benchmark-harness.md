@@ -191,7 +191,7 @@ Campaign configurations for RepoMod-Bench reside in `benchmarks/assets/configs/R
 - `paths.input_legacy_dir`: Points to `benchmarks/assets/RepoMod-bench/dataset/<project>/src` (or pristine cloned legacy source).
 - `paths.workspace_root`: Points to `benchmarks/outputs/RepoMod-bench/<project>/<target_lang>`.
 - `stack.target_build_cmd`: Release build command matching `destination.build_cmd` in `benchmark.yml` (e.g. `cargo build --release -p jmespath-cli`).
-- `stack.target_test_cmd`: Implementation-agnostic test invocation running the external test suite against the target binary (e.g. `pytest benchmarks/assets/RepoMod-bench/dataset/jmespath/tests`).
+- `stack.target_test_cmd`: Implementation-agnostic test invocation running the external test suite against the target binary (e.g. `python3 -m pytest benchmarks/assets/RepoMod-bench/dataset/jmespath/tests --work-dir . --run-cmd ./target/release/jp`).
 - `stack.legacy_test_harness_cmd`: Legacy oracle test command for differential verification.
 
 ### 10.3 Pilot Modernization Candidate

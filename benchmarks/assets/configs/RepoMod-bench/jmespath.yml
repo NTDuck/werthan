@@ -11,7 +11,7 @@ stack:
   target_language: rust
   target_edition_or_framework: '2024'
   target_build_cmd: cargo build --release
-  target_test_cmd: pytest benchmarks/assets/RepoMod-bench/dataset/jmespath/tests
+  target_test_cmd: python3 -m pytest benchmarks/assets/RepoMod-bench/dataset/jmespath/tests --work-dir . --run-cmd ./target/release/jp
   legacy_test_harness_cmd: go test ./...
 inference:
   base_url: ''
