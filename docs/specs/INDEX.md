@@ -51,6 +51,7 @@ Decision records live in [`../decisions/`](../decisions/). The ledger is append-
 | [ADR-0017](../decisions/0017-language-agnostic-pipeline.md) | Language-agnostic pipeline: config-driven `target_language` plumbing, neutral fault sentinels, dialect-gated post-processing; `rust` is the sanctioned default. Accepted. |
 | [ADR-0018](../decisions/0018-frequent-intentional-compaction.md) | Frequent Intentional Compaction: semantic diagnostic filtering capping repair payloads within the SLM "Smart Zone" ($\le 12\text{k}$ tokens). Accepted. |
 | [ADR-0019](../decisions/0019-methodology2-egagm.md) | Pin METHODOLOGY2.md (EGAGM) as authoritative system methodology. Accepted, canonical. |
+| [ADR-0020](../decisions/0020-repomod-benchmark-integration.md) | RepoMod-Bench implementation-agnostic benchmark integration. Accepted. |
 
 ## Change Protocol
 

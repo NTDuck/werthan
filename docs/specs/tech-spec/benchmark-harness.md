@@ -16,12 +16,17 @@ Entry point: [../tech-spec.md](../tech-spec.md). This file documents the daemon 
 | `bench_validation` | Post-run validation reusing `CargoHarness::run_command` without duplicate subprocess management; runs the configured `stack.target_build_cmd` / `stack.target_test_cmd` (parsed via `CargoHarness::parse_command`) and parses their results into pass rates. When `stack.legacy_test_harness_cmd` is configured, executes differential verification via `differential::execute_differential_verification` and populates `differential_equivalent` and `differential_classification` in `WorkspaceValidation`. External benchmark pass rate evaluation (`test_pass_rate`) is strictly decoupled from internal characterization tests: `compute_pass_rate` returns `0.0` when `denominator == 0` (no `test result:` lines parsed). Standard `cargo test` skips `[[bin]]` targets by default when no lib/unit tests exist; benchmark configs MUST set `target_test_cmd` to execute the project's test target (e.g. `cargo test --bins` or `cargo test --bin <test_bin>`). `parse_test_counts` aggregates across all `test result:` lines from all test binaries invoked. Both command outcomes log at INFO: program, exit code (or the timeout/error text), and a ≤400-char output tail on failure. |
 | `bench_rules` | Rule-extraction driver with counted `ChatCompletion` adapter; each prompt carries the legacy source, sibling header text, and the target API surface captured from the workspace stubs, so extracted rule cards cite the exact Rust signatures and export obligations the crate must expose. |
 | `bench_llm` | OpenAI-compatible transport owned by the daemon ([ADR-0016](../../decisions/0016-daemon-owned-transport-deadlines.md)): `OpenAiCompatModel` wrapping `CompletionDefaults` over a daemon-built `reqwest::Client` with client-level `timeout`/`connect_timeout`; requests serialize from Rig's `CompletionRequest` with `chat_template_kwargs: { enable_thinking: false }` (reasoning traces burn the whole token budget under concurrency and never surface as output), responses use non-empty `content` only — unknown channels such as `reasoning_content` deserialize as ignored raw JSON: deliberation is never surfaced as an answer. The strict acceptance policy: fenced code from any language (rejecting ellipsis-sketch bodies where a full line is a bare or brace-wrapped ellipsis, ASCII or Unicode), bare JSON object/array answers (rule extraction contract), the post-`</think` conclusion when reasoning is embedded in content, and otherwise the bare trimmed content itself (thinking-off content is the direct answer; downstream syntax gates judge non-code honestly). |
-| `bench_batch` | `--benchmark-all` sequential iteration over `*.yml` under `BENCH_CONFIGS_DIR` (default `benchmarks/assets/configs/ReCodeAgent`); resume by result-JSON presence in `BENCH_RESULTS_DIR`; aggregate `summary.json`. |
+| `bench_batch` | `--benchmark-all` sequential iteration over `*.yml` under `BENCH_CONFIGS_DIR` (default `benchmarks/assets/configs/ReCodeAgent`, or `benchmarks/assets/configs/RepoMod-bench` for RepoMod-Bench suites, [ADR-0020](../../decisions/0020-repomod-benchmark-integration.md)); resume by result-JSON presence in `BENCH_RESULTS_DIR`; aggregate `summary.json`. |
 
 ## 2. Workspace Reset Semantics
 
-Before the engine starts, the target workspace is reset to a pristine dataset copy: after copying the dataset into the workspace root, `purge_implementation_stubs` deletes all implementation stub files under `src/` (regular files matching target source extensions `.rs`, `.js`, or `.py`, excluding `lib.rs`) so translation starts strictly from scratch rather than filling in existing stubs. `unimplemented_before` counts stubs in the pristine copy and `unimplemented_after_reset` counts stubs remaining after reset and stub purging; the final count is reported as `unimplemented_remaining`. The reset maps the `benchmarks/outputs/` prefix of `paths.workspace_root` onto `benchmarks/assets/ReCodeAgent/data/tool_projects/` to locate the pristine dataset copy; a workspace root that is not under `benchmarks/outputs/` or a missing pristine dataset directory fails the reset. A missing workspace root is not an error: the root already names the pristine state the reset targets, so the reset proceeds directly to the dataset copy instead of reporting a removal failure.
+Before the engine starts, the target workspace is reset to a pristine dataset copy: after copying the dataset into the workspace root, `purge_implementation_stubs` deletes all implementation stub files under `src/` (regular files matching target source extensions `.rs`, `.js`, or `.py`, excluding `lib.rs`) so translation starts strictly from scratch rather than filling in existing stubs. `unimplemented_before` counts stubs in the pristine copy and `unimplemented_after_reset` counts stubs remaining after reset and stub purging; the final count is reported as `unimplemented_remaining`.
 
+The workspace reset supports two dataset hierarchies ([ADR-0020](../../decisions/0020-repomod-benchmark-integration.md)):
+1. **ReCodeAgent Workspace Reset**: Maps the `benchmarks/outputs/` prefix of `paths.workspace_root` onto `benchmarks/assets/ReCodeAgent/data/tool_projects/` to locate the pristine dataset copy.
+2. **RepoMod-Bench Workspace Reset**: Workspaces rooted under `benchmarks/outputs/RepoMod-bench/<project>/<lang>` map to `benchmarks/assets/RepoMod-bench/dataset/<project>/`. The legacy source repository is populated in `src/` (or workspace source root) at the pinned commit hash, while the destination implementation tree `dst/` (or target workspace root) is initialized clean without implementation stubs.
+
+A workspace root that is not under `benchmarks/outputs/` or a missing pristine dataset directory fails the reset. A missing workspace root is not an error: the root already names the pristine state the reset targets, so the reset proceeds directly to the dataset copy instead of reporting a removal failure.
 ## 3. Logging, Telemetry, and Observability
 
 The benchmark harness establishes a structured tracing contract using the `tracing` ecosystem. Diagnostic events stream to `stdout` via `tracing_subscriber` with dynamic level filtering.
@@ -129,6 +134,14 @@ Under the THESEUS verification methodology (Criteria 2, [ADR-0015](../../decisio
 3. **Target Test Command Mandate**: Benchmark configs (`migration.yml`) MUST set `stack.target_test_cmd` to a command that explicitly executes the project's external test target (e.g. `cargo test --bins` or `cargo test --bin <test_bin>`).
 4. **Multi-Target Count Aggregation**: `bench_validation.rs::parse_test_counts` aggregates passed and failed counts across all `test result:` lines emitted by all test binaries invoked by `target_test_cmd`.
 
+### 7.4 Implementation-Agnostic Black-Box Testing (RepoMod-Bench)
+
+Under RepoMod-Bench ([ADR-0020](../../decisions/0020-repomod-benchmark-integration.md), arXiv:2602.22518), verification shifts from white-box unit test suites embedded in the target workspace to implementation-agnostic black-box evaluation:
+1. **Physical Test Suite Isolation**: Evaluation test suites reside strictly outside the workspace in `benchmarks/assets/RepoMod-bench/dataset/<project>/tests/`. The agent never sees, reads, or modifies test files during S0–S6.
+2. **Anti-Gaming Guarantee**: Because tests are physically absent from `paths.workspace_root` and `RepairCandidatePool`, generative agents cannot synthesize passing dummy mocks, tamper with assertions, or overfit to internal method signatures.
+3. **Interface Contract Verification**: Tests evaluate the compiled target executable (`run_cmd`, e.g. `./target/release/jp '<expr>'` or `./target/release/xh`) over public interface contracts: CLI argument flags, stdin streams, stdout payloads, stderr diagnostics, and exit codes.
+4. **Diagnostic Error Compaction**: When external tests fail, stderr traces and exit statuses are summarized and passed through Frequent Intentional Compaction ([ADR-0018](../../decisions/0018-frequent-intentional-compaction.md)) into repair prompts without leaking test source code.
+
 ## 8. LoC-Tier Inference Scaling
 
 All 118 benchmark campaign configs are retuned by legacy-codebase LoC tier ([ADR-0008](../../decisions/0008-loc-tier-inference-scaling.md)); rationale table in `benchmarks/README.md`. Model id: served alias `swift-1.5-qwen3.8-27b` over the local `ninfer` continuous-batching stack.
@@ -154,3 +167,36 @@ Components whose implementation and `METHODOLOGY.md` differ, with the reconcilia
 6. **Config schema**: single canonical `configschema::CampaignConfig` parser ([ADR-0009](../../decisions/0009-canonical-campaign-configschema.md)); `ariadne.max_rollouts` remains an accepted serde alias for the 118 generated configs.
 7. **configschema consumer wiring**: `ariadne.llm_backend` and `ariadne.cargo_harness` are schema-complete but the daemon reads `inference.*` and `ariadne.engine_budget_per_module` only; consuming these sections in the daemon is pending.
 8. **Daemon logging**: ANSI/stdout tracing subscriber configured with `EnvFilter` (`WERTHAN_LOG_LEVEL` / `RUST_LOG`) and structured event targets; a JSONL file sink and SIGINT handling are planned but not implemented.
+
+## 10. RepoMod-Bench Dataset Structure and Conventions
+
+RepoMod-Bench (`benchmarks/assets/RepoMod-bench`, [ADR-0020](../../decisions/0020-repomod-benchmark-integration.md)) provides 21 repository-scale benchmarks (1.6M LOC, 11,616 tests) across 8 programming languages, with 11 projects targeting Rust (19K to 191K LOC).
+
+### 10.1 Dataset Directory Structure
+
+Each benchmark lives in `benchmarks/assets/RepoMod-bench/dataset/<project>/` with the following structure:
+
+```text
+dataset/<project>/
+├── benchmark.yml           # Execution metadata: build_cmd, run_cmd, test tool & paths
+├── metadata.yml            # Provenance: source repo, commit hash, LOC, test counts, license
+├── Dockerfile.dev          # Containerized build and execution toolchain
+├── docker-compose.dev.yml  # Isolated container runtime specification
+└── tests/                  # Hidden pytest test suite (black-box evaluation oracles)
+```
+
+### 10.2 Configuration Conventions
+
+Campaign configurations for RepoMod-Bench reside in `benchmarks/assets/configs/RepoMod-bench/<project>.yml` conforming to `configschema::CampaignConfig`:
+- `paths.input_legacy_dir`: Points to `benchmarks/assets/RepoMod-bench/dataset/<project>/src` (or pristine cloned legacy source).
+- `paths.workspace_root`: Points to `benchmarks/outputs/RepoMod-bench/<project>/<target_lang>`.
+- `stack.target_build_cmd`: Release build command matching `destination.build_cmd` in `benchmark.yml` (e.g. `cargo build --release -p jmespath-cli`).
+- `stack.target_test_cmd`: Implementation-agnostic test invocation running the external test suite against the target binary (e.g. `pytest benchmarks/assets/RepoMod-bench/dataset/jmespath/tests`).
+- `stack.legacy_test_harness_cmd`: Legacy oracle test command for differential verification.
+
+### 10.3 Pilot Modernization Candidate
+
+`jmespath` (Go $\to$ Rust, 19,308 LOC, 888 compliance tests, source repo: `https://github.com/jmespath/go-jmespath`) is designated the initial pilot candidate for repository-scale modernization:
+- **Pure Computational Isolation**: Pure JSON query evaluation via CLI stdin/stdout (`./target/release/jp '<expr>'`), without external network, database, filesystem side-effects, or mock servers.
+- **Exhaustive Test Coverage**: 888 parameterized compliance tests from the official `jmespath-test` specification.
+- **Scale**: Compact repository scale within the local 27B inference context window.
