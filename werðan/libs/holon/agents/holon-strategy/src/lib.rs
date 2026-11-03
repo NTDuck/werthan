@@ -122,39 +122,32 @@ pub fn render_strategy_prompt(
 /// Parse the model response into hypothesis records.
 /// Malformed or unparsable responses yield an empty vector so the controller
 /// treats inference failure as a spent expansion rather than a fabricated plan.
-fn parse_hypotheses(response_text: &::core::primitive::str) -> ::std::vec::Vec<::holon_blackboard::StrategyHypothesis> {
-    let trimmed_text = response_text.trim();
-    let fenced_start = trimmed_text.find('[');
-    let array_text = match fenced_start {
-        ::core::option::Option::Some(start_index) => {
-            let array_end = trimmed_text.rfind(']');
-            match array_end {
-                ::core::option::Option::Some(end_index) if end_index > start_index => {
-                    &trimmed_text[start_index..=end_index]
-                }
-                _ => trimmed_text,
-            }
+fn parse_hypotheses(
+    response_text: &::core::primitive::str,
+) -> ::std::vec::Vec<::holon_blackboard::StrategyHypothesis> {
+    let json_slice = match (response_text.find('['), response_text.rfind(']')) {
+        (::core::option::Option::Some(start_idx), ::core::option::Option::Some(end_idx))
+            if start_idx < end_idx =>
+        {
+            &response_text[start_idx..=end_idx]
         }
-        ::core::option::Option::None => trimmed_text,
+        _ => return ::std::vec::Vec::new(),
     };
-    let parsed_entries = ::serde_json::from_str::<
-        ::std::vec::Vec<self::StrategyHypothesisEntry>,
-    >(array_text);
-    let entries = match parsed_entries {
+    let entries = match ::serde_json::from_str::<::std::vec::Vec<self::StrategyHypothesisEntry>>(
+        json_slice,
+    ) {
         ::core::result::Result::Ok(found_entries) => found_entries,
         ::core::result::Result::Err(_) => return ::std::vec::Vec::new(),
     };
-    let mut hypotheses = ::std::vec::Vec::<::holon_blackboard::StrategyHypothesis>::new();
-    for entry in entries {
-        let hypothesis = ::holon_blackboard::StrategyHypothesis {
+    entries
+        .into_iter()
+        .map(|entry| ::holon_blackboard::StrategyHypothesis {
             strategy_id: { entry.strategy_id },
             description: { entry.description },
             prior_utility: { entry.prior_utility.clamp(0.10, 0.95) },
             instantiated: false,
-        };
-        hypotheses.push(hypothesis);
-    }
-    hypotheses
+        })
+        .collect::<::std::vec::Vec<_>>()
 }
 
 /// Wire format of one hypothesis record inside the model response.

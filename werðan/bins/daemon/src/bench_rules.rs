@@ -335,6 +335,16 @@ fn choice_text_of(
         .unwrap_or_default()
 }
 
+/// Wire format of one raw rule card candidate inside the model response.
+#[derive(::serde::Deserialize)]
+struct RawRuleCard {
+    rule_id: ::core::option::Option<::std::string::String>,
+    citation: ::core::option::Option<::std::string::String>,
+    given: ::core::option::Option<::std::string::String>,
+    when: ::core::option::Option<::std::string::String>,
+    then: ::core::option::Option<::std::string::String>,
+}
+
 /// Parse one strict JSON array of rule cards from the model response.
 ///
 /// Accepts fenced or bare JSON. We skip malformed entries, never guessing.
@@ -343,66 +353,54 @@ fn parse_rule_cards(
     response_text: &::core::primitive::str,
     relative_path: &::core::primitive::str,
 ) -> ::std::vec::Vec<::holon_blackboard::BusinessRuleCard> {
-    let json_start = response_text.find('[');
-    let json_end = response_text.rfind(']');
-    let bounds = match (json_start, json_end) {
-        (::core::option::Option::Some(start), ::core::option::Option::Some(end)) if start < end => {
-            (start, end + 1)
-        },
-        _ => return ::std::vec::Vec::new(),
-    };
-    let json_text = &response_text[bounds.0..bounds.1];
-    let parsed = ::serde_json::from_str::<::serde_json::Value>(json_text);
-    let parsed_array = match parsed {
-        ::core::result::Result::Ok(::serde_json::Value::Array(items)) => items,
-        _ => return ::std::vec::Vec::new(),
-    };
-    let mut cards = ::std::vec::Vec::new();
-    for (rule_index, item) in parsed_array.into_iter().enumerate() {
-        let rule_id = self::string_field(&item, "rule_id");
-        let given_text = self::string_field(&item, "given");
-        let when_text = self::string_field(&item, "when");
-        let then_text = self::string_field(&item, "then");
-        let citation_text = self::string_field(&item, "citation");
-        let keys_missing = rule_id.is_empty()
-            || given_text.is_empty()
-            || when_text.is_empty()
-            || then_text.is_empty();
-        if keys_missing {
-            continue;
+    let json_slice = match (response_text.find('['), response_text.rfind(']')) {
+        (::core::option::Option::Some(start_idx), ::core::option::Option::Some(end_idx))
+            if start_idx < end_idx =>
+        {
+            &response_text[start_idx..=end_idx]
         }
-        let citation_final = if citation_text.is_empty() {
-            relative_path.to_string()
-        } else {
-            citation_text
-        };
-        let rule_id_final = if rule_id.starts_with("RULE_") {
-            rule_id
-        } else {
-            ::std::format!("RULE_{rule_index:03}_{rule_id}")
-        };
-        let card = ::holon_blackboard::BusinessRuleCard {
-            rule_id: { rule_id_final },
-            given: { given_text },
-            when: { when_text },
-            then: { then_text },
-            citation: { citation_final },
-        };
-        cards.push(card);
-    }
-    cards
-}
-
-/// Read one string field from a parsed JSON object.
-fn string_field(
-    item: &::serde_json::Value,
-    field_name: &::core::primitive::str,
-) -> ::std::string::String {
-    item.get(field_name)
-        .and_then(|field_value| field_value.as_str())
-        .unwrap_or("")
-        .trim()
-        .to_string()
+        _ => return ::std::vec::Vec::new(),
+    };
+    let raw_cards = match ::serde_json::from_str::<::std::vec::Vec<self::RawRuleCard>>(json_slice) {
+        ::core::result::Result::Ok(items) => items,
+        ::core::result::Result::Err(_) => return ::std::vec::Vec::new(),
+    };
+    raw_cards
+        .into_iter()
+        .enumerate()
+        .filter_map(|(rule_index, raw_card)| {
+            let rule_id = raw_card.rule_id?.trim().to_string();
+            let given_text = raw_card.given?.trim().to_string();
+            let when_text = raw_card.when?.trim().to_string();
+            let then_text = raw_card.then?.trim().to_string();
+            if rule_id.is_empty()
+                || given_text.is_empty()
+                || when_text.is_empty()
+                || then_text.is_empty()
+            {
+                return ::core::option::Option::None;
+            }
+            let citation_final = raw_card
+                .citation
+                .as_deref()
+                .map(::core::primitive::str::trim)
+                .filter(|trimmed| !trimmed.is_empty())
+                .unwrap_or(relative_path)
+                .to_string();
+            let rule_id_final = if rule_id.starts_with("RULE_") {
+                rule_id
+            } else {
+                ::std::format!("RULE_{rule_index:03}_{rule_id}")
+            };
+            ::core::option::Option::Some(::holon_blackboard::BusinessRuleCard {
+                rule_id: { rule_id_final },
+                given: { given_text },
+                when: { when_text },
+                then: { then_text },
+                citation: { citation_final },
+            })
+        })
+        .collect::<::std::vec::Vec<_>>()
 }
 
 #[cfg(test)]
