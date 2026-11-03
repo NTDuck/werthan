@@ -6,6 +6,6 @@
 pub mod agent;
 
 pub use self::agent::{
-    codegen_system_prompt, ensure_top_level_pub, extract_code, fault_candidate,
-    render_codegen_prompt, unwrap_outer_mod, HolonCodeGenAgent, HolonCodeGenAgentBuilder,
+    codegen_system_prompt, extract_code, fault_candidate, parse_synthesis_output,
+    render_codegen_prompt, CodeSynthesisOutput, HolonCodeGenAgent, HolonCodeGenAgentBuilder,
 };

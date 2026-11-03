@@ -17,6 +17,20 @@ pub const MAX_CHAR_BUDGET: ::core::primitive::usize = 2048;
 /// This keeps guidance under 300 tokens for effective attention.
 pub const MAX_DIAGNOSTIC_LINES: ::core::primitive::usize = 20;
 
+/// Typed output emitted by code repair.
+#[derive(
+    ::core::clone::Clone,
+    ::core::fmt::Debug,
+    ::core::cmp::PartialEq,
+    ::core::cmp::Eq,
+    ::serde::Serialize,
+    ::serde::Deserialize,
+)]
+pub struct CodeRepairOutput {
+    /// Repaired module source code.
+    pub code: ::std::string::String,
+}
+
 /// Namespace for constructing the surgical repair agent and invoking it.
 pub struct HolonPatchAgent;
 
@@ -50,7 +64,7 @@ impl self::HolonPatchAgent {
         let response_text = self::prompt_blocking(agent, user_prompt);
         match self::fault_sentinel_of(&response_text) {
             ::core::option::Option::Some(sentinel_text) => sentinel_text,
-            ::core::option::Option::None => self::extract_code(&response_text),
+            ::core::option::Option::None => self::parse_repair_output(&response_text),
         }
     }
 }
@@ -95,7 +109,7 @@ impl<M: ::rig::completion::CompletionModel> self::HolonPatchAgentBuilder<M> {
             ::core::option::Option::Some(found_model) => found_model,
             ::core::option::Option::None => ::core::panic!("patch model must be wired before build"),
         };
-        let preamble_text = self::patch_system_prompt(&self.target_language);
+        let preamble_text = self::repair_system_prompt(&self.target_language);
         let mut agent_builder = ::rig::agent::AgentBuilder::new(wired_model)
             .preamble(&preamble_text)
             .max_tokens(16384);
@@ -120,7 +134,7 @@ pub fn render_repair_prompt(
     let diagnostic_trace = self::compact_diagnostic_trace(&fault.diagnostic_trace, MAX_DIAGNOSTIC_LINES);
     let target_language = &problem_model.target_language;
     ::std::format!(
-        "[PROBLEM CONTEXT]\n{context_block}\n\n[CANDIDATE CODE]\n{candidate_code}\n\n[FAULT SUMMARY]\n{fault_summary}\n\n[DIAGNOSTIC TRACE]\n{diagnostic_trace}\n\nFix all compilation, borrow, lifetime, and type mismatch errors listed above. If types, structs, or functions from sibling modules are needed, use `use crate::*;` or `use crate::<module>::*;` rather than redefining conflicting duplicate types locally. In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors.\n\nReturn the repaired complete {target_language} module now.",
+        "[PROBLEM CONTEXT]\n{context_block}\n\n[CANDIDATE CODE]\n{candidate_code}\n\n[FAULT SUMMARY]\n{fault_summary}\n\n[DIAGNOSTIC TRACE]\n{diagnostic_trace}\n\nFix all compilation, borrow, lifetime, and type mismatch errors listed above. If types, structs, or functions from sibling modules are needed, use `use crate::*;` or `use crate::<module>::*;` rather than redefining conflicting duplicate types locally. In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors.\n\nReturn the repaired complete {target_language} module now. Output only a JSON object matching {{\"code\": \"<repaired module source code>\"}} without prose or commentary outside the JSON.",
     )
 }
 
@@ -266,463 +280,79 @@ pub fn fault_candidate(failure_reason: &::core::primitive::str) -> ::std::string
     ::std::format!("SYNTAX_ERROR: ariadne llm repair fault: {sanitized_reason}")
 }
 
-/// Extract the first fenced Rust code block from a model response.
-/// Unfenced responses come back trimmed so bare code still works.
-pub fn extract_code(response_text: &::core::primitive::str) -> ::std::string::String {
-    let fence_token = "```";
-    let fence_start = match response_text.find(fence_token) {
-        ::core::option::Option::Some(found_index) => found_index + fence_token.len(),
-        ::core::option::Option::None => {
-            let trimmed_text = response_text.trim();
-            let unwrapped_code = self::unwrap_outer_mod(trimmed_text);
-            return self::ensure_top_level_pub(&unwrapped_code);
-        }
-    };
-    let after_language_line = match response_text[fence_start..].find('\n') {
-        ::core::option::Option::Some(line_break) => fence_start + line_break + 1,
-        ::core::option::Option::None => {
-            let trimmed_text = response_text.trim();
-            let unwrapped_code = self::unwrap_outer_mod(trimmed_text);
-            return self::ensure_top_level_pub(&unwrapped_code);
-        }
-    };
-    let remainder = &response_text[after_language_line..];
-    let code_body = match remainder.find(fence_token) {
-        ::core::option::Option::Some(close_index) => &remainder[..close_index],
-        ::core::option::Option::None => remainder,
-    };
-    let trimmed_body = code_body.trim();
-    let unwrapped_code = self::unwrap_outer_mod(trimmed_body);
-    self::ensure_top_level_pub(&unwrapped_code)
-}
-
-/// Remove outer module declarations from source code.
-///
-/// This function finds top-level module blocks, extracts their inner contents,
-/// reduces indentation, and joins them with other top-level code.
-pub fn unwrap_outer_mod(code: &::core::primitive::str) -> ::std::string::String {
-    let mut brace_depth: ::core::primitive::usize = 0;
-    let mut in_line_comment: ::core::primitive::bool = false;
-    let mut block_comment_depth: ::core::primitive::usize = 0;
-    let mut in_string: ::core::primitive::bool = false;
-    let mut in_char: ::core::primitive::bool = false;
-    let mut is_escaped: ::core::primitive::bool = false;
-    let mut cursor_idx: ::core::primitive::usize = 0;
-    let mut last_copied_idx: ::core::primitive::usize = 0;
-    let mut unwrapped_any: ::core::primitive::bool = false;
-    let mut result_output = ::std::string::String::new();
-
-    while cursor_idx < code.len() {
-        let current_char = match code[cursor_idx..].chars().next() {
-            ::core::option::Option::Some(char_val) => char_val,
-            ::core::option::Option::None => break,
-        };
-        let char_len = current_char.len_utf8();
-
-        if is_escaped {
-            is_escaped = false;
-            cursor_idx += char_len;
-            continue;
-        }
-
-        if in_line_comment {
-            if current_char == '\n' {
-                in_line_comment = false;
-            }
-            cursor_idx += char_len;
-            continue;
-        }
-
-        if block_comment_depth > 0 {
-            if current_char == '*' && code[cursor_idx..].starts_with("*/") {
-                block_comment_depth -= 1;
-                cursor_idx += 2;
-                continue;
-            }
-            if current_char == '/' && code[cursor_idx..].starts_with("/*") {
-                block_comment_depth -= 1;
-                cursor_idx += 2;
-                continue;
-            }
-            cursor_idx += char_len;
-            continue;
-        }
-
-        if in_string {
-            if current_char == '\\' {
-                is_escaped = true;
-            } else if current_char == '"' {
-                in_string = false;
-            }
-            cursor_idx += char_len;
-            continue;
-        }
-
-        if in_char {
-            if current_char == '\\' {
-                is_escaped = true;
-            } else if current_char == '\'' {
-                in_char = false;
-            }
-            cursor_idx += char_len;
-            continue;
-        }
-
-        if brace_depth == 0 {
-            let is_preceded_by_ident = if cursor_idx == 0 {
-                false
-            } else {
-                match code[..cursor_idx].chars().next_back() {
-                    ::core::option::Option::Some(prev_char) => {
-                        prev_char.is_alphanumeric() || prev_char == '_'
-                    }
-                    ::core::option::Option::None => false,
-                }
-            };
-            if !is_preceded_by_ident {
-                let candidate_slice = &code[cursor_idx..];
-                if let ::core::option::Option::Some(rel_open_brace) = self::match_mod_header(candidate_slice) {
-                    let open_brace_idx = cursor_idx + rel_open_brace;
-                    let remaining_from_open = &code[open_brace_idx + 1..];
-                    if let ::core::option::Option::Some(rel_close_brace) = self::find_matching_brace(remaining_from_open) {
-                        let closing_brace_idx = open_brace_idx + 1 + rel_close_brace;
-                        let prefix_between = &code[last_copied_idx..cursor_idx];
-                        let prefix_trimmed = prefix_between.trim();
-                        if prefix_trimmed.is_empty() {
-                            if !result_output.is_empty() && !result_output.ends_with('\n') {
-                                result_output.push('\n');
-                            }
-                        } else {
-                            result_output.push_str(prefix_between);
-                        }
-                        let inner_content = &code[open_brace_idx + 1..closing_brace_idx];
-                        let dedented_content = self::dedent_module_body(inner_content);
-                        result_output.push_str(&dedented_content);
-                        let mut post_close_idx = closing_brace_idx + 1;
-                        while post_close_idx < code.len() {
-                            let next_byte = code.as_bytes()[post_close_idx];
-                            let is_whitespace_or_semi = next_byte == b';'
-                                || next_byte == b' '
-                                || next_byte == b'\t'
-                                || next_byte == b'\r';
-                            if is_whitespace_or_semi {
-                                post_close_idx += 1;
-                            } else {
-                                break;
-                            }
-                        }
-                        last_copied_idx = post_close_idx;
-                        cursor_idx = post_close_idx;
-                        unwrapped_any = true;
-                        continue;
-                    }
-                }
-            }
-        }
-
-        if current_char == '/' {
-            if code[cursor_idx..].starts_with("//") {
-                in_line_comment = true;
-                cursor_idx += 2;
-                continue;
-            }
-            if code[cursor_idx..].starts_with("/*") {
-                block_comment_depth += 1;
-                cursor_idx += 2;
-                continue;
-            }
-        }
-
-        if current_char == '"' {
-            in_string = true;
-            cursor_idx += 1;
-            continue;
-        }
-
-        if current_char == '\'' {
-            let after_quote = &code[cursor_idx + 1..];
-            let is_char_lit = if after_quote.starts_with('\\') {
-                true
-            } else if let ::core::option::Option::Some(second_char) = after_quote.chars().next() {
-                after_quote[second_char.len_utf8()..].starts_with('\'')
-            } else {
-                false
-            };
-            if is_char_lit {
-                in_char = true;
-            }
-            cursor_idx += 1;
-            continue;
-        }
-
-        if current_char == '{' {
-            brace_depth += 1;
-        } else if current_char == '}' && brace_depth > 0 {
-            brace_depth -= 1;
-        }
-
-        cursor_idx += char_len;
-    }
-
-    if !unwrapped_any {
-        return code.to_string();
-    }
-
-    let trailing_tail = &code[last_copied_idx..];
-    let trimmed_tail = trailing_tail.trim();
-    let is_ignorable = trimmed_tail.is_empty() || trimmed_tail == ";";
-    if !is_ignorable {
-        if !result_output.is_empty() && !result_output.ends_with('\n') {
-            result_output.push('\n');
-        }
-        result_output.push_str(trimmed_tail);
-    }
-    let trimmed_output = result_output.trim();
-    trimmed_output.to_string()
-}
-
-/// Match a module declaration header at the start of the code slice.
-///
-/// Returns the byte offset of the opening brace `{` if matched.
-fn match_mod_header(code_slice: &::core::primitive::str) -> ::core::option::Option<::core::primitive::usize> {
-    let mut cursor_offset: ::core::primitive::usize = 0;
-    if let ::core::option::Option::Some(after_pub) = code_slice.strip_prefix("pub") {
-        cursor_offset = 3;
-        let mut chars_iter = after_pub.chars();
-        let next_char = chars_iter.next()?;
-        if next_char == '(' {
-            let close_paren_rel = after_pub.find(')')?;
-            cursor_offset += close_paren_rel + 1;
-            let after_paren = &code_slice[cursor_offset..];
-            let first_after_paren = after_paren.chars().next()?;
-            if !first_after_paren.is_whitespace() {
-                return ::core::option::Option::None;
-            }
-        } else if !next_char.is_whitespace() {
-            return ::core::option::Option::None;
-        }
-    }
-
-    let remaining_after_pub = &code_slice[cursor_offset..];
-    let trimmed_leading = remaining_after_pub.trim_start();
-    let whitespace_len = remaining_after_pub.len() - trimmed_leading.len();
-    cursor_offset += whitespace_len;
-
-    let after_mod = code_slice[cursor_offset..].strip_prefix("mod")?;
-    cursor_offset += 3;
-
-    let next_after_mod = after_mod.chars().next()?;
-    if !next_after_mod.is_whitespace() {
-        return ::core::option::Option::None;
-    }
-
-    let remaining_after_mod = &code_slice[cursor_offset..];
-    let trimmed_ident = remaining_after_mod.trim_start();
-    let ident_whitespace_len = remaining_after_mod.len() - trimmed_ident.len();
-    cursor_offset += ident_whitespace_len;
-
-    let first_ident_char = trimmed_ident.chars().next()?;
-    if !first_ident_char.is_alphabetic() && first_ident_char != '_' {
-        return ::core::option::Option::None;
-    }
-
-    let mut ident_len: ::core::primitive::usize = 0;
-    for (char_offset, char_val) in trimmed_ident.char_indices() {
-        if char_val.is_alphanumeric() || char_val == '_' {
-            ident_len = char_offset + char_val.len_utf8();
-        } else {
-            break;
-        }
-    }
-    cursor_offset += ident_len;
-
-    let remaining_after_ident = &code_slice[cursor_offset..];
-    let trimmed_brace = remaining_after_ident.trim_start();
-    let brace_whitespace_len = remaining_after_ident.len() - trimmed_brace.len();
-    cursor_offset += brace_whitespace_len;
-
-    if trimmed_brace.starts_with('{') {
-        ::core::option::Option::Some(cursor_offset)
-    } else {
-        ::core::option::Option::None
-    }
-}
-
-/// Find the byte offset of the matching closing brace.
-fn find_matching_brace(code_slice: &::core::primitive::str) -> ::core::option::Option<::core::primitive::usize> {
-    let mut brace_depth: ::core::primitive::usize = 1;
-    let mut in_string: ::core::primitive::bool = false;
-    let mut in_char: ::core::primitive::bool = false;
-    let mut is_escaped: ::core::primitive::bool = false;
-    let mut in_line_comment: ::core::primitive::bool = false;
-    let mut block_comment_depth: ::core::primitive::usize = 0;
-    let mut cursor_idx: ::core::primitive::usize = 0;
-
-    while cursor_idx < code_slice.len() {
-        let current_char = match code_slice[cursor_idx..].chars().next() {
-            ::core::option::Option::Some(char_val) => char_val,
-            ::core::option::Option::None => break,
-        };
-        let char_len = current_char.len_utf8();
-
-        if is_escaped {
-            is_escaped = false;
-            cursor_idx += char_len;
-            continue;
-        }
-
-        if in_line_comment {
-            if current_char == '\n' {
-                in_line_comment = false;
-            }
-            cursor_idx += char_len;
-            continue;
-        }
-
-        if block_comment_depth > 0 {
-            if current_char == '*' && code_slice[cursor_idx..].starts_with("*/") {
-                block_comment_depth -= 1;
-                cursor_idx += 2;
-                continue;
-            }
-            if current_char == '/' && code_slice[cursor_idx..].starts_with("/*") {
-                block_comment_depth += 1;
-                cursor_idx += 2;
-                continue;
-            }
-            cursor_idx += char_len;
-            continue;
-        }
-
-        if in_string {
-            if current_char == '\\' {
-                is_escaped = true;
-            } else if current_char == '"' {
-                in_string = false;
-            }
-            cursor_idx += char_len;
-            continue;
-        }
-
-        if in_char {
-            if current_char == '\\' {
-                is_escaped = true;
-            } else if current_char == '\'' {
-                in_char = false;
-            }
-            cursor_idx += char_len;
-            continue;
-        }
-
-        if current_char == '/' {
-            if code_slice[cursor_idx..].starts_with("//") {
-                in_line_comment = true;
-                cursor_idx += 2;
-                continue;
-            }
-            if code_slice[cursor_idx..].starts_with("/*") {
-                block_comment_depth += 1;
-                cursor_idx += 2;
-                continue;
-            }
-        }
-
-        if current_char == '"' {
-            in_string = true;
-            cursor_idx += 1;
-            continue;
-        }
-
-        if current_char == '\'' {
-            let after_quote = &code_slice[cursor_idx + 1..];
-            let is_char_lit = if after_quote.starts_with('\\') {
-                true
-            } else if let ::core::option::Option::Some(second_char) = after_quote.chars().next() {
-                after_quote[second_char.len_utf8()..].starts_with('\'')
-            } else {
-                false
-            };
-            if is_char_lit {
-                in_char = true;
-            }
-            cursor_idx += 1;
-            continue;
-        }
-
-        if current_char == '{' {
-            brace_depth += 1;
-        } else if current_char == '}' {
-            brace_depth -= 1;
-            if brace_depth == 0 {
-                return ::core::option::Option::Some(cursor_idx);
-            }
-        }
-
-        cursor_idx += char_len;
-    }
-
-    ::core::option::Option::None
-}
-
-/// Dedent each line of the module body by four spaces or one tab.
-fn dedent_module_body(inner_content: &::core::primitive::str) -> ::std::string::String {
-    let dedented_lines = inner_content
-        .lines()
-        .map(|line_str| {
-            if let ::core::option::Option::Some(stripped_line) = line_str.strip_prefix("    ") {
-                stripped_line
-            } else if let ::core::option::Option::Some(stripped_line) = line_str.strip_prefix('\t') {
-                stripped_line
-            } else {
-                line_str
-            }
-        })
-        .collect::<::std::vec::Vec<&::core::primitive::str>>();
-    let joined_content = dedented_lines.join("\n");
-    let trimmed_result = joined_content.trim();
-    trimmed_result.to_string()
-}
-
-/// Ensure top-level item declarations carry public visibility.
-pub fn ensure_top_level_pub(source_code: &::core::primitive::str) -> ::std::string::String {
-    const TOP_LEVEL_PREFIXES: [&::core::primitive::str; 5] = [
-        "fn ",
-        "struct ",
-        "enum ",
-        "const ",
-        "type ",
-    ];
-    let transformed_lines = source_code
-        .lines()
-        .map(|line| {
-            let matches_prefix = TOP_LEVEL_PREFIXES
-                .iter()
-                .any(|prefix| line.starts_with(prefix));
-            let needs_pub = matches_prefix && !line.starts_with("pub ");
-            if needs_pub {
-                ::std::format!("pub {line}")
-            } else {
-                line.to_string()
-            }
-        })
-        .collect::<::std::vec::Vec<::std::string::String>>();
-    transformed_lines.join("\n")
+/// Compatibility alias for repair_system_prompt.
+pub fn patch_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    self::repair_system_prompt(target_language)
 }
 
 /// System prompt steering the model toward repaired module code in the
 /// configured target language.
-pub fn patch_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+pub fn repair_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
     ::std::format!(
         "You are a {target_language} code repair engine for a legacy modernization pipeline. \
-Output only the repaired complete {target_language} source for one module with no markdown and no commentary. \
+Output only a valid JSON object matching {{\"code\": \"<repaired module source code>\"}} without prose or commentary outside the JSON. \
+The code field must contain the repaired complete {target_language} source for one module with no markdown fences. \
 Keep every public signature from the candidate unchanged unless a contract requires otherwise. \
 Strictly adhere to the exact function signatures, argument counts, and parameter types defined in [EXPORT OBLIGATIONS]. If an exported function is \
 specified with N arguments, you must define it with exactly those N arguments so that integration tests compile. \
 Do NOT wrap the output in 'pub mod <name> {{ ... }}'. Output only top-level items (functions, structs, constants) for this single module - the module is already declared by the crate root. Do NOT output code for other modules. \
 In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors. \
-The repaired code must compile and must satisfy every rule card. Return only repaired source."
+The repaired code must compile and must satisfy every rule card."
     )
 }
+
+/// Compatibility alias for parse_repair_output.
+pub fn extract_code(response_text: &::core::primitive::str) -> ::std::string::String {
+    self::parse_repair_output(response_text)
+}
+
+/// Parse the model response into repaired module source code.
+///
+/// Attempts direct deserialization of `CodeRepairOutput`.
+/// Slices a JSON object from fences or prose as a fallback.
+/// Strips basic code fences from raw code output as a final fallback.
+pub fn parse_repair_output(response_text: &::core::primitive::str) -> ::std::string::String {
+    let trimmed = response_text.trim();
+    if let ::core::result::Result::Ok(output) =
+        ::serde_json::from_str::<self::CodeRepairOutput>(trimmed)
+    {
+        return output.code;
+    }
+    if let (::core::option::Option::Some(start_index), ::core::option::Option::Some(end_index)) =
+        (trimmed.find('{'), trimmed.rfind('}'))
+    {
+        if start_index < end_index {
+            let json_slice = &trimmed[start_index..=end_index];
+            if let ::core::result::Result::Ok(output) =
+                ::serde_json::from_str::<self::CodeRepairOutput>(json_slice)
+            {
+                return output.code;
+            }
+        }
+    }
+    self::strip_code_fences(trimmed)
+}
+
+/// Strip basic markdown code fences from model response text.
+fn strip_code_fences(response_text: &::core::primitive::str) -> ::std::string::String {
+    let fence_token = "```";
+    let trimmed = response_text.trim();
+    let fence_start = match trimmed.find(fence_token) {
+        ::core::option::Option::Some(found_index) => found_index + fence_token.len(),
+        ::core::option::Option::None => return trimmed.to_string(),
+    };
+    let content_start = match trimmed[fence_start..].find('\n') {
+        ::core::option::Option::Some(line_break) => fence_start + line_break + 1,
+        ::core::option::Option::None => fence_start,
+    };
+    let remainder = &trimmed[content_start..];
+    let code_body = match remainder.rfind(fence_token) {
+        ::core::option::Option::Some(close_index) => &remainder[..close_index],
+        ::core::option::Option::None => remainder,
+    };
+    code_body.trim().to_string()
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -743,27 +373,59 @@ mod tests {
         ::std::assert_eq!(extracted, sample);
     }
     #[test]
-    fn test_extract_code_unwraps_pub_mod_matrix() {
-        let sample = "pub mod matrix {\n    pub fn generate_matrix() -> Vec<f64> {\n        vec![1.0, 2.0]\n    }\n}";
-        let extracted = self::extract_code(sample);
-        ::std::assert!(!extracted.contains("pub mod matrix"));
-        ::std::assert!(extracted.contains("pub fn generate_matrix() -> Vec<f64>"));
-        ::std::assert_eq!(
-            extracted,
-            "pub fn generate_matrix() -> Vec<f64> {\n    vec![1.0, 2.0]\n}"
-        );
+    fn test_code_repair_output_serde_roundtrip() {
+        let payload = self::CodeRepairOutput {
+            code: "pub fn repaired() -> u8 { 1 }".to_string(),
+        };
+        let serialized = ::serde_json::to_string(&payload).expect("serialization succeeds");
+        let deserialized = ::serde_json::from_str::<self::CodeRepairOutput>(&serialized)
+            .expect("deserialization succeeds");
+        ::std::assert_eq!(payload, deserialized);
     }
 
     #[test]
-    fn test_extract_code_unwraps_pub_mod_utils() {
-        let sample = "```rust\npub mod utils {\n    pub fn helper() -> bool {\n        true\n    }\n}\n```";
-        let extracted = self::extract_code(sample);
-        ::std::assert!(!extracted.contains("pub mod utils"));
-        ::std::assert!(extracted.contains("pub fn helper() -> bool"));
-        ::std::assert_eq!(
-            extracted,
-            "pub fn helper() -> bool {\n    true\n}"
-        );
+    fn test_parse_repair_output_typed_json() {
+        let sample = "{\"code\": \"pub fn repaired() -> u8 { 1 }\"}";
+        let parsed = self::parse_repair_output(sample);
+        ::std::assert_eq!(parsed, "pub fn repaired() -> u8 { 1 }");
+    }
+
+    #[test]
+    fn test_parse_repair_output_fenced_json() {
+        let sample = "```json\n{\n    \"code\": \"pub fn repaired() -> u8 { 1 }\"\n}\n```";
+        let parsed = self::parse_repair_output(sample);
+        ::std::assert_eq!(parsed, "pub fn repaired() -> u8 { 1 }");
+    }
+
+    #[test]
+    fn test_parse_repair_output_fallback_fenced_code() {
+        let sample = "```rust\npub fn repaired_probe() -> u8 { 1 }\n```";
+        let parsed = self::parse_repair_output(sample);
+        ::std::assert_eq!(parsed, "pub fn repaired_probe() -> u8 { 1 }");
+    }
+
+    #[test]
+    fn test_parse_repair_output_fallback_bare_code() {
+        let sample = "pub fn repaired_probe() -> u8 { 1 }";
+        let parsed = self::parse_repair_output(sample);
+        ::std::assert_eq!(parsed, sample);
+    }
+
+    #[test]
+    fn test_repair_system_prompt_instructs_json_schema() {
+        let prompt = self::repair_system_prompt("rust");
+        let instruction = "Output only a valid JSON object matching {\"code\": \"<repaired module source code>\"} without prose or commentary outside the JSON.";
+        ::std::assert!(prompt.contains(instruction));
+    }
+
+    #[test]
+    fn test_render_repair_prompt_instructs_json_schema() {
+        let candidate_code = "pub fn add() {}";
+        let fault = ::holon_blackboard::FaultRecord::default();
+        let problem_model = ::holon_blackboard::ProblemModelSlice::new();
+        let prompt = self::render_repair_prompt(candidate_code, &fault, &problem_model);
+        let instruction = "Output only a JSON object matching {\"code\": \"<repaired module source code>\"} without prose or commentary outside the JSON.";
+        ::std::assert!(prompt.contains(instruction));
     }
 
     #[test]
