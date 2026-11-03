@@ -805,8 +805,10 @@ mod tests {
         };
         let agents = self::build_test_pool(&fake_model);
         let model = ::holon_blackboard::ProblemModelSlice::new();
-        let mut config = crate::types::EngineConfig::default();
-        config.max_rollouts = 32;
+        let config = crate::types::EngineConfig {
+            max_rollouts: 32,
+            ..Default::default()
+        };
         let evaluator = ::holon_evaluator::TwoStageEvaluator::builder()
             .harness(self::HighRewardHarness)
             .distiller(self::HighRewardDistiller)
