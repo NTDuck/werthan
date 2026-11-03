@@ -167,10 +167,9 @@ impl<
             };
             plateau_detector.record(coverage_sample);
 
-            let parentless = self.blackboard.problem_model.parent_contracts.is_empty();
             let plateau_should_break = plateau_detector.is_plateau()
                 && self.best_candidate_code.is_some()
-                && (!parentless || self.best_reward_score > 0.0);
+                && self.best_reward_score >= 0.95;
             if plateau_should_break {
                 ::tracing::warn!(
                     target: "holon_engine",
@@ -183,9 +182,9 @@ impl<
 
             if (self.best_reward_score - previous_best_reward).abs() < 1e-6 {
                 flat_count += 1;
-                let should_break = flat_count >= 8
+                let should_break = flat_count >= 16
                     && self.best_candidate_code.is_some()
-                    && (!parentless || self.best_reward_score > 0.0);
+                    && self.best_reward_score >= 0.95;
                 if should_break {
                     ::tracing::warn!(
                         target: "holon_engine",
@@ -682,10 +681,10 @@ mod tests {
         }
     }
 
-    /// Flat rollouts at reward zero trigger stagnation early termination on parented modules.
-    /// The search breaks after eight flat rollouts instead of exhausting the budget.
+    /// Suboptimal reward (< 0.95) must not exit rollouts early on stagnation.
+    /// Parented modules with zero reward must exhaust the full rollout budget (16).
     #[test]
-    fn test_stagnation_early_exit_triggers_at_zero_reward_for_parented_module() {
+    fn test_parented_module_zero_reward_does_not_stagnate_early() {
         let fake_model = self::ControllerFakeModel {
             response_text: "pub fn factory_probe() -> u32 {\n    1\n}".to_string(),
         };
@@ -706,9 +705,9 @@ mod tests {
             ::core::matches!(outcome, crate::types::EngineTypestateOutcome::BudgetExhausted { .. }),
             "flat rollouts must yield BudgetExhausted outcome",
         );
-        ::std::assert!(
-            controller.rollout_count <= 9,
-            "stagnation early-exit must terminate within 8-9 rollouts, actual was {}",
+        ::std::assert_eq!(
+            controller.rollout_count, 16,
+            "suboptimal reward must not exit early: budget must be exhausted (16), actual was {}",
             controller.rollout_count,
         );
         ::std::assert!(
@@ -744,6 +743,90 @@ mod tests {
             controller.best_candidate_code.is_some(),
             "best candidate code must be captured on initial rollout even at zero reward",
         );
+    }
+
+    #[derive(::core::clone::Clone, ::core::fmt::Debug)]
+    struct HighRewardHarness;
+
+    impl ::holon_evaluator::ExecutionHarness for self::HighRewardHarness {
+        fn execute_candidate(
+            &self,
+            _module_id: &::core::primitive::str,
+            _candidate_code: &::core::primitive::str,
+            _test_suite: &[::std::string::String],
+            _target_language: &::core::primitive::str,
+        ) -> ::holon_evaluator::HarnessExecutionOutput {
+            ::holon_evaluator::HarnessExecutionOutput {
+                compiles: true,
+                pass_rate: 1.0,
+                raw_logs: ::std::string::String::new(),
+            }
+        }
+    }
+
+    #[derive(::core::clone::Clone, ::core::fmt::Debug)]
+    struct HighRewardDistiller;
+
+    impl ::holon_evaluator::DiagnosticDistiller for self::HighRewardDistiller {
+        fn distill_failure(
+            &self,
+            _raw_logs: &::core::primitive::str,
+            _candidate_code: &::core::primitive::str,
+            _problem_model: &::holon_blackboard::ProblemModelSlice,
+        ) -> ::holon_blackboard::FaultRecord {
+            ::holon_blackboard::FaultRecord {
+                summary: "none".to_string(),
+                diagnostic_trace: ::std::string::String::new(),
+                cause: ::core::option::Option::None,
+            }
+        }
+
+        fn audit_rules(
+            &self,
+            _candidate_code: &::core::primitive::str,
+            _problem_model: &::holon_blackboard::ProblemModelSlice,
+        ) -> ::core::primitive::f64 {
+            // Reward: 0.20 (compile) + 0.60 * 1.0 (parity) + 0.20 * 0.8 (harden) = 0.96
+            0.8
+        }
+    }
+
+    /// High reward (>= 0.95) allows early exit when plateau occurs.
+    #[test]
+    fn test_early_exit_triggers_at_high_reward_plateau() {
+        let fake_model = self::ControllerFakeModel {
+            response_text: "pub fn factory_probe() -> u32 {\n    1\n}".to_string(),
+        };
+        let agents = self::build_test_pool(&fake_model);
+        let model = ::holon_blackboard::ProblemModelSlice::new();
+        let mut config = crate::types::EngineConfig::default();
+        config.max_rollouts = 32;
+        let evaluator = ::holon_evaluator::TwoStageEvaluator::builder()
+            .harness(self::HighRewardHarness)
+            .distiller(self::HighRewardDistiller)
+            .build();
+        let local_board = ::holon_blackboard::LocalBlackboard::new();
+        let mut controller = self::ClusterEngine::builder()
+            .config(config)
+            .blackboard(local_board)
+            .evaluator(evaluator)
+            .agents(agents)
+            .build();
+        controller.blackboard_mut().problem_model = model;
+        let blocked = ::holon_fsm::StateMachine::new("test_module".to_string());
+        let machine = blocked.wake_ready().hydration_completed();
+
+        let outcome = controller.solve(machine);
+        ::std::assert!(
+            ::core::matches!(outcome, crate::types::EngineTypestateOutcome::BudgetExhausted { .. }),
+            "plateau rollouts must yield BudgetExhausted outcome",
+        );
+        ::std::assert_eq!(
+            controller.rollout_count, 6,
+            "plateau early-exit must terminate after 6 rollouts (window 5 + 1), actual was {}",
+            controller.rollout_count,
+        );
+        ::std::assert!(controller.best_reward_score >= 0.95);
     }
 
 

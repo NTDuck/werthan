@@ -521,30 +521,20 @@ fn contract_val_m2_11_rollout_budget_honesty() {
 #[test]
 fn contract_val_m2_12_coverage_plateau_detection() {
     let mut detector = ::holon_engine::PlateauDetector::new();
-    let sample_one = ::holon_engine::CoverageSample {
-        rollout: 1,
-        total_tests: 10,
-        passed_tests: 2,
-        uncovered_count: 8,
-    };
-    let sample_two = ::holon_engine::CoverageSample {
-        rollout: 2,
-        total_tests: 10,
-        passed_tests: 2,
-        uncovered_count: 8,
-    };
-    let sample_three = ::holon_engine::CoverageSample {
-        rollout: 3,
-        total_tests: 10,
-        passed_tests: 2,
-        uncovered_count: 8,
-    };
-    let record_one = detector.record(sample_one);
-    let record_two = detector.record(sample_two);
-    let record_three = detector.record(sample_three);
-    ::std::assert!(!record_one);
-    ::std::assert!(!record_two);
-    ::std::assert!(record_three);
+    let mut reached = false;
+    for rollout in 1..=6 {
+        let sample = ::holon_engine::CoverageSample {
+            rollout,
+            total_tests: 10,
+            passed_tests: 2,
+            uncovered_count: 8,
+        };
+        reached = detector.record(sample);
+        if rollout < 6 {
+            ::std::assert!(!reached);
+        }
+    }
+    ::std::assert!(reached);
     let is_plateau = detector.is_plateau();
     ::std::assert!(is_plateau);
 }

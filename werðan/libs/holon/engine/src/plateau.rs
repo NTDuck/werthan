@@ -29,9 +29,9 @@ pub struct PlateauDetector {
 }
 
 /// Default consecutive stagnant pairs required to trigger plateau.
-pub const DEFAULT_PLATEAU_WINDOW: ::core::primitive::usize = 2;
+pub const DEFAULT_PLATEAU_WINDOW: ::core::primitive::usize = 5;
 /// Default minimum passed test increment to count as progress.
-pub const DEFAULT_MIN_PASSED_GAIN: ::core::primitive::usize = 5;
+pub const DEFAULT_MIN_PASSED_GAIN: ::core::primitive::usize = 2;
 /// Default minimum uncovered count reduction to count as progress.
 pub const DEFAULT_MIN_UNCOVERED_GAIN: ::core::primitive::usize = 1;
 
@@ -166,20 +166,16 @@ mod tests {
     #[test]
     fn test_plateau_detection_after_consecutive_stagnant_pairs() {
         let mut detector = self::PlateauDetector::new();
-        detector.record(self::CoverageSample {
-            rollout: 1,
-            total_tests: 20,
-            passed_tests: 5,
-            uncovered_count: 15,
-        });
-        detector.record(self::CoverageSample {
-            rollout: 2,
-            total_tests: 20,
-            passed_tests: 6,
-            uncovered_count: 15,
-        });
+        for rollout in 1..=5 {
+            detector.record(self::CoverageSample {
+                rollout,
+                total_tests: 20,
+                passed_tests: 5,
+                uncovered_count: 15,
+            });
+        }
         let reached_plateau = detector.record(self::CoverageSample {
-            rollout: 3,
+            rollout: 6,
             total_tests: 20,
             passed_tests: 6,
             uncovered_count: 15,
@@ -192,7 +188,7 @@ mod tests {
 
     #[test]
     fn test_progress_in_passed_tests_clears_plateau() {
-        let mut detector = self::PlateauDetector::new();
+        let mut detector = self::PlateauDetector::new().with_window(2);
         detector.record(self::CoverageSample {
             rollout: 1,
             total_tests: 20,
@@ -216,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_progress_in_uncovered_reduction_clears_plateau() {
-        let mut detector = self::PlateauDetector::new();
+        let mut detector = self::PlateauDetector::new().with_window(2);
         detector.record(self::CoverageSample {
             rollout: 1,
             total_tests: 20,
