@@ -377,13 +377,9 @@ impl self::ExecutionHarness for self::CargoHarness {
                 };
             }
         }
-        let build_args = if test_suite.is_empty() {
-            ::std::vec!["check", "--lib"]
-        } else {
-            ::std::vec!["check", "--lib", "--test", "characterization"]
-        };
-        let build_output = self.run_command("cargo", &build_args, self.build_timeout_secs);
-        let build_log = match build_output {
+        let check_args = ["check", "--lib"];
+        let check_output = self.run_command("cargo", &check_args, self.build_timeout_secs);
+        let check_log = match check_output {
             ::core::result::Result::Ok(output) => {
                 let merged_log = Self::merge_logs(&output);
                 if !output.status.success() {
@@ -407,7 +403,7 @@ impl self::ExecutionHarness for self::CargoHarness {
             return self::HarnessExecutionOutput {
                 compiles: true,
                 pass_rate: 0.0,
-                raw_logs: { build_log },
+                raw_logs: { check_log },
             };
         }
         let test_args = ["test", "--test", "characterization", "--", "--format", "terse"];
@@ -418,12 +414,12 @@ impl self::ExecutionHarness for self::CargoHarness {
                 return self::HarnessExecutionOutput {
                     compiles: true,
                     pass_rate: 0.0,
-                    raw_logs: ::std::format!("{build_log}\n{timeout_text}"),
+                    raw_logs: ::std::format!("{check_log}\n{timeout_text}"),
                 };
             }
         };
         let (passed_total, failed_total) = Self::parse_test_counts(&test_log);
-        let full_log = ::std::format!("{build_log}\n{test_log}");
+        let full_log = ::std::format!("{check_log}\n{test_log}");
         if passed_total + failed_total == 0 {
             return self::HarnessExecutionOutput {
                 compiles: true,
@@ -832,6 +828,23 @@ mod cargo_harness_tests {
         let matrix_file = workspace_root.join("src/matrix.rs");
         let written_source = ::std::fs::read_to_string(matrix_file).expect("matrix written");
         ::core::assert_eq!(written_source, candidate_code);
+        let _ = ::std::fs::remove_dir_all(workspace_root);
+    }
+
+    #[test]
+    fn test_cargo_harness_broken_test_compiles_library_with_zero_pass_rate() {
+        let workspace_root = self::make_temp_workspace("broken-test");
+        let harness = self::CargoHarness::builder()
+            .workspace_root(workspace_root.clone())
+            .build_timeout_secs(60)
+            .test_timeout_secs(60)
+            .build();
+        let candidate_code = "pub fn probe_add(value_x: i32, value_y: i32) -> i32 {\n    value_x + value_y\n}";
+        let broken_test_entry = "#[test]\nfn t_broken_syntax() {\n    undefined_symbol_call()\x3b\n}";
+        let test_suite = ::std::vec![broken_test_entry.to_string()];
+        let outcome = harness.execute_candidate("src/lib.rs", candidate_code, &test_suite, "rust");
+        ::core::assert!(outcome.compiles, "candidate library must compile even if test suite fails: {}", outcome.raw_logs);
+        ::core::assert_eq!(outcome.pass_rate, 0.0);
         let _ = ::std::fs::remove_dir_all(workspace_root);
     }
     /// Skip guard for machines without a node runtime on PATH.

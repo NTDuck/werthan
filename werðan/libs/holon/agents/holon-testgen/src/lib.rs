@@ -150,7 +150,117 @@ pub fn split_test_entries_for(
     if !current_entry.trim().is_empty() && final_entry_guard {
         split_entries.push(current_entry.trim().to_string());
     }
-    split_entries
+    let mut filtered_entries = ::std::vec::Vec::<::std::string::String>::new();
+    for entry in split_entries {
+        let is_balanced = self::has_balanced_delimiters(&entry);
+        if is_balanced {
+            filtered_entries.push(entry);
+        }
+    }
+    filtered_entries
+}
+
+/// Check matching delimiters in source text.
+///
+/// Matches parentheses, brackets, and braces.
+/// Ignores characters in string literals, character literals, and escape sequences.
+pub fn has_balanced_delimiters(code: &::core::primitive::str) -> ::core::primitive::bool {
+    let mut delimiter_stack = ::std::vec::Vec::<::core::primitive::char>::new();
+    let mut in_double_quote = false;
+    let mut in_single_quote = false;
+    let mut is_escaped = false;
+
+    let code_chars = code.chars().collect::<::std::vec::Vec<::core::primitive::char>>();
+    let char_count = code_chars.len();
+    let mut char_idx = 0usize;
+
+    while char_idx < char_count {
+        let current_char = code_chars[char_idx];
+
+        if is_escaped {
+            is_escaped = false;
+            char_idx += 1;
+            continue;
+        }
+
+        if in_double_quote {
+            if current_char == '\\' {
+                is_escaped = true;
+            } else if current_char == '"' {
+                in_double_quote = false;
+            }
+            char_idx += 1;
+            continue;
+        }
+
+        if in_single_quote {
+            if current_char == '\\' {
+                is_escaped = true;
+            } else if current_char == '\'' {
+                in_single_quote = false;
+            }
+            char_idx += 1;
+            continue;
+        }
+
+        match current_char {
+            '"' => {
+                in_double_quote = true;
+                char_idx += 1;
+            }
+            '\'' => {
+                let mut lookahead_idx = char_idx + 1;
+                while lookahead_idx < char_count {
+                    let lookahead_char = code_chars[lookahead_idx];
+                    if lookahead_char.is_alphanumeric() || lookahead_char == '_' {
+                        lookahead_idx += 1;
+                    } else {
+                        break;
+                    }
+                }
+                let ident_length = lookahead_idx - (char_idx + 1);
+                let is_lifetime = if ident_length > 0 {
+                    if lookahead_idx < char_count {
+                        code_chars[lookahead_idx] != '\''
+                    } else {
+                        true
+                    }
+                } else {
+                    false
+                };
+
+                if is_lifetime {
+                    char_idx = lookahead_idx;
+                } else {
+                    in_single_quote = true;
+                    char_idx += 1;
+                }
+            }
+            '(' => {
+                delimiter_stack.push(')');
+                char_idx += 1;
+            }
+            '[' => {
+                delimiter_stack.push(']');
+                char_idx += 1;
+            }
+            '{' => {
+                delimiter_stack.push('}');
+                char_idx += 1;
+            }
+            ')' | ']' | '}' => {
+                if delimiter_stack.pop() != ::core::option::Option::Some(current_char) {
+                    return false;
+                }
+                char_idx += 1;
+            }
+            _ => {
+                char_idx += 1;
+            }
+        }
+    }
+
+    !in_double_quote && !in_single_quote && !is_escaped && delimiter_stack.is_empty()
 }
 
 /// Run one blocking prompt exchange on a dedicated single-thread runtime.
@@ -247,5 +357,62 @@ mod tests {
         let prompt = self::testgen_system_prompt("rust");
         let instruction = "Construct argument structs directly with struct literals (e.g. DictArgs { key, val, alloc }) and strictly adhere to declared function signatures and parameter counts.";
         ::std::assert!(prompt.contains(instruction));
+    }
+
+    #[test]
+    fn test_has_balanced_delimiters_accepts_balanced_constructs() {
+        let code_sample = "#[test]\nfn t_sample() {\n    let items = [1, 2, 3]\x3b\n    ::core::assert_eq!(items.len(), 3)\x3b\n}";
+        let is_balanced = self::has_balanced_delimiters(code_sample);
+        ::core::assert!(is_balanced);
+    }
+
+    #[test]
+    fn test_has_balanced_delimiters_ignores_delimiters_inside_literals() {
+        let code_sample = "fn f() { let s = \"([{\"\x3b let c = '('\x3b }";
+        let is_balanced = self::has_balanced_delimiters(code_sample);
+        ::core::assert!(is_balanced);
+    }
+
+    #[test]
+    fn test_has_balanced_delimiters_ignores_escaped_delimiters() {
+        let code_sample = "fn f() { let s = \"\\\"([{\"\x3b let c = '\\\''\x3b let b = '\\\\'\x3b }";
+        let is_balanced = self::has_balanced_delimiters(code_sample);
+        ::core::assert!(is_balanced);
+    }
+
+    #[test]
+    fn test_has_balanced_delimiters_accepts_lifetimes() {
+        let code_sample = "#[test]\nfn t_lifetime<'a>() {\n    let slice_ref: &'static str = \"sample\"\x3b\n    ::core::assert_eq!(slice_ref, \"sample\")\x3b\n}";
+        let is_balanced = self::has_balanced_delimiters(code_sample);
+        ::core::assert!(is_balanced);
+    }
+
+    #[test]
+    fn test_has_balanced_delimiters_rejects_truncated_entry() {
+        let truncated_code = "#[test]\nfn t_truncated() {\n    let value = 42\x3b\n";
+        let is_balanced = self::has_balanced_delimiters(truncated_code);
+        ::core::assert!(!is_balanced);
+    }
+
+    #[test]
+    fn test_has_balanced_delimiters_rejects_mismatched_brackets() {
+        let mismatched_code = "#[test]\nfn t_mismatched() {\n    let items = (1 + 2]\x3b\n}";
+        let is_balanced = self::has_balanced_delimiters(mismatched_code);
+        ::core::assert!(!is_balanced);
+    }
+
+    #[test]
+    fn test_has_balanced_delimiters_rejects_unclosed_string() {
+        let unclosed_code = "#[test]\nfn t_unclosed() {\n    let message = \"unterminated\x3b\n}";
+        let is_balanced = self::has_balanced_delimiters(unclosed_code);
+        ::core::assert!(!is_balanced);
+    }
+
+    #[test]
+    fn test_split_entries_filters_out_unbalanced_truncated_tests() {
+        let response_text = "#[test]\nfn t_valid() {\n    ::core::assert!(true)\n}\n\n#[test]\nfn t_truncated() {\n    let unclosed = 1\x3b\n";
+        let suite = self::split_test_entries_for(response_text, "rust");
+        ::std::assert_eq!(suite.len(), 1);
+        ::std::assert!(suite.first().is_some_and(|entry| entry.contains("t_valid")));
     }
 }
