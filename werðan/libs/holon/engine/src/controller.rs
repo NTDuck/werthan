@@ -200,26 +200,26 @@ impl<
             }
         }
 
-        let parent_id = self.resolve_parent_id();
         let parented = !self.blackboard.problem_model.parent_contracts.is_empty();
-        let trace = match parented {
-            true => ::std::format!(
-                "Rollout budget exhausted on module {} blocked on parent {}",
-                machine.module_id(),
-                parent_id,
-            ),
-            false => ::std::format!(
-                "Rollout budget exhausted on parentless module {} with no contract counterparty",
-                machine.module_id(),
-            ),
-        };
-        // METHODOLOGY.md §5 Tier B requires the block to sit on a real parent
-        // edge. A parentless module has no edge, so no conflict machine forms
-        // here. The bridge reads `blocked_on_parent` and picks a Tier B
-        // conflict for a parented module or a plain park for a parentless one.
-        let blocked_on = match parented {
-            true => parent_id,
-            false => ::std::string::String::new(),
+        let empty_parent_id = ::std::string::String::new();
+        let (blocked_on, trace) = if parented {
+            let parent_id = self.resolve_parent_id();
+            (
+                parent_id.to_string(),
+                ::std::format!(
+                    "Rollout budget exhausted on module {} blocked on parent {}",
+                    machine.module_id(),
+                    parent_id,
+                ),
+            )
+        } else {
+            (
+                empty_parent_id,
+                ::std::format!(
+                    "Rollout budget exhausted on parentless module {} with no contract counterparty",
+                    machine.module_id(),
+                ),
+            )
         };
         crate::types::EngineTypestateOutcome::BudgetExhausted {
             machine,
@@ -371,7 +371,7 @@ impl<
                 ::core::option::Option::Some(::holon_blackboard::FaultCause::ExtrinsicContract)
             );
             if extrinsic_contract && !parentless_module {
-                let parent_id = self.resolve_parent_id();
+                let parent_id = self.resolve_parent_id().to_string();
                 let delta_spec = fault.summary.clone();
                 let proof_trace = fault.diagnostic_trace.clone();
                 let res = self::StepResult::ContractConflict {
@@ -389,8 +389,8 @@ impl<
                 ::core::option::Option::Some(::holon_blackboard::FaultCause::ExtrinsicCycle)
             );
             if extrinsic_cycle && !parentless_module {
-                let parent_id = self.resolve_parent_id();
-                let reporter_id = ::core::clone::Clone::clone(&self.blackboard.module_id);
+                let parent_id = self.resolve_parent_id().to_string();
+                let reporter_id = self.blackboard.module_id.clone();
                 let edge = (parent_id, reporter_id);
                 let cycle_edges = ::std::vec![edge];
                 let proof_trace = fault.diagnostic_trace.clone();
@@ -442,10 +442,10 @@ impl<
             }
         }
 
-        let selected_code_opt = match self.tree.get(selected_id) {
-            ::core::option::Option::Some(node) => node.candidate_code.clone(),
-            ::core::option::Option::None => ::core::option::Option::None,
-        };
+        let selected_code_opt = self
+            .tree
+            .get(selected_id)
+            .and_then(|node| node.candidate_code.as_deref());
         ::tracing::info!(
             target: "holon_engine",
             module_id = %self.blackboard.module_id,
@@ -487,19 +487,23 @@ impl<
             ::core::option::Option::Some(existing_code) => {
                 // Targeted repair expansion: invoke the patch agent on the existing candidate
                 // guided by the latest distilled diagnostic fault.
+                let default_fault;
                 let fault = match self.blackboard.patch_records.latest_fault() {
-                    ::core::option::Option::Some(recorded_fault) => recorded_fault.clone(),
-                    ::core::option::Option::None => ::holon_blackboard::FaultRecord {
-                        summary: "Suboptimal parity score".to_string(),
-                        cause: ::core::option::Option::Some(::holon_blackboard::FaultCause::Intrinsic),
-                        diagnostic_trace: ::std::string::String::new(),
-                    },
+                    ::core::option::Option::Some(recorded_fault) => recorded_fault,
+                    ::core::option::Option::None => {
+                        default_fault = ::holon_blackboard::FaultRecord {
+                            summary: "Suboptimal parity score".to_string(),
+                            cause: ::core::option::Option::Some(::holon_blackboard::FaultCause::Intrinsic),
+                            diagnostic_trace: ::std::string::String::new(),
+                        };
+                        &default_fault
+                    }
                 };
 
                 let repaired_code = ::holon_patch::HolonPatchAgent::repair_code(
                     &self.agents.patch_agent,
-                    &existing_code,
-                    &fault,
+                    existing_code,
+                    fault,
                     &self.blackboard.problem_model,
                 );
 
@@ -514,11 +518,13 @@ impl<
         }
     }
 
-    fn resolve_parent_id(&self) -> ::std::string::String {
-        if let ::core::option::Option::Some(contract) = self.blackboard.problem_model.parent_contracts.first() {
-            return contract.parent_id.clone();
-        }
-        "parent_upstream".to_string()
+    fn resolve_parent_id(&self) -> &::core::primitive::str {
+        self.blackboard
+            .problem_model
+            .parent_contracts
+            .first()
+            .map(|contract| contract.parent_id.as_str())
+            .unwrap_or("parent_upstream")
     }
 }
 
