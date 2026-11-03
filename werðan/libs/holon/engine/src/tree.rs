@@ -22,8 +22,6 @@ pub struct SearchNode {
     pub total_reward: ::core::primitive::f64,
     /// Mean backpropagated reward score.
     pub mean_reward: ::core::primitive::f64,
-    /// Evaluation outcome cache.
-    pub eval_result: ::core::option::Option<::holon_evaluator::EvaluationResult>,
 }
 
 impl self::SearchNode {
@@ -45,7 +43,6 @@ impl self::SearchNode {
             visit_count: 0,
             total_reward: 0.0,
             mean_reward: 0.0,
-            eval_result: ::core::option::Option::None,
         }
     }
 

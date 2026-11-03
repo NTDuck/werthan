@@ -4,7 +4,7 @@ Read `docs/specs/INDEX.md` first: it routes every domain to its spec file, maps 
 
 ## Operating contract
 
-1. **Methodology ground truth**: `docs/references/METHODOLOGY.md` (with `docs/references/METHODOLOGY-DRV.md` for derivations) is read-only and supersedes every other architectural description. Pinning decision: [ADR-0005](docs/decisions/0005-methodology-source-of-truth.md).
+1. **Methodology ground truth**: `docs/references/METHODOLOGY2.md` (with `docs/references/METHODOLOGY2-DRV.md` for derivations) is read-only and supersedes every other architectural description. Pinning decision: [ADR-0019](docs/decisions/0019-methodology2-egagm.md).
 2. **Specs stay in lockstep**: any change to code behavior, interfaces, commands, workspace crates, dependencies, or tools updates the corresponding spec file (see INDEX routing) in the same commit. Code contradicting a spec, or a spec contradicting code, is a defect.
 3. **ADRs are append-only**: new decisions add a numbered file under `docs/decisions/` following the MADR template (`.omp/rules/references/madr/template/adr-template.md`); when a decision invalidates an older one, mark the old file's status `superseded by [NNNN-slug.md](NNNN-slug.md)` (real target file) and leave its body untouched.
 4. **Living specs**: `docs/specs/**` is written in present tense with no historical narrative; history lives in `docs/decisions/` as the append-only ledger.
@@ -17,9 +17,9 @@ Read `docs/specs/INDEX.md` first: it routes every domain to its spec file, maps 
 | Resource | Role |
 | :--- | :--- |
 | `docs/specs/INDEX.md` | Spec router, ADR tag map, change protocol |
-| `docs/references/METHODOLOGY.md` | Read-only methodology ground truth |
-| `docs/references/METHODOLOGY-DRV.md` | Foundational derivations |
-| `docs/decisions/0001` … `0014` | MADR decision ledger |
+| `docs/references/METHODOLOGY2.md` | Read-only methodology ground truth |
+| `docs/references/METHODOLOGY2-DRV.md` | Foundational derivations |
+| `docs/decisions/0001` … `0019` | MADR decision ledger |
 | `benchmarks/README.md` | Benchmark procedures and config reference |
 | `.omp/rules/specs.md` | Spec synchronization rules (repo convention) |
 

@@ -9,7 +9,7 @@ stack:
   binary_artifacts: []
   use_ghidra_rea: false
   target_language: rust
-  target_edition_or_framework: '2024'
+  target_edition_or_framework: '2021'
   target_build_cmd: cargo check
   target_test_cmd: cargo test
   legacy_test_harness_cmd: make test

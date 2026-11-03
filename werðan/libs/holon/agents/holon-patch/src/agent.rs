@@ -17,6 +17,20 @@ pub const MAX_CHAR_BUDGET: ::core::primitive::usize = 2048;
 /// This keeps guidance under 300 tokens for effective attention.
 pub const MAX_DIAGNOSTIC_LINES: ::core::primitive::usize = 20;
 
+/// Typed output emitted by code repair.
+#[derive(
+    ::core::clone::Clone,
+    ::core::fmt::Debug,
+    ::core::cmp::PartialEq,
+    ::core::cmp::Eq,
+    ::serde::Serialize,
+    ::serde::Deserialize,
+)]
+pub struct CodeRepairOutput {
+    /// Repaired module source code.
+    pub code: ::std::string::String,
+}
+
 /// Namespace for constructing the surgical repair agent and invoking it.
 pub struct HolonPatchAgent;
 
@@ -50,7 +64,7 @@ impl self::HolonPatchAgent {
         let response_text = self::prompt_blocking(agent, user_prompt);
         match self::fault_sentinel_of(&response_text) {
             ::core::option::Option::Some(sentinel_text) => sentinel_text,
-            ::core::option::Option::None => self::extract_code(&response_text),
+            ::core::option::Option::None => self::parse_repair_output(&response_text),
         }
     }
 }
@@ -95,7 +109,7 @@ impl<M: ::rig::completion::CompletionModel> self::HolonPatchAgentBuilder<M> {
             ::core::option::Option::Some(found_model) => found_model,
             ::core::option::Option::None => ::core::panic!("patch model must be wired before build"),
         };
-        let preamble_text = self::patch_system_prompt(&self.target_language);
+        let preamble_text = self::repair_system_prompt(&self.target_language);
         let mut agent_builder = ::rig::agent::AgentBuilder::new(wired_model)
             .preamble(&preamble_text)
             .max_tokens(16384);
@@ -120,7 +134,7 @@ pub fn render_repair_prompt(
     let diagnostic_trace = self::compact_diagnostic_trace(&fault.diagnostic_trace, MAX_DIAGNOSTIC_LINES);
     let target_language = &problem_model.target_language;
     ::std::format!(
-        "[PROBLEM CONTEXT]\n{context_block}\n\n[CANDIDATE CODE]\n{candidate_code}\n\n[FAULT SUMMARY]\n{fault_summary}\n\n[DIAGNOSTIC TRACE]\n{diagnostic_trace}\n\nReturn the repaired complete {target_language} module now.",
+        "[PROBLEM CONTEXT]\n{context_block}\n\n[CANDIDATE CODE]\n{candidate_code}\n\n[FAULT SUMMARY]\n{fault_summary}\n\n[DIAGNOSTIC TRACE]\n{diagnostic_trace}\n\nFix all compilation, borrow, lifetime, and type mismatch errors listed above. If types, structs, or functions from sibling modules are needed, use `use crate::*;` or `use crate::<module>::*;` rather than redefining conflicting duplicate types locally. In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors.\n\nReturn the repaired complete {target_language} module now. Output only a JSON object matching {{\"code\": \"<repaired module source code>\"}} without prose or commentary outside the JSON.",
     )
 }
 
@@ -266,36 +280,79 @@ pub fn fault_candidate(failure_reason: &::core::primitive::str) -> ::std::string
     ::std::format!("SYNTAX_ERROR: ariadne llm repair fault: {sanitized_reason}")
 }
 
-/// Extract the first fenced Rust code block from a model response.
-/// Unfenced responses come back trimmed so bare code still works.
+/// Compatibility alias for repair_system_prompt.
+pub fn patch_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    self::repair_system_prompt(target_language)
+}
+
+/// System prompt steering the model toward repaired module code in the
+/// configured target language.
+pub fn repair_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
+    ::std::format!(
+        "You are a {target_language} code repair engine for a legacy modernization pipeline. \
+Output only a valid JSON object matching {{\"code\": \"<repaired module source code>\"}} without prose or commentary outside the JSON. \
+The code field must contain the repaired complete {target_language} source for one module with no markdown fences. \
+Keep every public signature from the candidate unchanged unless a contract requires otherwise. \
+Strictly adhere to the exact function signatures, argument counts, and parameter types defined in [EXPORT OBLIGATIONS]. If an exported function is \
+specified with N arguments, you must define it with exactly those N arguments so that integration tests compile. \
+Do NOT wrap the output in 'pub mod <name> {{ ... }}'. Output only top-level items (functions, structs, constants) for this single module - the module is already declared by the crate root. Do NOT output code for other modules. \
+In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors. \
+The repaired code must compile and must satisfy every rule card."
+    )
+}
+
+/// Compatibility alias for parse_repair_output.
 pub fn extract_code(response_text: &::core::primitive::str) -> ::std::string::String {
+    self::parse_repair_output(response_text)
+}
+
+/// Parse the model response into repaired module source code.
+///
+/// Attempts direct deserialization of `CodeRepairOutput`.
+/// Slices a JSON object from fences or prose as a fallback.
+/// Strips basic code fences from raw code output as a final fallback.
+pub fn parse_repair_output(response_text: &::core::primitive::str) -> ::std::string::String {
+    let trimmed = response_text.trim();
+    if let ::core::result::Result::Ok(output) =
+        ::serde_json::from_str::<self::CodeRepairOutput>(trimmed)
+    {
+        return output.code;
+    }
+    if let (::core::option::Option::Some(start_index), ::core::option::Option::Some(end_index)) =
+        (trimmed.find('{'), trimmed.rfind('}'))
+    {
+        if start_index < end_index {
+            let json_slice = &trimmed[start_index..=end_index];
+            if let ::core::result::Result::Ok(output) =
+                ::serde_json::from_str::<self::CodeRepairOutput>(json_slice)
+            {
+                return output.code;
+            }
+        }
+    }
+    self::strip_code_fences(trimmed)
+}
+
+/// Strip basic markdown code fences from model response text.
+fn strip_code_fences(response_text: &::core::primitive::str) -> ::std::string::String {
     let fence_token = "```";
-    let fence_start = match response_text.find(fence_token) {
+    let trimmed = response_text.trim();
+    let fence_start = match trimmed.find(fence_token) {
         ::core::option::Option::Some(found_index) => found_index + fence_token.len(),
-        ::core::option::Option::None => return response_text.trim().to_string(),
+        ::core::option::Option::None => return trimmed.to_string(),
     };
-    let after_language_line = match response_text[fence_start..].find('\n') {
+    let content_start = match trimmed[fence_start..].find('\n') {
         ::core::option::Option::Some(line_break) => fence_start + line_break + 1,
-        ::core::option::Option::None => return response_text.trim().to_string(),
+        ::core::option::Option::None => fence_start,
     };
-    let remainder = &response_text[after_language_line..];
-    let code_body = match remainder.find(fence_token) {
+    let remainder = &trimmed[content_start..];
+    let code_body = match remainder.rfind(fence_token) {
         ::core::option::Option::Some(close_index) => &remainder[..close_index],
         ::core::option::Option::None => remainder,
     };
     code_body.trim().to_string()
 }
 
-/// System prompt steering the model toward repaired module code in the
-/// configured target language.
-pub fn patch_system_prompt(target_language: &::core::primitive::str) -> ::std::string::String {
-    ::std::format!(
-        "You are a {target_language} code repair engine for a legacy modernization pipeline. \
-Output only the repaired complete {target_language} source for one module with no markdown and no commentary. \
-Keep every public signature from the candidate unchanged unless a contract requires otherwise. \
-The repaired code must compile and must satisfy every rule card. Return only repaired source."
-    )
-}
 
 #[cfg(test)]
 mod tests {
@@ -315,7 +372,95 @@ mod tests {
         let extracted = self::extract_code(sample);
         ::std::assert_eq!(extracted, sample);
     }
+    #[test]
+    fn test_code_repair_output_serde_roundtrip() {
+        let payload = self::CodeRepairOutput {
+            code: "pub fn repaired() -> u8 { 1 }".to_string(),
+        };
+        let serialized = ::serde_json::to_string(&payload).expect("serialization succeeds");
+        let deserialized = ::serde_json::from_str::<self::CodeRepairOutput>(&serialized)
+            .expect("deserialization succeeds");
+        ::std::assert_eq!(payload, deserialized);
+    }
 
+    #[test]
+    fn test_parse_repair_output_typed_json() {
+        let sample = "{\"code\": \"pub fn repaired() -> u8 { 1 }\"}";
+        let parsed = self::parse_repair_output(sample);
+        ::std::assert_eq!(parsed, "pub fn repaired() -> u8 { 1 }");
+    }
+
+    #[test]
+    fn test_parse_repair_output_fenced_json() {
+        let sample = "```json\n{\n    \"code\": \"pub fn repaired() -> u8 { 1 }\"\n}\n```";
+        let parsed = self::parse_repair_output(sample);
+        ::std::assert_eq!(parsed, "pub fn repaired() -> u8 { 1 }");
+    }
+
+    #[test]
+    fn test_parse_repair_output_fallback_fenced_code() {
+        let sample = "```rust\npub fn repaired_probe() -> u8 { 1 }\n```";
+        let parsed = self::parse_repair_output(sample);
+        ::std::assert_eq!(parsed, "pub fn repaired_probe() -> u8 { 1 }");
+    }
+
+    #[test]
+    fn test_parse_repair_output_fallback_bare_code() {
+        let sample = "pub fn repaired_probe() -> u8 { 1 }";
+        let parsed = self::parse_repair_output(sample);
+        ::std::assert_eq!(parsed, sample);
+    }
+
+    #[test]
+    fn test_repair_system_prompt_instructs_json_schema() {
+        let prompt = self::repair_system_prompt("rust");
+        let instruction = "Output only a valid JSON object matching {\"code\": \"<repaired module source code>\"} without prose or commentary outside the JSON.";
+        ::std::assert!(prompt.contains(instruction));
+    }
+
+    #[test]
+    fn test_render_repair_prompt_instructs_json_schema() {
+        let candidate_code = "pub fn add() {}";
+        let fault = ::holon_blackboard::FaultRecord::default();
+        let problem_model = ::holon_blackboard::ProblemModelSlice::new();
+        let prompt = self::render_repair_prompt(candidate_code, &fault, &problem_model);
+        let instruction = "Output only a JSON object matching {\"code\": \"<repaired module source code>\"} without prose or commentary outside the JSON.";
+        ::std::assert!(prompt.contains(instruction));
+    }
+
+    #[test]
+    fn test_patch_system_prompt_instructs_no_pub_mod() {
+        let prompt = self::patch_system_prompt("rust");
+        let instruction = "Do NOT wrap the output in 'pub mod <name> { ... }'. Output only top-level items (functions, structs, constants) for this single module - the module is already declared by the crate root. Do NOT output code for other modules.";
+        ::std::assert!(prompt.contains(instruction));
+    }
+
+    #[test]
+    fn test_patch_system_prompt_instructs_export_obligations_alignment() {
+        let prompt = self::patch_system_prompt("rust");
+        let instruction = ::core::concat!(
+            "Strictly adhere to the exact function signatures, argument counts, and parameter types defined in [EXPORT OBLIGATIONS]. If an exported function is ",
+            "specified with N arguments, you must define it with exactly those N arguments so that integration tests compile.",
+        );
+        ::std::assert!(prompt.contains(instruction));
+    }
+
+    #[test]
+    fn test_patch_system_prompt_instructs_derive() {
+        let prompt = self::patch_system_prompt("rust");
+        let instruction = "In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors.";
+        ::std::assert!(prompt.contains(instruction));
+    }
+
+    #[test]
+    fn test_render_repair_prompt_instructs_derive() {
+        let candidate_code = "pub fn add() {}";
+        let fault = ::holon_blackboard::FaultRecord::default();
+        let problem_model = ::holon_blackboard::ProblemModelSlice::new();
+        let prompt = self::render_repair_prompt(candidate_code, &fault, &problem_model);
+        let instruction = "In Rust, always annotate public structs and enums with #[derive(Clone, Debug, PartialEq)] (and also add Copy for small attribute, option, and argument structs whose fields are primitives, enums, or function pointers) so callers and test suites can copy, clone, inspect, and assert equivalence without move errors.";
+        ::std::assert!(prompt.contains(instruction));
+    }
     #[test]
     fn test_fault_candidate_sanitizes_and_encodes_marker() {
         let sentinel = self::fault_candidate("boom\nnext \"line\"");

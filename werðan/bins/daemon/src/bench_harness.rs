@@ -118,7 +118,14 @@ pub fn seed_board(
             }
         }
     }
-    self::seed_contracts(&mut board, &legacy_dir);
+    let workspace_root = repo_root.join(&bench_config.paths.workspace_root);
+    let dataset_dir_opt = super::bench_rules::dataset_dir_for_workspace(&workspace_root);
+    self::seed_contracts(
+        &mut board,
+        &legacy_dir,
+        dataset_dir_opt.as_deref(),
+        &bench_config.stack.target_language,
+    );
     let metrics = self::measure_size(&discovered);
     let seed_output = self::SeedOutput {
         board,
@@ -354,17 +361,22 @@ fn is_header_path(
         || relative_path.ends_with(".hxx")
 }
 
-/// Seed one interface contract per DAG edge so the S4 brief guard holds.
+/// Seed interface contracts per DAG edge and per vertex from companion headers and target interface stubs.
 pub fn seed_contracts(
     board: &mut ::global_blackboard::GlobalBlackboard,
     legacy_dir: &::std::path::Path,
+    dataset_dir: ::core::option::Option<&::std::path::Path>,
+    target_language: &::core::primitive::str,
 ) {
     let edges = board.dag.edges.clone();
     for edge_pair in edges {
         let parent_id = edge_pair.0.clone();
         let header_path = legacy_dir.join(&parent_id);
-        let header_spec = ::std::fs::read_to_string(&header_path)
-            .unwrap_or_else(|_| ::std::format!("parent interface from header {parent_id}"));
+        let read_res = ::std::fs::read_to_string(&header_path);
+        let header_spec = match read_res {
+            ::core::result::Result::Ok(content) => content,
+            ::core::result::Result::Err(_) => ::std::format!("parent interface from header {parent_id}"),
+        };
         let contract = ::holon_blackboard::EdgeContract {
             parent_id,
             interface_spec: { header_spec },
@@ -372,26 +384,35 @@ pub fn seed_contracts(
         };
         board.contracts.insert(edge_pair, contract);
     }
+
+    let effective_dataset_dir = match dataset_dir {
+        ::core::option::Option::Some(dataset_path) => ::core::option::Option::Some(dataset_path.to_path_buf()),
+        ::core::option::Option::None => {
+            let parent_opt = legacy_dir.parent();
+            let candidate_opt = parent_opt.map(|parent_path| parent_path.join(target_language));
+            candidate_opt.filter(|candidate_path| candidate_path.is_dir())
+        }
+    };
+
     let vertices = board.dag.vertices.clone();
     for vertex_id in vertices {
-        let vertex_stem = ::std::path::Path::new(&vertex_id)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("");
+        let vertex_path = ::std::path::Path::new(&vertex_id);
+        let stem_opt = vertex_path.file_stem().and_then(|stem_segment| stem_segment.to_str());
+        let vertex_stem = stem_opt.unwrap_or("");
         let mut combined_specs = ::std::vec::Vec::new();
         let mut primary_parent = ::std::string::String::new();
         for (registered_id, maybe_artifact) in &board.artifacts.artifacts {
-            let artifact_stem = ::std::path::Path::new(registered_id)
-                .file_stem()
-                .and_then(|stem_segment| stem_segment.to_str())
-                .unwrap_or("");
+            let artifact_path = ::std::path::Path::new(registered_id);
+            let artifact_stem_opt = artifact_path.file_stem().and_then(|stem_segment| stem_segment.to_str());
+            let artifact_stem = artifact_stem_opt.unwrap_or("");
             let stems_match = !vertex_stem.is_empty() && vertex_stem == artifact_stem;
             let is_header = registered_id.ends_with(".h")
                 || registered_id.ends_with(".hpp")
                 || registered_id.ends_with(".hxx");
             if stems_match && is_header {
                 if let ::core::option::Option::Some(artifact_entry) = maybe_artifact {
-                    if primary_parent.is_empty() {
+                    let primary_empty = primary_parent.is_empty();
+                    if primary_empty {
                         primary_parent = ::core::clone::Clone::clone(registered_id);
                     }
                     let target_code = ::core::clone::Clone::clone(&artifact_entry.target_code);
@@ -399,19 +420,303 @@ pub fn seed_contracts(
                 }
             }
         }
-        if !combined_specs.is_empty() {
+        if let ::core::option::Option::Some(target_root) = &effective_dataset_dir {
+            let target_file_opt = self::find_target_file_for_vertex(
+                target_root,
+                &vertex_id,
+                target_language,
+            );
+            if let ::core::option::Option::Some(target_file_path) = target_file_opt {
+                let target_read_res = ::std::fs::read_to_string(&target_file_path);
+                if let ::core::result::Result::Ok(target_content) = target_read_res {
+                    let extracted = self::extract_exported_signatures(&target_content, target_language);
+                    let has_extracted = !extracted.is_empty();
+                    if has_extracted {
+                        let target_surface = extracted.join("\n\n");
+                        let labeled_surface = ::std::format!("// Target interface export obligations:\n{target_surface}");
+                        combined_specs.push(labeled_surface);
+                    }
+                }
+            }
+        }
+        let has_specs = !combined_specs.is_empty();
+        if has_specs {
+            let primary_empty = primary_parent.is_empty();
+            if primary_empty {
+                primary_parent = ::core::clone::Clone::clone(&vertex_id);
+            }
             let vertex_first = ::core::clone::Clone::clone(&vertex_id);
             let vertex_second = ::core::clone::Clone::clone(&vertex_id);
             let self_key = (vertex_first, vertex_second);
+            let spec_text = combined_specs.join("\n\n");
             let contract = ::holon_blackboard::EdgeContract {
                 parent_id: { primary_parent },
-                interface_spec: { combined_specs.join("\n\n") },
+                interface_spec: { spec_text },
                 preconditions: ::std::vec::Vec::new(),
             };
             board.contracts.insert(self_key, contract);
         }
     }
 }
+
+fn find_target_file_for_vertex(
+    dataset_dir: &::std::path::Path,
+    vertex_id: &::core::primitive::str,
+    target_language: &::core::primitive::str,
+) -> ::core::option::Option<::std::path::PathBuf> {
+    let vertex_path = ::std::path::Path::new(vertex_id);
+    let stem_opt = vertex_path.file_stem().and_then(|stem_segment| stem_segment.to_str());
+    let vertex_stem = stem_opt?;
+    let stem_is_empty = vertex_stem.is_empty();
+    if stem_is_empty {
+        return ::core::option::Option::None;
+    }
+    let target_ext = super::bench_rules::target_source_extension(target_language);
+    let file_name = ::std::format!("{vertex_stem}{target_ext}");
+
+    let src_dir = dataset_dir.join("src");
+    let src_candidate = src_dir.join(&file_name);
+    let src_is_file = src_candidate.is_file();
+    if src_is_file {
+        return ::core::option::Option::Some(src_candidate);
+    }
+
+    let root_candidate = dataset_dir.join(&file_name);
+    let root_is_file = root_candidate.is_file();
+    if root_is_file {
+        return ::core::option::Option::Some(root_candidate);
+    }
+
+    let search_dir = dataset_dir.join("src");
+    let search_is_dir = search_dir.is_dir();
+    let effective_dir = if search_is_dir {
+        search_dir
+    } else {
+        dataset_dir.to_path_buf()
+    };
+    let walk_builder = ::ignore::WalkBuilder::new(effective_dir);
+    let walker = walk_builder.build();
+    for entry_res in walker.flatten() {
+        let entry_path = entry_res.path();
+        let entry_is_file = entry_path.is_file();
+        if !entry_is_file {
+            continue;
+        }
+        let entry_stem_opt = entry_path.file_stem().and_then(|entry_stem_os| entry_stem_os.to_str());
+        let matches_stem = entry_stem_opt == ::core::option::Option::Some(vertex_stem);
+        let path_text = entry_path.to_string_lossy();
+        let matches_ext = path_text.ends_with(target_ext);
+        if matches_stem && matches_ext {
+            let path_buf = entry_path.to_path_buf();
+            return ::core::option::Option::Some(path_buf);
+        }
+    }
+    ::core::option::Option::None
+}
+
+/// Extract exported signatures from target source file content.
+pub fn extract_exported_signatures(
+    content: &::core::primitive::str,
+    target_language: &::core::primitive::str,
+) -> ::std::vec::Vec<::std::string::String> {
+    let is_python = target_language == "python" || target_language == "py";
+    if is_python {
+        return self::extract_python_signatures(content);
+    }
+    let is_js = target_language == "javascript" || target_language == "js";
+    if is_js {
+        return self::extract_js_signatures(content);
+    }
+    self::extract_rust_signatures(content)
+}
+
+fn extract_python_signatures(content: &::core::primitive::str) -> ::std::vec::Vec<::std::string::String> {
+    let mut signatures = ::std::vec::Vec::new();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        let is_def = trimmed.starts_with("def ") && !trimmed.starts_with("def _");
+        let is_class = trimmed.starts_with("class ") && !trimmed.starts_with("class _");
+        if is_def || is_class {
+            let line_string = trimmed.to_string();
+            signatures.push(line_string);
+        }
+    }
+    signatures
+}
+
+fn extract_js_signatures(content: &::core::primitive::str) -> ::std::vec::Vec<::std::string::String> {
+    let mut signatures = ::std::vec::Vec::new();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        let is_export = trimmed.starts_with("export function ")
+            || trimmed.starts_with("export class ")
+            || trimmed.starts_with("export const ")
+            || trimmed.starts_with("export let ");
+        if is_export {
+            let line_string = trimmed.to_string();
+            signatures.push(line_string);
+        }
+    }
+    signatures
+}
+
+/// Extract Rust exported signatures from target source content.
+pub fn extract_rust_signatures(content: &::core::primitive::str) -> ::std::vec::Vec<::std::string::String> {
+    let mut signatures = ::std::vec::Vec::new();
+    let lines = content.lines().collect::<::std::vec::Vec<&::core::primitive::str>>();
+    let total_lines = lines.len();
+    let mut line_idx = 0;
+    while line_idx < total_lines {
+        let line_text = lines[line_idx].trim();
+        let is_pub_fn = self::is_rust_pub_fn_start(line_text);
+        let is_pub_block = self::is_rust_pub_block_start(line_text);
+        let is_pub_item = self::is_rust_pub_item_start(line_text);
+
+        if is_pub_fn {
+            let (signature, next_idx) = self::consume_rust_fn(&lines, line_idx);
+            let sig_not_empty = !signature.is_empty();
+            if sig_not_empty {
+                signatures.push(signature);
+            }
+            line_idx = next_idx;
+        } else if is_pub_block {
+            let (block_text, next_idx) = self::consume_rust_block(&lines, line_idx);
+            let block_not_empty = !block_text.is_empty();
+            if block_not_empty {
+                signatures.push(block_text);
+            }
+            line_idx = next_idx;
+        } else if is_pub_item {
+            let (item_text, next_idx) = self::consume_rust_item(&lines, line_idx);
+            let item_not_empty = !item_text.is_empty();
+            if item_not_empty {
+                signatures.push(item_text);
+            }
+            line_idx = next_idx;
+        }
+        line_idx += 1;
+    }
+    signatures
+}
+
+fn is_rust_pub_fn_start(line_text: &::core::primitive::str) -> ::core::primitive::bool {
+    line_text.starts_with("pub fn ")
+        || line_text.starts_with("pub const fn ")
+        || line_text.starts_with("pub async fn ")
+        || line_text.starts_with("pub unsafe fn ")
+        || line_text.starts_with("pub extern ")
+}
+
+fn is_rust_pub_block_start(line_text: &::core::primitive::str) -> ::core::primitive::bool {
+    line_text.starts_with("pub struct ")
+        || line_text.starts_with("pub enum ")
+        || line_text.starts_with("pub union ")
+        || line_text.starts_with("pub trait ")
+}
+
+fn is_rust_pub_item_start(line_text: &::core::primitive::str) -> ::core::primitive::bool {
+    line_text.starts_with("pub type ")
+        || (line_text.starts_with("pub const ") && !line_text.starts_with("pub const fn "))
+        || line_text.starts_with("pub static ")
+}
+
+fn consume_rust_fn(
+    lines: &[&::core::primitive::str],
+    start_idx: ::core::primitive::usize,
+) -> (::std::string::String, ::core::primitive::usize) {
+    let mut collected = ::std::vec::Vec::new();
+    let total_lines = lines.len();
+    let mut curr_idx = start_idx;
+    while curr_idx < total_lines {
+        let line = lines[curr_idx];
+        if let ::core::option::Option::Some(brace_pos) = line.find('{') {
+            let before_slice = &line[..brace_pos];
+            let before_brace = before_slice.trim_end();
+            let trimmed_before = before_brace.trim();
+            let before_not_empty = !trimmed_before.is_empty();
+            if before_not_empty {
+                collected.push(before_brace);
+            }
+            break;
+        }
+        if let ::core::option::Option::Some(semi_pos) = line.find(';') {
+            let before_semi = &line[..=semi_pos];
+            collected.push(before_semi);
+            break;
+        }
+        collected.push(line);
+        curr_idx += 1;
+    }
+    let raw_sig = collected.join("\n");
+    let trimmed_sig = raw_sig.trim();
+    let mut signature = trimmed_sig.to_string();
+    let sig_not_empty = !signature.is_empty();
+    let has_semi = signature.ends_with(';');
+    let needs_semi = sig_not_empty && !has_semi;
+    if needs_semi {
+        signature.push(';');
+    }
+    (signature, curr_idx)
+}
+
+fn consume_rust_block(
+    lines: &[&::core::primitive::str],
+    start_idx: ::core::primitive::usize,
+) -> (::std::string::String, ::core::primitive::usize) {
+    let mut collected = ::std::vec::Vec::new();
+    let total_lines = lines.len();
+    let mut curr_idx = start_idx;
+    let mut brace_depth: ::core::primitive::i32 = 0;
+    let mut seen_brace = false;
+    while curr_idx < total_lines {
+        let line = lines[curr_idx];
+        collected.push(line);
+        for char_val in line.chars() {
+            if char_val == '{' {
+                brace_depth += 1;
+                seen_brace = true;
+            } else if char_val == '}' {
+                brace_depth -= 1;
+            }
+        }
+        let block_done = seen_brace && brace_depth <= 0;
+        if block_done {
+            break;
+        }
+        let semi_done = !seen_brace && line.contains(';');
+        if semi_done {
+            break;
+        }
+        curr_idx += 1;
+    }
+    let raw_block = collected.join("\n");
+    let trimmed_block = raw_block.trim();
+    let block = trimmed_block.to_string();
+    (block, curr_idx)
+}
+
+fn consume_rust_item(
+    lines: &[&::core::primitive::str],
+    start_idx: ::core::primitive::usize,
+) -> (::std::string::String, ::core::primitive::usize) {
+    let mut collected = ::std::vec::Vec::new();
+    let total_lines = lines.len();
+    let mut curr_idx = start_idx;
+    while curr_idx < total_lines {
+        let line = lines[curr_idx];
+        collected.push(line);
+        let has_semi = line.contains(';');
+        if has_semi {
+            break;
+        }
+        curr_idx += 1;
+    }
+    let raw_item = collected.join("\n");
+    let trimmed_item = raw_item.trim();
+    let item = trimmed_item.to_string();
+    (item, curr_idx)
+}
+
 
 /// Measure the legacy tree size metrics from the discovered source files.
 pub fn measure_size(discovered: &[::std::path::PathBuf]) -> self::SizeMetrics {
@@ -710,5 +1015,33 @@ mod tests {
         ::std::assert!(!has_main_vertex, "main.c must not be in DAG vertices");
         let has_main_inventory = seeded.board.inventory.contains("main.c");
         ::std::assert!(!has_main_inventory, "main.c must not be in inventory");
+    }
+
+    #[test]
+    fn seed_board_for_matrix_multiplication_seeds_target_signatures() {
+        let repo_root = super::super::bench_config::repo_root();
+        let config_path = repo_root.join("benchmarks/assets/configs/ReCodeAgent/crust/matrix_multiplication.yml");
+        let config_text = ::std::fs::read_to_string(&config_path)
+            .expect("matrix_multiplication config reads");
+        let config = ::serde_yaml_ng::from_str::<super::super::bench_config::CampaignConfig>(&config_text)
+            .expect("config parses");
+        let seeded = super::seed_board(&config).expect("seed board succeeds");
+        let utils_key = ("utils.c".to_string(), "utils.c".to_string());
+        let has_utils_contract = seeded.board.contracts.contracts.contains_key(&utils_key);
+        ::std::assert!(has_utils_contract, "utils.c must have a self-contract");
+        let utils_contract = &seeded.board.contracts.contracts[&utils_key];
+        ::std::assert!(
+            utils_contract.interface_spec.contains("print_array(matrix: &[Vec<f32>], name: &str, typ: &str)"),
+            "utils self-contract must contain 3-argument print_array signature: {}",
+            utils_contract.interface_spec
+        );
+        let matrix_key = ("matrix.c".to_string(), "matrix.c".to_string());
+        let has_matrix_contract = seeded.board.contracts.contracts.contains_key(&matrix_key);
+        ::std::assert!(has_matrix_contract, "matrix.c must have a self-contract");
+        let matrix_contract = &seeded.board.contracts.contracts[&matrix_key];
+        ::std::assert!(
+            matrix_contract.interface_spec.contains("pub fn generate_matrix"),
+            "matrix self-contract must contain generate_matrix"
+        );
     }
 }

@@ -433,6 +433,9 @@ struct ChatCompletionsMessage {
     /// Primary answer channel.
     #[serde(default)]
     content: ::core::option::Option<::std::string::String>,
+    /// Deliberation trace channel.
+    #[serde(default)]
+    reasoning_content: ::core::option::Option<::std::string::String>,
     /// Refusal channel.
     #[serde(default)]
     refusal: ::core::option::Option<::std::string::String>,
@@ -536,24 +539,26 @@ fn chat_payload_value(
     payload.insert("temperature".to_string(), temperature_value);
     let max_tokens_value = ::serde_json::Value::from(max_tokens);
     payload.insert("max_tokens".to_string(), max_tokens_value);
-    // Reasoning traces burn the whole token budget on long-form generation
-    // under concurrency and never surface as output. The serving stack
-    // honors this template flag; disabling it makes every call emit content
-    // directly. Iterative self-heal compensates for one-shot quality.
-    let template_kwargs = ::serde_json::json!({ "enable_thinking": false });
+    // Enable thinking in the chat template so the model can deliberate
+    // prior to output. Deliberation traces surface via reasoning_content
+    // for observability while final answers populate content.
+    let template_kwargs = ::serde_json::json!({ "enable_thinking": true });
     payload.insert("chat_template_kwargs".to_string(), template_kwargs);
     ::serde_json::Value::Object(payload)
 }
 
 /// Parse the raw chat-completions JSON into its raw value and answer text.
 ///
-/// The text channel is assistant `content` only. Unknown channels such as
-/// `reasoning_content` deserialize as ignored raw JSON: deliberation is
-/// never surfaced as an answer. The refusal channel appends when present.
+/// The text channel is assistant `content` only. Deliberation traces in
+/// `reasoning_content` are logged at debug level and never surfaced as an
+/// answer. The refusal channel appends when present.
 fn response_text_of(body: &self::ChatCompletionsBody) -> ::std::string::String {
     let mut collected = ::std::string::String::new();
     for choice in &body.choices {
         if let ::core::option::Option::Some(message) = &choice.message {
+            if let ::core::option::Option::Some(reasoning_text) = &message.reasoning_content {
+                ::tracing::debug!(reasoning = %reasoning_text, "model deliberation trace");
+            }
             // Reasoning content is model deliberation, never the answer.
             // An empty content with a long reasoning stream means the model
             // exhausted its budget before emitting any output; surfacing the
@@ -675,7 +680,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn chat_payload_disables_thinking_channel() {
+    fn chat_payload_enables_thinking_channel() {
         let payload = self::chat_payload_value(
             "test-model",
             ::std::vec![],
@@ -686,7 +691,7 @@ mod tests {
             .get("chat_template_kwargs")
             .and_then(|kwargs_value| kwargs_value.get("enable_thinking"))
             .and_then(|flag_value| flag_value.as_bool());
-        ::std::assert_eq!(kwargs, ::core::option::Option::Some(false));
+        ::std::assert_eq!(kwargs, ::core::option::Option::Some(true));
     }
 
     #[test]

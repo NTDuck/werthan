@@ -1,0 +1,33 @@
+campaign_id: repomod-jmespath-bench
+execution_mode: full_auto
+paths:
+  input_legacy_dir: benchmarks/assets/RepoMod-bench/dataset/jmespath/src
+  workspace_root: benchmarks/outputs/RepoMod-bench/jmespath/rust
+  off_limits_globs:
+    - "internal/**"
+    - "fuzz/**"
+    - "compliance/**"
+stack:
+  source_language: go
+  binary_artifacts: []
+  use_ghidra_rea: false
+  target_language: rust
+  target_edition_or_framework: '2024'
+  target_build_cmd: cargo build --release
+  target_test_cmd: python3 -m pytest benchmarks/assets/RepoMod-bench/dataset/jmespath/tests --work-dir . --run-cmd ./target/release/jp
+  legacy_test_harness_cmd: go test ./...
+inference:
+  base_url: ''
+  model: swift-1.5-qwen3.8-27b
+  max_parallel_shards: 6
+  max_shards: 6
+  inference_max_tokens: 49152
+  inference_temperature: 0.2
+  inference_timeout_secs: 1200
+  build_timeout_secs: 300
+  test_timeout_secs: 300
+verification:
+  max_self_heal_retries: 6
+  require_byte_identical_io: false
+ariadne:
+  max_rollouts: 64

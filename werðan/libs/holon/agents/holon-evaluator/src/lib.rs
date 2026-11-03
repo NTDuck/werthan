@@ -9,7 +9,7 @@
 pub mod cargo_harness;
 pub mod llm_distiller;
 
-pub use self::cargo_harness::CargoHarness;
+pub use self::cargo_harness::{normalize_rust_imports, CargoHarness};
 pub use self::llm_distiller::{
     audit_system_prompt, distill_system_prompt, HolonEvaluatorAgent, HolonEvaluatorAgentBuilder,
     RigDiagnosticDistiller,

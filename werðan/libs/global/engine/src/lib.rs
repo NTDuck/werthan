@@ -196,8 +196,12 @@ impl self::MacroEngine {
     /// Seed the board inventory, DAG, and module vector before running.
     pub fn configure(&mut self, board: ::global_blackboard::GlobalBlackboard) {
         self.board = board;
-        for vertex in self.board.dag.vertices.clone() {
-            self.board.state.module_states.entry(vertex).or_insert(::global_blackboard::ModuleMicroState::M0Blocked);
+        for vertex in &self.board.dag.vertices {
+            self.board
+                .state
+                .module_states
+                .entry(vertex.clone())
+                .or_insert(::global_blackboard::ModuleMicroState::M0Blocked);
         }
         self.futile_dispatches.clear();
     }
@@ -596,8 +600,7 @@ impl self::MacroEngine {
             shard_count = shards.len(),
             "starting discovery phase"
         );
-        let shard_clones = shards.to_vec();
-        for (shard_index, shard) in shard_clones.into_iter().enumerate() {
+        for (shard_index, shard) in shards.iter().enumerate() {
             self.dispatch_phase_worker(shard, shard_index, ::core::option::Option::None);
         }
         let mut retry_round = 0;
@@ -618,14 +621,11 @@ impl self::MacroEngine {
             self.structural_retries += 1;
             let delta = self::guards::structural_guard(phase, &self.board).err();
             for shard in failing {
-                let mut shard_index = ::core::primitive::usize::default();
-                for (probe, listed) in shards.iter().enumerate() {
-                    if self::shards_match_subject(listed, &shard) {
-                        shard_index = probe;
-                        break;
-                    }
-                }
-                self.dispatch_phase_worker(shard, shard_index, delta.clone());
+                let shard_index = shards
+                    .iter()
+                    .position(|listed| listed.matches_subject(&shard))
+                    .unwrap_or_default();
+                self.dispatch_phase_worker(&shard, shard_index, delta.clone());
             }
         }
         // A probe-reported INTENT violation binds after the guard round: the
@@ -735,7 +735,7 @@ impl self::MacroEngine {
         directive: ::core::option::Option<::std::string::String>,
     ) {
         let shards = self::batches::partition_shards(&self.board, phase, &self.regression_scope);
-        for (shard_index, shard) in shards.into_iter().enumerate() {
+        for (shard_index, shard) in shards.iter().enumerate() {
             let subject_owned = match &shard {
                 self::batches::PhaseShard::Whole => "repository".to_string(),
                 self::batches::PhaseShard::Vertex(vertex) => vertex.clone(),
@@ -755,11 +755,11 @@ impl self::MacroEngine {
     /// engine carries it on the `ev_ShardDone` completion event.
     fn dispatch_phase_worker(
         &mut self,
-        shard: self::batches::PhaseShard,
+        shard: &self::batches::PhaseShard,
         shard_index: ::core::primitive::usize,
         delta_directive: ::core::option::Option<::std::string::String>,
     ) {
-        let subject = match &shard {
+        let subject = match shard {
             self::batches::PhaseShard::Whole => "repository".to_string(),
             self::batches::PhaseShard::Vertex(vertex) => vertex.clone(),
             self::batches::PhaseShard::Edge(parent_id, child) => ::std::format!("{parent_id}->{child}"),
@@ -800,80 +800,50 @@ impl self::MacroEngine {
         if !s3_complete {
             return;
         }
-        let tags = ::core::clone::Clone::clone(&self.board.cross_links);
-        let mut remaining = ::std::vec::Vec::new();
-        for tag in tags {
-            let resolved = self.resolve_cross_link(&tag);
-            if !resolved {
-                remaining.push(tag);
-            }
-        }
-        self.board.cross_links = remaining;
+        let tags = ::core::mem::take(&mut self.board.cross_links);
+        self.board.cross_links = tags
+            .into_iter()
+            .filter(|tag| !self.resolve_cross_link(tag))
+            .collect::<::std::vec::Vec<_>>();
     }
-
     /// Resolve one cross-link tag by linking the referenced rule card.
     /// The tag resolves when a rule card whose clauses name the target symbol
     /// exists on a vertex. The card copies to every vertex the tag names.
     fn resolve_cross_link(&mut self, tag: &::global_blackboard::UnresolvedCrossLink) -> ::core::primitive::bool {
-        let mut source_found = ::core::option::Option::None;
-        for vertex in &self.board.dag.vertices {
-            let cards_absent = !self.board.rules.contains(vertex);
-            if cards_absent {
-                continue;
-            }
-            let cards = match self.board.rules.get(vertex) {
-                ::core::option::Option::Some(entries) => ::core::clone::Clone::clone(entries),
-                ::core::option::Option::None => ::std::vec::Vec::new(),
-            };
-            let references_source = cards
-                .iter()
-                .any(|card| card.rule_id == tag.src_id);
-            if references_source {
-                source_found = ::core::option::Option::Some(vertex.clone());
-                break;
-            }
-        }
+        let source_found = self.board.dag.vertices.iter().find(|vertex| {
+            self.board
+                .rules
+                .get(vertex.as_str())
+                .is_some_and(|cards| cards.iter().any(|card| card.rule_id == tag.src_id))
+        });
         let source_vertex = match source_found {
-            ::core::option::Option::Some(name) => name,
+            ::core::option::Option::Some(name) => name.clone(),
             ::core::option::Option::None => return false,
         };
-        let source_cards = match self.board.rules.get(&source_vertex) {
-            ::core::option::Option::Some(entries) => ::core::clone::Clone::clone(entries),
-            ::core::option::Option::None => ::std::vec::Vec::new(),
-        };
-        let matching_card = source_cards
-            .iter()
-            .find(|card| card.rule_id == tag.src_id)
-            .cloned();
-        let card = match matching_card {
-            ::core::option::Option::Some(entry) => entry,
+        let card = match self
+            .board
+            .rules
+            .get(&source_vertex)
+            .and_then(|cards| cards.iter().find(|entry| entry.rule_id == tag.src_id))
+        {
+            ::core::option::Option::Some(entry) => entry.clone(),
             ::core::option::Option::None => return false,
         };
         // Copy the card to the vertex the tag names by its identifier.
         let mut linked_any = false;
         for vertex in &self.board.dag.vertices {
-            let target_match = vertex == &tag.tgt_symbol;
-            if !target_match {
+            if vertex != &tag.tgt_symbol || vertex == &source_vertex {
                 continue;
             }
-            let self_link = *vertex == source_vertex;
-            if self_link {
-                continue;
+            if let ::core::option::Option::Some(target_cards) = self.board.rules.get_mut(vertex.as_str()) {
+                if !target_cards.iter().any(|existing| existing.rule_id == card.rule_id) {
+                    target_cards.push(card.clone());
+                    linked_any = true;
+                }
+            } else {
+                self.board.rules.insert(vertex.clone(), ::std::vec![card.clone()]);
+                linked_any = true;
             }
-            let target_cards = match self.board.rules.get(vertex) {
-                ::core::option::Option::Some(entries) => ::core::clone::Clone::clone(entries),
-                ::core::option::Option::None => ::std::vec::Vec::new(),
-            };
-            let already_linked = target_cards.iter().any(|existing| existing.rule_id == card.rule_id);
-            if already_linked {
-                continue;
-            }
-            let card_copy = ::core::clone::Clone::clone(&card);
-            let vertex_name = ::core::clone::Clone::clone(vertex);
-            let mut merged = target_cards;
-            merged.push(card_copy);
-            self.board.rules.insert(vertex_name, merged);
-            linked_any = true;
         }
         linked_any
     }
@@ -1014,17 +984,15 @@ impl self::MacroEngine {
 
     /// Restore module vector entries from Theta_H* when entering S5 per Algorithm 1 step 6.
     fn restore_history_into_module_states(&mut self) {
-        for vertex in self.board.dag.vertices.clone() {
-            let restored = self.board.state.history_state_of(&vertex);
-            let next_state = match restored {
-                ::core::option::Option::Some(checkpoint) => checkpoint,
-                ::core::option::Option::None => {
-                    self.board.state.module_states.get(&vertex).copied().unwrap_or(::global_blackboard::ModuleMicroState::M0Blocked)
-                },
-            };
+        for vertex in &self.board.dag.vertices {
+            let next_state = self
+                .board
+                .state
+                .history_state_of(vertex)
+                .or_else(|| self.board.state.module_states.get(vertex).copied())
+                .unwrap_or(::global_blackboard::ModuleMicroState::M0Blocked);
             self.board.state.module_states.insert(vertex.clone(), next_state);
-            self.transition_log
-                .push((vertex, next_state));
+            self.transition_log.push((vertex.clone(), next_state));
         }
     }
 
@@ -1069,7 +1037,7 @@ impl self::MacroEngine {
 
     /// Report whether every DAG vertex holds a hardened artifact and module state.
     fn all_vertices_hardened(&self) -> ::core::primitive::bool {
-        for vertex in &self.board.dag.vertices {
+        self.board.dag.vertices.iter().all(|vertex| {
             let artifact_present = ::core::matches!(
                 self.board.artifacts.get(vertex),
                 ::core::option::Option::Some(::core::option::Option::Some(_))
@@ -1078,45 +1046,40 @@ impl self::MacroEngine {
                 self.board.state.module_states.get(vertex),
                 ::core::option::Option::Some(::global_blackboard::ModuleMicroState::M4Hardened)
             );
-            let hardened = artifact_present && state_present;
-            if !hardened {
-                return false;
-            }
-        }
-        true
+            artifact_present && state_present
+        })
     }
 
     /// Compute the Kahn ready set of modules with all parents hardened.
     fn compute_ready_set(&self) -> ::std::vec::Vec<::std::string::String> {
-        let mut ready = ::std::vec::Vec::new();
-        for vertex in &self.board.dag.vertices {
-            let now = *self.board.state.module_states.get(vertex).unwrap_or(&::global_blackboard::ModuleMicroState::M0Blocked);
-            // Warm-start modules in M2 re-enter dispatch without a parent gate because
-            // they hardened once before the downstream conflict invalidated them.
-            let warm_pending = self.warm_modes.contains_key(vertex);
-            let parked_eligible = now == ::global_blackboard::ModuleMicroState::M0Blocked
-                || now == ::global_blackboard::ModuleMicroState::M5Invalidated;
-            if warm_pending {
-                ready.push(vertex.clone());
-                continue;
-            }
-            if !parked_eligible {
-                continue;
-            }
-            let mut parents_ready = true;
-            for parent in self.board.dag.parents_of(vertex) {
-                let parent_ok = self.is_module_hardened(&parent);
-                if !parent_ok {
-                    parents_ready = false;
+        self.board
+            .dag
+            .vertices
+            .iter()
+            .filter(|vertex| {
+                if self.warm_modes.contains_key(*vertex) {
+                    return true;
                 }
-            }
-            if parents_ready {
-                ready.push(vertex.clone());
-            }
-        }
-        ready
+                let now = self
+                    .board
+                    .state
+                    .module_states
+                    .get(*vertex)
+                    .copied()
+                    .unwrap_or(::global_blackboard::ModuleMicroState::M0Blocked);
+                let parked_eligible = now == ::global_blackboard::ModuleMicroState::M0Blocked
+                    || now == ::global_blackboard::ModuleMicroState::M5Invalidated;
+                parked_eligible
+                    && self
+                        .board
+                        .dag
+                        .parents_of(vertex)
+                        .iter()
+                        .all(|parent| self.is_module_hardened(parent))
+            })
+            .cloned()
+            .collect::<::std::vec::Vec<_>>()
     }
-
     /// Dispatch the solver for one ready module and drive its micro-state transitions.
     fn dispatch_module(&mut self, module_id: &::core::primitive::str) {
         let mode = match self.warm_modes.remove(module_id) {
@@ -1188,14 +1151,24 @@ impl self::MacroEngine {
                 best_candidate,
                 best_reward,
             } => {
-                if let ::core::option::Option::Some(candidate_code) = best_candidate {
-                    if best_reward >= 0.5 {
+                if best_reward >= 0.5 {
+                    if let ::core::option::Option::Some(candidate_code) = best_candidate {
                         let artifact = ::global_blackboard::ModuleArtifact {
                             target_code: { candidate_code },
                             test_suite: ::std::vec::Vec::new(),
                         };
                         self.board.artifacts.commit(&module_id, artifact);
                     }
+                    self.set_module_state(
+                        &module_id,
+                        ::global_blackboard::ModuleMicroState::M4Hardened,
+                    );
+                    self.futile_dispatches.insert(module_id.to_string(), 0);
+                    ::tracing::info!(
+                        "parentless module {module_id} promoted to hardened with best reward {best_reward}"
+                    );
+                    let _unused_trace = &proof_trace;
+                    return;
                 }
                 self.board
                     .state
@@ -1207,7 +1180,7 @@ impl self::MacroEngine {
                 ::tracing::info!(
                     "module {module_id} exhausted its rollout budget without a contract counterparty and parked at futile dispatch {counter}"
                 );
-                let _ = &proof_trace;
+                let _unused_trace = &proof_trace;
             }
             self::solver::SolverOutcome::CycleFound {
                 cycle_edges,
@@ -1319,7 +1292,8 @@ impl self::MacroEngine {
         self.board.artifacts = ::global_blackboard::ArtifactRegistry::from(new_artifacts);
         // Drop contracts internal to a merged vertex and re-key cross edges.
         let mut new_contracts = ::std::collections::BTreeMap::new();
-        for (key, contract) in self.board.contracts.contracts.clone() {
+        let old_contracts = ::core::mem::take(&mut self.board.contracts.contracts);
+        for (key, contract) in old_contracts {
             let owner_parent = self.merged_owner(&condensed, &key.0);
             let owner_child = self.merged_owner(&condensed, &key.1);
             let is_self_contract = key.0 == key.1;
@@ -1329,11 +1303,11 @@ impl self::MacroEngine {
             }
             let parent = match owner_parent {
                 ::core::option::Option::Some(name) => name,
-                ::core::option::Option::None => key.0.clone(),
+                ::core::option::Option::None => key.0,
             };
             let child = match owner_child {
                 ::core::option::Option::Some(name) => name,
-                ::core::option::Option::None => key.1.clone(),
+                ::core::option::Option::None => key.1,
             };
             new_contracts.insert((parent, child), contract);
         }
@@ -1359,56 +1333,42 @@ impl self::MacroEngine {
 
     /// Return the merged vertex owning a pre-condensation id when one exists.
     fn merged_owner(&self, condensed: &::global_blackboard::CondensedDag, member: &::core::primitive::str) -> ::core::option::Option<::std::string::String> {
-        for vertex in &condensed.vertices {
-            let parts = vertex.split('+');
-            for part in parts {
-                let member_match = part == member;
-                if member_match {
-                    return ::core::option::Option::Some(vertex.clone());
-                }
-            }
-        }
-        ::core::option::Option::None
+        condensed
+            .vertices
+            .iter()
+            .find(|vertex| vertex.split('+').any(|part| part == member))
+            .cloned()
     }
 
     /// Return the condensed vertices that still require a rework dispatch.
     fn merged_scope_vertices(&self) -> ::std::vec::Vec<::std::string::String> {
-        let mut scope = ::std::vec::Vec::new();
-        for vertex in &self.board.dag.vertices {
-            let merged = vertex.contains('+');
-            if merged {
-                scope.push(vertex.clone());
-            }
-        }
-        scope
+        self.board
+            .dag
+            .vertices
+            .iter()
+            .filter(|vertex| vertex.contains('+'))
+            .cloned()
+            .collect::<::std::vec::Vec<_>>()
     }
 
 }
 
-/// Report whether two shards address the same partition subject. Shard
-/// variants do not derive equality because subjects may repeat across
-/// partition regenerations. Subject identity is the partition key.
-fn shards_match_subject(
-    listed: &self::batches::PhaseShard,
-    candidate: &self::batches::PhaseShard,
-) -> ::core::primitive::bool {
-    let listed_subject = match listed {
-        self::batches::PhaseShard::Whole => "repository".to_string(),
-        self::batches::PhaseShard::Vertex(vertex) => ::core::clone::Clone::clone(vertex),
-        self::batches::PhaseShard::Edge(parent_id, child_id) => {
-            ::std::format!("{parent_id}->{child_id}")
+impl self::batches::PhaseShard {
+    /// Report whether two shards address the same partition subject.
+    pub fn matches_subject(&self, candidate: &Self) -> ::core::primitive::bool {
+        match (self, candidate) {
+            (Self::Whole, Self::Whole) => true,
+            (Self::Vertex(listed_vertex), Self::Vertex(candidate_vertex)) => {
+                listed_vertex == candidate_vertex
+            }
+            (
+                Self::Edge(listed_parent, listed_child),
+                Self::Edge(candidate_parent, candidate_child),
+            ) => listed_parent == candidate_parent && listed_child == candidate_child,
+            _ => false,
         }
-    };
-    let candidate_subject = match candidate {
-        self::batches::PhaseShard::Whole => "repository".to_string(),
-        self::batches::PhaseShard::Vertex(vertex) => ::core::clone::Clone::clone(vertex),
-        self::batches::PhaseShard::Edge(parent_id, child_id) => {
-            ::std::format!("{parent_id}->{child_id}")
-        }
-    };
-    listed_subject == candidate_subject
+    }
 }
-
 
 
 #[cfg(test)]
@@ -1926,6 +1886,69 @@ mod tests {
         let outcome = engine.run();
         let error = outcome.unwrap_err();
         ::std::assert!(::core::matches!(error, self::MacroEngineError::StepBudgetExhausted { .. }));
+    }
+
+    /// Solver that reports budget exhaustion with a preset reward and candidate.
+    #[derive(::core::fmt::Debug)]
+    struct MockBudgetExhaustedSolver {
+        reward: ::core::primitive::f64,
+        candidate_code: ::core::option::Option<::std::string::String>,
+    }
+
+    impl self::ModuleSolver for self::MockBudgetExhaustedSolver {
+        fn solve(
+            &mut self,
+            module_id: &::core::primitive::str,
+            _problem_model: &::holon_blackboard::ProblemModelSlice,
+            _mode: ::holon_fsm::ActivationMode,
+        ) -> self::SolverOutcome {
+            self::SolverOutcome::BudgetExhausted {
+                module_id: { module_id.to_string() },
+                proof_trace: "budget exhausted".to_string(),
+                best_candidate: self.candidate_code.clone(),
+                best_reward: self.reward,
+            }
+        }
+    }
+
+    #[test]
+    fn test_parentless_budget_exhausted_promotes_when_reward_ge_point_five() {
+        let solver = self::MockBudgetExhaustedSolver {
+            reward: 0.957,
+            candidate_code: ::core::option::Option::Some("fn a_candidate() {}".to_string()),
+        };
+        let boxed = ::std::boxed::Box::new(solver);
+        let mut engine = self::chain_engine(boxed);
+        engine.dispatch_module("a");
+        let module_state = engine.state_vector().module_states.get("a");
+        ::std::assert_eq!(
+            module_state,
+            ::core::option::Option::Some(&::global_blackboard::ModuleMicroState::M4Hardened)
+        );
+        let committed_artifact = engine.board().artifacts.get("a");
+        ::std::assert!(
+            ::core::matches!(committed_artifact, ::core::option::Option::Some(::core::option::Option::Some(_)))
+        );
+        let reset_counter = engine.futile_dispatches.get("a");
+        ::std::assert_eq!(reset_counter, ::core::option::Option::Some(&0));
+    }
+
+    #[test]
+    fn test_parentless_budget_exhausted_parks_when_reward_lt_point_five() {
+        let solver = self::MockBudgetExhaustedSolver {
+            reward: 0.49,
+            candidate_code: ::core::option::Option::Some("fn a_candidate() {}".to_string()),
+        };
+        let boxed = ::std::boxed::Box::new(solver);
+        let mut engine = self::chain_engine(boxed);
+        engine.dispatch_module("a");
+        let module_state = engine.state_vector().module_states.get("a");
+        ::std::assert_eq!(
+            module_state,
+            ::core::option::Option::Some(&::global_blackboard::ModuleMicroState::M0Blocked)
+        );
+        let counter = engine.futile_dispatches.get("a");
+        ::std::assert_eq!(counter, ::core::option::Option::Some(&1));
     }
 
     /// Stub solver that always reports an undocumented cycle for every dispatch.

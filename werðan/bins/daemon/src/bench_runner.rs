@@ -50,8 +50,13 @@ fn run_campaign_blocking(
             campaign_started.elapsed().as_millis() as ::core::primitive::u64;
         return failed;
     }
+    let dataset_dir_opt = super::bench_rules::dataset_dir_for_workspace(&workspace_root);
+    let target_root = match &dataset_dir_opt {
+        ::core::option::Option::Some(dir) => dir.as_path(),
+        ::core::option::Option::None => &workspace_root,
+    };
     let api_surface_text =
-        super::bench_rules::target_api_surface(&workspace_root, &bench_config.stack.target_language);
+        super::bench_rules::target_api_surface(target_root, &bench_config.stack.target_language);
     let seed_res = super::bench_harness::seed_board(bench_config);
     let seed_output = match seed_res {
         ::core::result::Result::Ok(value) => value,
@@ -116,9 +121,11 @@ fn run_campaign_blocking(
             ::configschema::ConflictEscalation::AskHuman
         ),
     };
+    let futile_dispatch_cap = (bench_config.verification.max_self_heal_retries as ::core::primitive::usize).max(3);
     let mut engine = ::global_engine::MacroEngine::builder()
         .solver(solver)
         .hitl(hitl_gates)
+        .futile_dispatch_cap(futile_dispatch_cap)
         .build();
     engine.configure(seeded_board);
     ::tracing::info!("campaign {campaign_id}: starting engine execution");
@@ -167,8 +174,20 @@ fn run_campaign_blocking(
     } else {
         ::core::option::Option::None
     };
+    let diff_error = if validation.differential_equivalent == ::core::option::Option::Some(false) {
+        ::core::option::Option::Some(::std::format!(
+            "differential verification divergence: {:?}",
+            validation.differential_classification
+        ))
+    } else {
+        ::core::option::Option::None
+    };
     let engine_error = if engine_error.is_none() {
-        honesty_error
+        if honesty_error.is_some() {
+            honesty_error
+        } else {
+            diff_error
+        }
     } else {
         engine_error
     };
@@ -191,6 +210,7 @@ fn run_campaign_blocking(
         unimplemented_after_reset,
         compilation_success,
         test_pass_rate: { validation.test_pass_rate },
+        differential_equivalent: { validation.differential_equivalent },
         unimplemented_remaining,
         solver_dispatches: { solver_dispatches },
         worker_executions: { engine.worker_executions() },
@@ -227,6 +247,9 @@ pub struct BenchResult {
     pub compilation_success: ::core::primitive::bool,
     /// Fraction of passed tests over passed plus failed tests.
     pub test_pass_rate: ::core::primitive::f64,
+    /// Differential behavioral equivalence outcome (Some(true) = equivalent, Some(false) = diverged, None = skipped/unconfigured).
+    #[serde(default)]
+    pub differential_equivalent: ::core::option::Option<::core::primitive::bool>,
     /// Remaining `unimplemented!()` marker count in workspace sources.
     pub unimplemented_remaining: ::core::primitive::usize,
     /// Solver dispatch count reported by the engine.
@@ -263,32 +286,16 @@ fn reset_workspace(
     _bench_config: &super::bench_config::CampaignConfig,
     workspace_root: &::std::path::Path,
 ) -> ::core::option::Option<::std::string::String> {
-    let repo_root = super::bench_config::repo_root();
-    let root_text = workspace_root
-        .strip_prefix(&repo_root)
-        .unwrap_or(workspace_root)
-        .to_string_lossy()
-        .to_string();
-    let outputs_prefix = "benchmarks/outputs/";
-    let not_outputs_rooted = !root_text.starts_with(outputs_prefix);
-    if not_outputs_rooted {
-        return ::core::option::Option::Some(::std::format!(
-            "workspace root path '{root_text}' is not under expected prefix '{outputs_prefix}'"
-        ));
-    }
-    let dataset_relative = root_text.replacen(
-        outputs_prefix,
-        "benchmarks/assets/ReCodeAgent/data/tool_projects/",
-        1,
-    );
-    let dataset_dir = repo_root.join(&dataset_relative);
-    let dataset_missing = !dataset_dir.is_dir();
-    if dataset_missing {
-        return ::core::option::Option::Some(::std::format!(
-            "pristine dataset directory not found at: {}",
-            dataset_dir.display()
-        ));
-    }
+    let dataset_dir_opt = super::bench_rules::dataset_dir_for_workspace(workspace_root);
+    let dataset_dir = match dataset_dir_opt {
+        ::core::option::Option::Some(dir) => dir,
+        ::core::option::Option::None => {
+            return ::core::option::Option::Some(::std::format!(
+                "pristine dataset directory not found for workspace root: {}",
+                workspace_root.display()
+            ));
+        }
+    };
     let remove_res = ::std::fs::remove_dir_all(workspace_root);
     if let ::core::result::Result::Err(remove_error) = remove_res {
         // A missing workspace root is already the pristine state the reset
@@ -306,7 +313,7 @@ fn reset_workspace(
             "failed to copy dataset to workspace for reset: {copy_error}"
         ));
     }
-    self::purge_implementation_stubs(workspace_root);
+    self::sanitize_lib_manifest(workspace_root);
     ::core::option::Option::None
 }
 
@@ -346,49 +353,26 @@ fn copy_dir_recursive(
     ::core::result::Result::Ok(())
 }
 
-/// Truncate implementation stub files in workspace src so translation starts from scratch.
-fn purge_implementation_stubs(workspace_root: &::std::path::Path) {
-    let src_dir = workspace_root.join("src");
-    let read_res = ::std::fs::read_dir(&src_dir);
-    let entries = match read_res {
-        ::core::result::Result::Ok(dir_entries) => dir_entries,
+/// Sanitize src/lib.rs in target workspace to retain only module declarations.
+fn sanitize_lib_manifest(workspace_root: &::std::path::Path) {
+    let lib_path = workspace_root.join("src/lib.rs");
+    let content = match ::std::fs::read_to_string(&lib_path) {
+        ::core::result::Result::Ok(text) => text,
         ::core::result::Result::Err(_) => return,
     };
-    let mut purged_count: ::core::primitive::usize = 0;
-    for entry_res in entries {
-        let entry = match entry_res {
-            ::core::result::Result::Ok(valid_entry) => valid_entry,
-            ::core::result::Result::Err(_) => continue,
-        };
-        let entry_path = entry.path();
-        let entry_is_file = entry_path.is_file();
-        if !entry_is_file {
-            continue;
-        }
-        let file_name = entry.file_name();
-        let file_name_text = file_name.to_string_lossy();
-        let is_root_file = file_name_text == "lib.rs" || file_name_text == "main.rs";
-        if is_root_file {
-            continue;
-        }
-        let extension_opt = entry_path.extension().and_then(|extension_os| extension_os.to_str());
-        let matches_target_extension = ::core::matches!(
-            extension_opt,
-            ::core::option::Option::Some("rs" | "js" | "py")
-        );
-        if matches_target_extension {
-            let purge_marker = "// purged for from-scratch translation\n";
-            let write_res = ::std::fs::write(&entry_path, purge_marker);
-            if write_res.is_ok() {
-                purged_count += 1;
-            }
+    let mut cleaned = ::std::string::String::new();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("pub mod ") {
+            cleaned.push_str(trimmed);
+            cleaned.push('\n');
         }
     }
-    let display_path = src_dir.display();
-    ::tracing::info!(
-        "purged {purged_count} implementation stub files under {display_path} so the system translates from scratch"
-    );
+    if !cleaned.is_empty() {
+        let _ = ::std::fs::write(&lib_path, cleaned);
+    }
 }
+
 
 /// Build a failure result for a campaign that could not even seed.
 fn failed_result(campaign_id: &::core::primitive::str, reason: &::core::primitive::str) -> self::BenchResult {
@@ -401,6 +385,7 @@ fn failed_result(campaign_id: &::core::primitive::str, reason: &::core::primitiv
         unimplemented_after_reset: 0,
         compilation_success: false,
         test_pass_rate: 0.0,
+        differential_equivalent: ::core::option::Option::None,
         unimplemented_remaining: 0,
         solver_dispatches: 0,
         worker_executions: 0,
@@ -607,9 +592,9 @@ mod tests {
             result.llm_requests > 0,
             "the engine must issue real inference calls"
         );
-        ::std::assert_eq!(
-            result.unimplemented_after_reset, 0,
-            "the reset purges implementation stubs so translation starts from scratch"
+        ::std::assert!(
+            result.unimplemented_after_reset > 0,
+            "the reset preserves pristine implementation stubs so types remain available"
         );
         let honesty_failure = result
             .error
@@ -620,47 +605,48 @@ mod tests {
     }
 
     #[test]
-    fn purge_implementation_stubs_overwrites_sibling_stubs_and_leaves_lib_intact() {
+    fn copy_dir_recursive_preserves_pristine_interface_stubs() {
         let pid_text = ::std::process::id();
-        let suffix = ::std::format!("daemon-purge-stubs-{pid_text}");
-        let workspace = ::std::env::temp_dir().join(suffix);
-        let src_dir = workspace.join("src");
+        let suffix = ::std::format!("daemon-copy-stubs-{pid_text}");
+        let temp_dir = ::std::env::temp_dir().join(suffix);
+        let src_root = temp_dir.join("source");
+        let src_dir = src_root.join("src");
+        let dst_root = temp_dir.join("dest");
         ::std::fs::create_dir_all(&src_dir).expect("temp src dir creates");
-        let lib_path = src_dir.join("lib.rs");
-        let main_path = src_dir.join("main.rs");
-        let stub_module_path = src_dir.join("matrix.rs");
-        let lib_content = "pub mod matrix\x3b\n";
-        let main_content = "fn main() {}\n";
-        let stub_content = "pub fn generate_matrix() {\n    unimplemented!()\n}\n";
-        ::std::fs::write(&lib_path, lib_content).expect("lib writes");
-        ::std::fs::write(&main_path, main_content).expect("main writes");
+        let stub_module_path = src_dir.join("fst.rs");
+        let stub_content = "pub struct Fst {}\npub fn parse() {\n    unimplemented!()\n}\n";
         ::std::fs::write(&stub_module_path, stub_content).expect("stub writes");
 
-        let before_unimplemented =
-            super::super::bench_harness::count_unimplemented(&workspace, "rust");
-        ::std::assert_eq!(before_unimplemented, 1);
+        let copy_res = super::copy_dir_recursive(&src_root, &dst_root);
+        ::std::assert!(copy_res.is_ok(), "copy must succeed");
 
-        super::purge_implementation_stubs(&workspace);
-
-        let after_lib = ::std::fs::read_to_string(&lib_path).expect("lib rereads");
-        ::std::assert_eq!(after_lib, lib_content, "lib.rs must not be purged");
-        let after_main = ::std::fs::read_to_string(&main_path).expect("main rereads");
-        ::std::assert_eq!(after_main, main_content, "main.rs must not be purged");
-
-        let after_stub = ::std::fs::read_to_string(&stub_module_path).expect("stub rereads");
+        let dst_stub = dst_root.join("src").join("fst.rs");
+        let after_stub = ::std::fs::read_to_string(&dst_stub).expect("stub rereads");
         ::std::assert_eq!(
-            after_stub, "// purged for from-scratch translation\n",
-            "sibling module must be overwritten with purge marker"
-        );
-        ::std::assert!(stub_module_path.exists(), "stub file must remain on disk");
-
-        let after_unimplemented =
-            super::super::bench_harness::count_unimplemented(&workspace, "rust");
-        ::std::assert_eq!(
-            after_unimplemented, 0,
-            "unimplemented count must be 0 after purge"
+            after_stub, stub_content,
+            "stub file must be preserved intact without interface destruction"
         );
 
-        let _ = ::std::fs::remove_dir_all(&workspace);
+        let count = super::super::bench_harness::count_unimplemented(&dst_root, "rust");
+        ::std::assert_eq!(count, 1, "unimplemented count must be preserved");
+
+        let _ = ::std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn sanitize_lib_manifest_retains_only_module_declarations() {
+        let pid_text = ::std::process::id();
+        let suffix = ::std::format!("daemon-sanitize-stubs-{pid_text}");
+        let temp_dir = ::std::env::temp_dir().join(suffix);
+        let src_dir = temp_dir.join("src");
+        ::std::fs::create_dir_all(&src_dir).expect("temp src dir creates");
+        let raw_lib = "pub mod bitset\x3b\npub mod fst\x3b\nuse fst::{Fst, StateData, ArcData}\x3b\npub fn assert_arc_equal() {}\n";
+        let lib_path = src_dir.join("lib.rs");
+        ::std::fs::write(&lib_path, raw_lib).expect("stub lib writes");
+        super::sanitize_lib_manifest(&temp_dir);
+        let sanitized = ::std::fs::read_to_string(&lib_path).expect("stub lib rereads");
+        let expected_lib = "pub mod bitset\x3b\npub mod fst\x3b\n";
+        ::core::assert_eq!(sanitized, expected_lib);
+        let _ = ::std::fs::remove_dir_all(&temp_dir);
     }
 }

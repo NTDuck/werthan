@@ -127,47 +127,106 @@ fn is_test_tree_entry(entry: &super::bench_harness::InventoryEntry) -> ::core::p
 /// their own source extension. Capturing the surface here grounds the
 /// extracted rule cards in the real required API instead of guessed
 /// signatures.
+/// Capture the target API surface from the pristine dataset directory or workspace.
+///
+/// When the workspace root is under `benchmarks/outputs/`, this resolves the
+/// corresponding pristine `dataset_dir` to capture target signatures before
+/// any workspace purging occurs.
 pub fn target_api_surface(
     workspace_root: &::std::path::Path,
     target_language: &::core::primitive::str,
 ) -> ::std::string::String {
+    let dataset_dir_opt = self::dataset_dir_for_workspace(workspace_root);
+    let effective_root = match &dataset_dir_opt {
+        ::core::option::Option::Some(dataset_dir) => dataset_dir.as_path(),
+        ::core::option::Option::None => workspace_root,
+    };
     let target_extension = self::target_source_extension(target_language);
-    let src_dir = workspace_root.join("src");
-    let walk = ::ignore::WalkBuilder::new(src_dir).build();
+    let src_dir = effective_root.join("src");
+    let walk_builder = ::ignore::WalkBuilder::new(src_dir);
+    let walk = walk_builder.build();
     let mut surfaces = ::std::vec::Vec::new();
-    for entry in walk.flatten() {
-        let path = entry.path();
-        let path_is_file = path.is_file();
+    for entry_res in walk.flatten() {
+        let entry_path = entry_res.path();
+        let path_is_file = entry_path.is_file();
         if !path_is_file {
             continue;
         }
-        let path_text = path.to_string_lossy();
+        let path_text = entry_path.to_string_lossy();
         let matches_target = path_text.ends_with(target_extension);
         if !matches_target {
             continue;
         }
-        let read_res = ::std::fs::read_to_string(path);
+        let read_res = ::std::fs::read_to_string(entry_path);
         let text = match read_res {
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(_) => continue,
         };
-        surfaces.push(::std::format!("// file: {}", path_text));
+        let file_header = ::std::format!("// file: {}", path_text);
+        surfaces.push(file_header);
         surfaces.push(text);
     }
     surfaces.join("\n")
+}
+
+/// Resolve the pristine dataset directory corresponding to a target workspace root.
+pub fn dataset_dir_for_workspace(
+    workspace_root: &::std::path::Path,
+) -> ::core::option::Option<::std::path::PathBuf> {
+    let repo_root = super::bench_config::repo_root();
+    let root_path_opt = workspace_root.strip_prefix(&repo_root);
+    let stripped_root = match root_path_opt {
+        ::core::result::Result::Ok(stripped) => stripped,
+        ::core::result::Result::Err(_) => workspace_root,
+    };
+    let root_lossy = stripped_root.to_string_lossy();
+    let root_text = root_lossy.to_string();
+    let repomod_prefix = "benchmarks/outputs/RepoMod-bench/";
+    if let ::core::option::Option::Some(remainder) = root_text.strip_prefix(repomod_prefix) {
+        let project_name = remainder
+            .split('/')
+            .find(|segment| !segment.is_empty())
+            .unwrap_or(remainder);
+        if !project_name.is_empty() {
+            let candidate = repo_root
+                .join("benchmarks/assets/RepoMod-bench/dataset")
+                .join(project_name)
+                .join("dst");
+            let candidate_is_dir = candidate.is_dir();
+            if candidate_is_dir {
+                return ::core::option::Option::Some(candidate);
+            }
+        }
+        return ::core::option::Option::None;
+    }
+    let outputs_prefix = "benchmarks/outputs/";
+    let starts_with_prefix = root_text.starts_with(outputs_prefix);
+    if !starts_with_prefix {
+        return ::core::option::Option::None;
+    }
+    let dataset_prefix = "benchmarks/assets/ReCodeAgent/data/tool_projects/";
+    let dataset_relative = root_text.replacen(outputs_prefix, dataset_prefix, 1);
+    let candidate = repo_root.join(dataset_relative);
+    let candidate_is_dir = candidate.is_dir();
+    if candidate_is_dir {
+        ::core::option::Option::Some(candidate)
+    } else {
+        ::core::option::Option::None
+    }
 }
 
 /// Return the source file extension the target language uses.
 ///
 /// Unknown or unset target languages fall back to the rust extension, which
 /// preserves the historical default behavior.
-fn target_source_extension(target_language: &::core::primitive::str) -> &'static ::core::primitive::str {
+pub fn target_source_extension(target_language: &::core::primitive::str) -> &'static ::core::primitive::str {
     match target_language {
         "javascript" | "js" => ".js",
         "python" | "py" => ".py",
         _ => ".rs",
     }
 }
+
 
 /// Collect header file texts that share the stem of one implementation entry.
 fn sibling_header_text(
@@ -276,6 +335,16 @@ fn choice_text_of(
         .unwrap_or_default()
 }
 
+/// Wire format of one raw rule card candidate inside the model response.
+#[derive(::serde::Deserialize)]
+struct RawRuleCard {
+    rule_id: ::core::option::Option<::std::string::String>,
+    citation: ::core::option::Option<::std::string::String>,
+    given: ::core::option::Option<::std::string::String>,
+    when: ::core::option::Option<::std::string::String>,
+    then: ::core::option::Option<::std::string::String>,
+}
+
 /// Parse one strict JSON array of rule cards from the model response.
 ///
 /// Accepts fenced or bare JSON. We skip malformed entries, never guessing.
@@ -284,66 +353,54 @@ fn parse_rule_cards(
     response_text: &::core::primitive::str,
     relative_path: &::core::primitive::str,
 ) -> ::std::vec::Vec<::holon_blackboard::BusinessRuleCard> {
-    let json_start = response_text.find('[');
-    let json_end = response_text.rfind(']');
-    let bounds = match (json_start, json_end) {
-        (::core::option::Option::Some(start), ::core::option::Option::Some(end)) if start < end => {
-            (start, end + 1)
-        },
-        _ => return ::std::vec::Vec::new(),
-    };
-    let json_text = &response_text[bounds.0..bounds.1];
-    let parsed = ::serde_json::from_str::<::serde_json::Value>(json_text);
-    let parsed_array = match parsed {
-        ::core::result::Result::Ok(::serde_json::Value::Array(items)) => items,
-        _ => return ::std::vec::Vec::new(),
-    };
-    let mut cards = ::std::vec::Vec::new();
-    for (rule_index, item) in parsed_array.into_iter().enumerate() {
-        let rule_id = self::string_field(&item, "rule_id");
-        let given_text = self::string_field(&item, "given");
-        let when_text = self::string_field(&item, "when");
-        let then_text = self::string_field(&item, "then");
-        let citation_text = self::string_field(&item, "citation");
-        let keys_missing = rule_id.is_empty()
-            || given_text.is_empty()
-            || when_text.is_empty()
-            || then_text.is_empty();
-        if keys_missing {
-            continue;
+    let json_slice = match (response_text.find('['), response_text.rfind(']')) {
+        (::core::option::Option::Some(start_idx), ::core::option::Option::Some(end_idx))
+            if start_idx < end_idx =>
+        {
+            &response_text[start_idx..=end_idx]
         }
-        let citation_final = if citation_text.is_empty() {
-            relative_path.to_string()
-        } else {
-            citation_text
-        };
-        let rule_id_final = if rule_id.starts_with("RULE_") {
-            rule_id
-        } else {
-            ::std::format!("RULE_{rule_index:03}_{rule_id}")
-        };
-        let card = ::holon_blackboard::BusinessRuleCard {
-            rule_id: { rule_id_final },
-            given: { given_text },
-            when: { when_text },
-            then: { then_text },
-            citation: { citation_final },
-        };
-        cards.push(card);
-    }
-    cards
-}
-
-/// Read one string field from a parsed JSON object.
-fn string_field(
-    item: &::serde_json::Value,
-    field_name: &::core::primitive::str,
-) -> ::std::string::String {
-    item.get(field_name)
-        .and_then(|field_value| field_value.as_str())
-        .unwrap_or("")
-        .trim()
-        .to_string()
+        _ => return ::std::vec::Vec::new(),
+    };
+    let raw_cards = match ::serde_json::from_str::<::std::vec::Vec<self::RawRuleCard>>(json_slice) {
+        ::core::result::Result::Ok(items) => items,
+        ::core::result::Result::Err(_) => return ::std::vec::Vec::new(),
+    };
+    raw_cards
+        .into_iter()
+        .enumerate()
+        .filter_map(|(rule_index, raw_card)| {
+            let rule_id = raw_card.rule_id?.trim().to_string();
+            let given_text = raw_card.given?.trim().to_string();
+            let when_text = raw_card.when?.trim().to_string();
+            let then_text = raw_card.then?.trim().to_string();
+            if rule_id.is_empty()
+                || given_text.is_empty()
+                || when_text.is_empty()
+                || then_text.is_empty()
+            {
+                return ::core::option::Option::None;
+            }
+            let citation_final = raw_card
+                .citation
+                .as_deref()
+                .map(::core::primitive::str::trim)
+                .filter(|trimmed| !trimmed.is_empty())
+                .unwrap_or(relative_path)
+                .to_string();
+            let rule_id_final = if rule_id.starts_with("RULE_") {
+                rule_id
+            } else {
+                ::std::format!("RULE_{rule_index:03}_{rule_id}")
+            };
+            ::core::option::Option::Some(::holon_blackboard::BusinessRuleCard {
+                rule_id: { rule_id_final },
+                given: { given_text },
+                when: { when_text },
+                then: { then_text },
+                citation: { citation_final },
+            })
+        })
+        .collect::<::std::vec::Vec<_>>()
 }
 
 #[cfg(test)]
@@ -374,5 +431,46 @@ mod tests {
         let cards = self::parse_rule_cards(response, "src/vec.c");
         ::std::assert_eq!(cards.len(), 1);
         ::std::assert_eq!(cards[0].rule_id, "RULE_000_COMPACT");
+    }
+
+    #[test]
+    fn target_api_surface_resolves_pristine_dataset_for_matrix_multiplication() {
+        let repo_root = super::super::bench_config::repo_root();
+        let workspace_root = repo_root.join("benchmarks/outputs/crust/matrix_multiplication/rust");
+        let surface = super::target_api_surface(&workspace_root, "rust");
+        ::std::assert!(surface.contains("pub fn print_array"));
+        ::std::assert!(surface.contains("pub fn multiply"));
+    }
+
+    #[test]
+    fn dataset_dir_for_workspace_resolves_both_repomod_and_recodeagent() {
+        let repo_root = super::super::bench_config::repo_root();
+        let repomod_workspace = repo_root.join("benchmarks/outputs/RepoMod-bench/jmespath/rust");
+        let repomod_dir = super::dataset_dir_for_workspace(&repomod_workspace);
+        let expected_repomod_dir = repo_root
+            .join("benchmarks/assets/RepoMod-bench/dataset")
+            .join("jmespath")
+            .join("dst");
+        ::std::assert_eq!(
+            repomod_dir,
+            ::core::option::Option::Some(expected_repomod_dir)
+        );
+
+        let recode_workspace = repo_root.join("benchmarks/outputs/crust/matrix_multiplication/rust");
+        let recode_dir = super::dataset_dir_for_workspace(&recode_workspace);
+        let expected_recode_dir = repo_root
+            .join("benchmarks/assets/ReCodeAgent/data/tool_projects/crust/matrix_multiplication/rust");
+        ::std::assert_eq!(
+            recode_dir,
+            ::core::option::Option::Some(expected_recode_dir)
+        );
+    }
+
+    #[test]
+    fn target_api_surface_resolves_pristine_dataset_for_repomod_jmespath() {
+        let repo_root = super::super::bench_config::repo_root();
+        let workspace_root = repo_root.join("benchmarks/outputs/RepoMod-bench/jmespath/rust");
+        let surface = super::target_api_surface(&workspace_root, "rust");
+        ::std::assert!(surface.contains("pub fn search"));
     }
 }

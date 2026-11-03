@@ -3,16 +3,20 @@
 
 pub mod agents;
 pub mod controller;
+pub mod plateau;
 pub mod reward;
 pub mod solver;
 pub mod tree;
 pub mod types;
+pub mod weakening;
 
 pub use self::agents::SubagentPool;
 pub use self::controller::ClusterEngine;
 pub use self::reward::compute_gated_reward;
 pub use self::tree::{SearchNode, SearchTree};
 pub use self::types::{EngineConfig, EngineTypestateOutcome, RewardWeights};
+pub use self::plateau::{CoverageSample, PlateauDetector};
+pub use self::weakening::{count_assertions, detect_test_weakening};
 
 #[cfg(test)]
 pub(crate) mod test_support {

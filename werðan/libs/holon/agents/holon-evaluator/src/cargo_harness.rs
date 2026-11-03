@@ -332,8 +332,9 @@ impl self::ExecutionHarness for self::CargoHarness {
         }
         let source_relative = self.source_file_for(module_id);
         let source_path = self.workspace_root.join(&source_relative);
+        let candidate_to_write = candidate_code.to_string();
         if let ::core::result::Result::Err(write_error) =
-            ::std::fs::write(&source_path, candidate_code)
+            ::std::fs::write(&source_path, candidate_to_write)
         {
             return self::HarnessExecutionOutput {
                 compiles: false,
@@ -376,13 +377,9 @@ impl self::ExecutionHarness for self::CargoHarness {
                 };
             }
         }
-        let build_args = if test_suite.is_empty() {
-            ::std::vec!["check", "--lib"]
-        } else {
-            ::std::vec!["check", "--lib", "--test", "characterization"]
-        };
-        let build_output = self.run_command("cargo", &build_args, self.build_timeout_secs);
-        let build_log = match build_output {
+        let check_args = ["check", "--lib"];
+        let check_output = self.run_command("cargo", &check_args, self.build_timeout_secs);
+        let check_log = match check_output {
             ::core::result::Result::Ok(output) => {
                 let merged_log = Self::merge_logs(&output);
                 if !output.status.success() {
@@ -406,7 +403,7 @@ impl self::ExecutionHarness for self::CargoHarness {
             return self::HarnessExecutionOutput {
                 compiles: true,
                 pass_rate: 0.0,
-                raw_logs: { build_log },
+                raw_logs: { check_log },
             };
         }
         let test_args = ["test", "--test", "characterization", "--", "--format", "terse"];
@@ -417,12 +414,12 @@ impl self::ExecutionHarness for self::CargoHarness {
                 return self::HarnessExecutionOutput {
                     compiles: true,
                     pass_rate: 0.0,
-                    raw_logs: ::std::format!("{build_log}\n{timeout_text}"),
+                    raw_logs: ::std::format!("{check_log}\n{timeout_text}"),
                 };
             }
         };
         let (passed_total, failed_total) = Self::parse_test_counts(&test_log);
-        let full_log = ::std::format!("{build_log}\n{test_log}");
+        let full_log = ::std::format!("{check_log}\n{test_log}");
         if passed_total + failed_total == 0 {
             return self::HarnessExecutionOutput {
                 compiles: true,
@@ -469,8 +466,9 @@ impl self::CargoHarness {
             }
         };
         let target_path = self.workspace_root.join(&target_relative);
+        let candidate_to_write = candidate_code.to_string();
         if let ::core::result::Result::Err(write_error) =
-            ::std::fs::write(&target_path, candidate_code)
+            ::std::fs::write(&target_path, candidate_to_write)
         {
             return self::HarnessExecutionOutput {
                 compiles: false,
@@ -579,10 +577,13 @@ impl self::CargoHarness {
                 continue;
             }
             let decl_pattern = ::std::format!("pub mod {file_stem}\x3b");
+            let use_pattern = ::std::format!("pub use {file_stem}::*\x3b");
             if !existing_lib_text.contains(&decl_pattern) {
-                existing_lib_text.push_str(&::std::format!(
-                    "\npub mod {file_stem}\x3b\npub use {file_stem}::*\x3b\n"
-                ));
+                existing_lib_text.push_str(&::std::format!("\npub mod {file_stem}\x3b\n"));
+                modified = true;
+            }
+            if !existing_lib_text.contains(&use_pattern) {
+                existing_lib_text.push_str(&::std::format!("\npub use {file_stem}::*\x3b\n"));
                 modified = true;
             }
         }
@@ -590,6 +591,33 @@ impl self::CargoHarness {
             let _ = ::std::fs::write(&lib_path, existing_lib_text);
         }
     }
+
+    /// Normalize Rust imports by prepending `use crate::*;\n` if absent.
+    ///
+    /// Ported from `MAgHARCM/internal/agents/translator.go:263-274`.
+    /// In Rust, `use crate::*;` grants the submodule access to all crate root
+    /// symbols and sibling modules, preventing E0308 type mismatches caused by
+    /// SLMs redefining duplicate structs. An unused glob is only a compiler warning,
+    /// never an error.
+    pub fn normalize_rust_imports(candidate_code: &::core::primitive::str) -> ::std::string::String {
+        let already_has_import = candidate_code.contains("use crate::*");
+        if already_has_import {
+            candidate_code.to_string()
+        } else {
+            ::std::format!("use crate::*\x3b\n{candidate_code}")
+        }
+    }
+}
+
+/// Normalize Rust imports by prepending `use crate::*;\n` if absent.
+///
+/// Ported from `MAgHARCM/internal/agents/translator.go:263-274`.
+/// In Rust, `use crate::*;` grants the submodule access to all crate root
+/// symbols and sibling modules, preventing E0308 type mismatches caused by
+/// SLMs redefining duplicate structs. An unused glob is only a compiler warning,
+/// never an error.
+pub fn normalize_rust_imports(candidate_code: &::core::primitive::str) -> ::std::string::String {
+    self::CargoHarness::normalize_rust_imports(candidate_code)
 }
 
 #[cfg(test)]
@@ -644,6 +672,24 @@ mod cargo_harness_tests {
         let empty_suite = ::std::vec::Vec::<::std::string::String>::new();
         let outcome = harness.execute_candidate("src/lib.rs", candidate_code, &empty_suite, "rust");
         ::core::assert!(!outcome.compiles);
+        let _ = ::std::fs::remove_dir_all(workspace_root);
+    }
+
+    #[test]
+    fn test_sync_lib_modules_adds_reexports_when_pub_mod_already_exists() {
+        let workspace_root = self::make_temp_workspace("sync-modules");
+        let src_dir = workspace_root.join("src");
+        ::std::fs::write(src_dir.join("bitset.rs"), "pub struct BitSet\x3b").expect("module writes");
+        ::std::fs::write(src_dir.join("lib.rs"), "pub mod bitset\x3b\n").expect("lib writes");
+        let harness = self::CargoHarness::builder()
+            .workspace_root(workspace_root.clone())
+            .build_timeout_secs(10)
+            .test_timeout_secs(10)
+            .build();
+        harness.sync_lib_modules();
+        let lib_content = ::std::fs::read_to_string(src_dir.join("lib.rs")).expect("lib rereads");
+        ::core::assert!(lib_content.contains("pub mod bitset\x3b"));
+        ::core::assert!(lib_content.contains("pub use bitset::*\x3b"));
         let _ = ::std::fs::remove_dir_all(workspace_root);
     }
     #[test]
@@ -752,6 +798,55 @@ mod cargo_harness_tests {
         let _ = ::std::fs::remove_dir_all(workspace_root);
     }
 
+
+    #[test]
+    fn test_normalize_rust_imports_prepends_when_absent() {
+        let candidate_code = "pub fn add(first_number: i32, second_number: i32) -> i32 { first_number + second_number }";
+        let normalized_code = self::normalize_rust_imports(candidate_code);
+        let expected_code = ::std::format!("use crate::*\x3b\n{candidate_code}");
+        ::core::assert_eq!(normalized_code, expected_code);
+    }
+
+    #[test]
+    fn test_normalize_rust_imports_retains_when_present() {
+        let candidate_code = "use crate::*\x3b\npub fn add(first_number: i32, second_number: i32) -> i32 { first_number + second_number }";
+        let normalized_code = self::normalize_rust_imports(candidate_code);
+        ::core::assert_eq!(normalized_code, candidate_code);
+    }
+
+    #[test]
+    fn test_cargo_harness_submodule_candidate_does_not_inject_crate_glob() {
+        let workspace_root = self::make_temp_workspace("submodule-glob");
+        let harness = self::CargoHarness::builder()
+            .workspace_root(workspace_root.clone())
+            .build_timeout_secs(60)
+            .test_timeout_secs(60)
+            .build();
+        let candidate_code = "pub fn probe_mult(value_x: i32, value_y: i32) -> i32 {\n    value_x * value_y\n}";
+        let empty_suite = ::std::vec::Vec::<::std::string::String>::new();
+        let _ = harness.execute_candidate("matrix.c", candidate_code, &empty_suite, "rust");
+        let matrix_file = workspace_root.join("src/matrix.rs");
+        let written_source = ::std::fs::read_to_string(matrix_file).expect("matrix written");
+        ::core::assert_eq!(written_source, candidate_code);
+        let _ = ::std::fs::remove_dir_all(workspace_root);
+    }
+
+    #[test]
+    fn test_cargo_harness_broken_test_compiles_library_with_zero_pass_rate() {
+        let workspace_root = self::make_temp_workspace("broken-test");
+        let harness = self::CargoHarness::builder()
+            .workspace_root(workspace_root.clone())
+            .build_timeout_secs(60)
+            .test_timeout_secs(60)
+            .build();
+        let candidate_code = "pub fn probe_add(value_x: i32, value_y: i32) -> i32 {\n    value_x + value_y\n}";
+        let broken_test_entry = "#[test]\nfn t_broken_syntax() {\n    undefined_symbol_call()\x3b\n}";
+        let test_suite = ::std::vec![broken_test_entry.to_string()];
+        let outcome = harness.execute_candidate("src/lib.rs", candidate_code, &test_suite, "rust");
+        ::core::assert!(outcome.compiles, "candidate library must compile even if test suite fails: {}", outcome.raw_logs);
+        ::core::assert_eq!(outcome.pass_rate, 0.0);
+        let _ = ::std::fs::remove_dir_all(workspace_root);
+    }
     /// Skip guard for machines without a node runtime on PATH.
     fn node_is_available() -> ::core::primitive::bool {
         ::std::process::Command::new("node")

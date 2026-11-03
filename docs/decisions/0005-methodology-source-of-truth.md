@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "superseded by [0019-methodology2-egagm.md](0019-methodology2-egagm.md)"
 date: 2026-10-20
 decision-makers: ["NTDuck", "omp"]
 consulted: ["werðan architecture team"]

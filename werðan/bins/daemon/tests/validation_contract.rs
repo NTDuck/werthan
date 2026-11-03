@@ -265,6 +265,7 @@ fn contract_val_daemon_06_external_test_success_maps_full_rate() {
     let validation = ::daemon::bench_validation::validate_workspace(&bench_config, &scratch_root);
     ::std::assert!(validation.check_ok);
     ::std::assert_eq!(validation.test_pass_rate, 1.0);
+    ::std::assert_eq!(validation.differential_equivalent, ::core::option::Option::None);
 }
 
 /// Contract: external test toolchains map a nonzero exit code to zero.
@@ -274,6 +275,7 @@ fn contract_val_daemon_07_external_test_failure_maps_zero_rate() {
     let bench_config = external_command_config("false");
     let validation = ::daemon::bench_validation::validate_workspace(&bench_config, &scratch_root);
     ::std::assert_eq!(validation.test_pass_rate, 0.0);
+    ::std::assert_eq!(validation.differential_equivalent, ::core::option::Option::None);
 }
 
 /// Contract: compilation success reflects only the final workspace artifact
@@ -285,6 +287,8 @@ fn contract_val_daemon_08_compilation_success_ignores_terminal_error() {
     let workspace_validation = ::daemon::bench_validation::WorkspaceValidation {
         check_ok: true,
         test_pass_rate: 1.0,
+        differential_equivalent: ::core::option::Option::Some(true),
+        differential_classification: ::core::option::Option::None,
     };
     let terminal_error = ::core::option::Option::Some(
         "module source.py exhausted the futile dispatch cap after 3 attempts".to_string(),
@@ -298,6 +302,7 @@ fn contract_val_daemon_08_compilation_success_ignores_terminal_error() {
         unimplemented_after_reset: 0,
         compilation_success: { workspace_validation.check_ok },
         test_pass_rate: { workspace_validation.test_pass_rate },
+        differential_equivalent: { workspace_validation.differential_equivalent },
         unimplemented_remaining: 0,
         solver_dispatches: 0,
         worker_executions: 0,
@@ -314,6 +319,80 @@ fn contract_val_daemon_08_compilation_success_ignores_terminal_error() {
         "a passing workspace check with no stubs stays a compilation success even with an engine error"
     );
     ::std::assert!(bench_result.error.is_some(), "the engine error stays visible");
+    ::std::assert_eq!(bench_result.differential_equivalent, ::core::option::Option::Some(true));
+}
+
+/// Contract: differential verification failure lands in the `error` field
+/// without poisoning `compilation_success` if the target compiled with no stubs.
+#[test]
+fn contract_val_daemon_09_differential_verification_divergence_lands_in_error() {
+    let classification = ::daemon::differential::DivergenceClassification::ExitCodeMismatch {
+        source: ::core::option::Option::Some(0),
+        target: ::core::option::Option::Some(1),
+    };
+    let workspace_validation = ::daemon::bench_validation::WorkspaceValidation {
+        check_ok: true,
+        test_pass_rate: 1.0,
+        differential_equivalent: ::core::option::Option::Some(false),
+        differential_classification: ::core::option::Option::Some(classification),
+    };
+    let diff_error = if workspace_validation.differential_equivalent == ::core::option::Option::Some(false) {
+        ::core::option::Option::Some(::std::format!(
+            "differential verification divergence: {:?}",
+            workspace_validation.differential_classification
+        ))
+    } else {
+        ::core::option::Option::None
+    };
+    let engine_error: ::core::option::Option<::std::string::String> = ::core::option::Option::None;
+    let honesty_error: ::core::option::Option<::std::string::String> = ::core::option::Option::None;
+    let final_error = if engine_error.is_none() {
+        if honesty_error.is_some() {
+            honesty_error
+        } else {
+            diff_error
+        }
+    } else {
+        engine_error
+    };
+    let bench_result = ::daemon::bench_runner::BenchResult {
+        campaign_id: "contract-differential-divergence".to_string(),
+        wall_time_ms: 0,
+        engine_wall_time_ms: 0,
+        llm_requests: 1,
+        unimplemented_before: 0,
+        unimplemented_after_reset: 0,
+        compilation_success: { workspace_validation.check_ok },
+        test_pass_rate: { workspace_validation.test_pass_rate },
+        differential_equivalent: { workspace_validation.differential_equivalent },
+        unimplemented_remaining: 0,
+        solver_dispatches: 1,
+        worker_executions: 0,
+        structural_retries: 0,
+        macro_states_visited: 0,
+        total_lines: 0,
+        code_lines: 0,
+        cocomo_effort_pm: 0.0,
+        cocomo_duration_months: 0.0,
+        error: { final_error },
+    };
+    ::std::assert!(
+        bench_result.compilation_success,
+        "compilation success reflects workspace check ok and no stubs"
+    );
+    ::std::assert_eq!(
+        bench_result.differential_equivalent,
+        ::core::option::Option::Some(false)
+    );
+    let error_text = bench_result.error.expect("differential error must be recorded");
+    ::std::assert!(
+        error_text.contains("differential verification divergence"),
+        "error must mention differential verification divergence"
+    );
+    ::std::assert!(
+        error_text.contains("ExitCodeMismatch"),
+        "error must include classification details"
+    );
 }
 
 /// Build a config whose build and test commands exit with the given status.

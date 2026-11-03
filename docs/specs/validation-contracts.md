@@ -96,6 +96,8 @@ ID scheme: `VAL-<COMPONENT>-<NN>`. Components: `MACRO` (global engine/statechart
 - **VAL-M2-09 (Extrinsic escalation).** When the evaluator classifies κ=EXTRINSIC_CONTRACT on parent v_p: controller transitions M(v_i) to M3_ContractNegotiate, pushes ev_ContractConflict(v_p, v_i, Δ_spec, trace), and returns (halts local loop). When κ=EXTRINSIC_CYCLE: pushes ev_CyclicDependencyFound(E_cycle, trace) and returns.
 - **VAL-M2-10 (Tier A containment).** For INTRINSIC faults: no global events pushed; recovery happens locally via reward backpropagation (lower mean reward shifts subsequent selection) and/or patch invocation. The macro-orchestrator is not involved.
 - **VAL-M2-11 (Rollout budget honesty).** The controller performs at most B_max rollouts; callers can configure B_max and observe that rollout count never exceeds it.
+- **VAL-M2-12 (Coverage plateau detection).** The controller tracks coverage progression across rollouts using `PlateauDetector`; when the last $K=5$ consecutive evaluation pairs exhibit passed test gains $< 2$ and uncovered count reductions $< 1$, plateau stagnation triggers early exit only if a candidate exists and `best_reward_score >= 0.95` (preventing premature search exit on suboptimal reward).
+- **VAL-M2-13 (Test weakening detection).** `detect_test_weakening` verifies across test suites that assertion counts (`assert!`, `debug_assert!`, `expect`, `require`) do not regress and no test cases were deleted during repair.
 
 ### 4.7 BB — Local 4-Slice Blackboard
 
